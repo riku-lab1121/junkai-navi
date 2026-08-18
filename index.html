@@ -693,8 +693,12 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const DBKEY='vendingRoutePwaV1';
-const today=()=>new Date().toISOString().slice(0,10);
-const isoDaysAgo=(d)=>{const x=new Date();x.setDate(x.getDate()-d);return x.toISOString().slice(0,10)}
+const localYmd=(d=new Date())=>{
+  const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+};
+const today=()=>localYmd(new Date());
+const isoDaysAgo=(days)=>{const x=new Date();x.setDate(x.getDate()-days);return localYmd(x)}
 const dayDiff=(a,b)=>{
   if(!a||!b) return -9999;
   const da=new Date(a+'T12:00:00'),dbb=new Date(b+'T12:00:00');
@@ -1188,7 +1192,7 @@ function renderMachines(){
     tr.innerHTML=`
       <td><b>${escapeHtml(m.area||'未設定')}</b></td>
       <td>#${escapeHtml(m.number||'-')}</td>
-      <td class="name-cell" title="${escapeHtml(m.name)}">${escapeHtml(m.name)}</td>
+      <td class="name-cell" title="${escapeHtml(m.name)}">${m.site?`<div class="sub">${escapeHtml(m.site)}</div>`:''}${escapeHtml(m.name)}</td>
       <td><span class="status-dot ${st.dot}"></span>${escapeHtml(st.label)}</td>
       <td>${escapeHtml(m.lastRegular||'-')}</td>
       <td>${escapeHtml(m.lastSupply||'-')}</td>
@@ -1341,7 +1345,7 @@ function renderMapSearch(query){
   const q=query.trim().toLowerCase();
   if(!q){closeMapSearch();return}
   const hits=db.machines.filter(m=>{
-    return [m.name,m.number,m.area,m.address,m.inventoryMemo,m.memo]
+    return [m.name,m.site,m.number,m.area,m.address,m.inventoryMemo,m.memo]
       .filter(Boolean).some(v=>String(v).toLowerCase().includes(q));
   }).slice(0,8);
 
@@ -1495,36 +1499,49 @@ function initMap(){
 }
 
 function machineSiteKey(m){
-  // Explicit site name is primary. Coordinates keep unrelated same-name facilities separate.
-  const site=(m.site||m.name||'').trim();
-  const lat=m.lat==null?'':Number(m.lat).toFixed(5);
-  const lng=m.lng==null?'':Number(m.lng).toFixed(5);
-  return `${site}|${lat}|${lng}`;
+  const site=(m.site||'').trim();
+  if(site) return `site:${m.area||'未設定'}:${site}`;
+  return `machine:${m.id}`;
 }
 function mapMachineGroups(){
   const groups=new Map();
   db.machines.filter(mapMachineVisible).forEach(m=>{
     const key=machineSiteKey(m);
-    if(!groups.has(key)) groups.set(key,{key,site:(m.site||m.name||'未設定'),lat:m.lat,lng:m.lng,machines:[]});
-    groups.get(key).machines.push(m);
+    if(!groups.has(key)) groups.set(key,{key,site:(m.site||m.name||'未設定'),lat:null,lng:null,machines:[]});
+    const g=groups.get(key);
+    g.machines.push(m);
+  });
+  groups.forEach(g=>{
+    const pts=g.machines.filter(m=>Number.isFinite(Number(m.lat))&&Number.isFinite(Number(m.lng)));
+    if(pts.length){
+      g.lat=pts.reduce((s,m)=>s+Number(m.lat),0)/pts.length;
+      g.lng=pts.reduce((s,m)=>s+Number(m.lng),0)/pts.length;
+    }
   });
   return [...groups.values()];
 }
 function showMapSiteCard(key){
   const g=mapMachineGroups().find(x=>x.key===key);
   if(!g)return;
-  const today=g.machines.filter(m=>!!routeStopForMachine(m.id));
-  const rows=g.machines.map(m=>{
-    const s=machineStatusInfo(m);
+  if(g.machines.length===1){showMapMachineCard(g.machines[0].id);return}
+  selectedMapMachineId=null;
+  const todayCount=g.machines.filter(m=>!!routeStopForMachine(m.id)).length;
+  mapInfoTitle.textContent=g.site;
+  mapInfoMeta.textContent=`${g.machines[0].area||'未設定'} ・ ${g.machines.length}台`;
+  mapInfoStatus.textContent=todayCount?`今日 ${todayCount}台`:'設置場所';
+  mapInfoStatus.className='pill '+(todayCount?'orange':'green');
+  mapInfoWork.innerHTML=g.machines.map(m=>{
+    const stop=routeStopForMachine(m.id);
     return `<button class="site-machine-row" onclick="showMapMachineCard('${m.id}')">
-      <div><b>${escapeHtml(m.name||'名称未設定')}</b><div class="sub">${escapeHtml(m.no||'#-')} ・ ${escapeHtml(m.area||'未設定')}</div></div>
-      <span class="status ${s.cls}">${escapeHtml(s.label)}</span>
+      <span><b>${escapeHtml(m.name||'名称未設定')}</b><span class="sub"> #${escapeHtml(m.number||'-')}</span></span>
+      <span>${stop?'巡回対象':'詳細 ›'}</span>
     </button>`;
   }).join('');
-  mapMachineCard.classList.remove('hidden');
-  mapMachineCard.innerHTML=`<div class="map-card-head"><div><div class="sub">設置場所 ・ ${g.machines.length}台</div><h3>${escapeHtml(g.site)}</h3></div><button class="smallbtn" onclick="hideMapMachineCard()">×</button></div>
-    ${today.length?`<div class="notice">${today.length}台が今日の巡回対象</div>`:''}
-    <div class="site-machine-list">${rows}</div>`;
+  mapInfoMemo.textContent='同じ設置場所の自販機をまとめて表示しています。';
+  mapInfoAddBtn.classList.add('hidden');
+  mapInfoAdded.classList.add('hidden');
+  mapInfoCard.classList.remove('hidden');
+  document.querySelector('.map-shell')?.classList.add('card-open');
 }
 function renderMapMarkers(){
   if(!map)return;
@@ -1568,6 +1585,58 @@ function renderMapMarkers(){
     markers.push(marker);
   });
 }
+
+function updateUserLocation(lat,lng,accuracy,center=false){
+  if(!map)return;
+  lastUserPosition={lat,lng,accuracy,at:Date.now()};
+  const icon=L.divIcon({
+    className:'',
+    html:'<div class="gps-ring"><div class="location-dot"></div></div>',
+    iconSize:[32,32],iconAnchor:[16,16]
+  });
+  if(!userLocationMarker){
+    userLocationMarker=L.marker([lat,lng],{icon,zIndexOffset:5000,interactive:false}).addTo(map);
+  }else{
+    userLocationMarker.setLatLng([lat,lng]);
+  }
+  if(center) map.setView([lat,lng],Math.max(map.getZoom(),16),{animate:true});
+}
+function geoErrorMessage(err){
+  if(err?.code===1) return '位置情報が許可されていません。iPhoneの設定でSafari/このアプリの位置情報を許可してください。';
+  if(err?.code===2) return '現在地を取得できませんでした。GPS・通信状態を確認してください。';
+  if(err?.code===3) return '現在地の取得がタイムアウトしました。もう一度押してください。';
+  return '現在地を取得できませんでした。';
+}
+function startLocationTracking(center=false){
+  if(!navigator.geolocation){showToast('この端末では位置情報を利用できません');return}
+  if(geoWatchId!==null){
+    if(center && lastUserPosition) updateUserLocation(lastUserPosition.lat,lastUserPosition.lng,lastUserPosition.accuracy,true);
+    return;
+  }
+  geoWatchId=navigator.geolocation.watchPosition(pos=>{
+    const {latitude,longitude,accuracy}=pos.coords;
+    updateUserLocation(latitude,longitude,accuracy,center);
+    center=false;
+  },err=>{
+    console.warn('geolocation',err);
+    showToast(geoErrorMessage(err));
+    if(geoWatchId!==null){navigator.geolocation.clearWatch(geoWatchId);geoWatchId=null}
+  },{enableHighAccuracy:true,maximumAge:15000,timeout:15000});
+}
+function locateUser(){
+  if(!navigator.geolocation){showToast('この端末では位置情報を利用できません');return}
+  locateBtn.disabled=true;
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const {latitude,longitude,accuracy}=pos.coords;
+    updateUserLocation(latitude,longitude,accuracy,true);
+    locateBtn.disabled=false;
+    startLocationTracking(false);
+  },err=>{
+    console.warn('geolocation',err);
+    locateBtn.disabled=false;
+    alert(geoErrorMessage(err));
+  },{enableHighAccuracy:true,maximumAge:5000,timeout:15000});
+}
 function fitMapVisible(){
   const points=[];
   db.machines.forEach(m=>{
@@ -1584,6 +1653,7 @@ function openMachineModal(lat='',lng=''){
   document.querySelector('#machineModal h2').textContent='自販機を登録';
   document.querySelector('#machineForm .primary').textContent='登録する';
   mName.value='';
+  mSite.value='';
   mNumber.value='';
   mArea.value='未設定';
   mLat.value=lat||'';
@@ -1612,9 +1682,9 @@ function downloadText(filename,text,type='text/plain;charset=utf-8'){
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 function exportMachinesCsv(){
-  const headers=['管理No','自販機名','エリア','緯度','経度','定期周期','補充周期','中間補充','最終定期','最終補充','最終集金','早め補充','在庫メモ','作業時間','メモ'];
+  const headers=['管理No','自販機名','設置場所','エリア','緯度','経度','定期周期','補充周期','中間補充','最終定期','最終補充','最終集金','早め補充','在庫メモ','作業時間','メモ'];
   const rows=db.machines.map(m=>[
-    m.number,m.name,m.area,m.lat,m.lng,regularInterval(m),supplyInterval(m),m.weekly?'1':'0',
+    m.number,m.name,m.site||'',m.area,m.lat,m.lng,regularInterval(m),supplyInterval(m),m.weekly?'1':'0',
     m.lastRegular,m.lastSupply,m.lastCollection,m.prioritySupply?'1':'0',m.inventoryMemo,m.workMinutes,m.memo
   ]);
   const csv='\ufeff'+[headers,...rows].map(r=>r.map(csvEscape).join(',')).join('\n');
@@ -1649,8 +1719,10 @@ function importMachinesCsv(file){
         id:uid(),
         number:r[idx('管理No')]||'',
         name:r[idx('自販機名')]||'名称未設定',
+        site:r[idx('設置場所')]||'',
         area:r[idx('エリア')]||'未設定',
-        lat:Number(r[idx('緯度')]),lng:Number(r[idx('経度')]),
+        lat:(()=>{const v=r[idx('緯度')];return v===''||v==null?null:Number(v)})(),
+        lng:(()=>{const v=r[idx('経度')];return v===''||v==null?null:Number(v)})(),
         regularIntervalDays:Number(r[idx('定期周期')])||14,
         supplyIntervalDays:Number(r[idx('補充周期')])||7,
         weekly:(r[idx('中間補充')]||'0')==='1',
@@ -1913,6 +1985,7 @@ machineForm.addEventListener('submit',e=>{
 
   const data={
     name,
+    site:mSite.value.trim(),
     number:mNumber.value.trim(),
     area:mArea.value||'未設定',
     lat,
