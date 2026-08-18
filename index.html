@@ -497,25 +497,27 @@
       <button class="secondary" data-close="machineModal">閉じる</button>
     </div>
     <form id="machineForm">
+      <div class="notice">自販機名だけでも登録できます。ほかの情報は後から編集できます。</div>
       <label>自販機名</label><input required id="mName" placeholder="例：○○工場" />
       <label>管理番号</label><input id="mNumber" placeholder="例：042" />
       <label>エリア</label>
-      <select id="mArea" required>
+      <select id="mArea">
+        <option value="未設定" selected>未設定</option>
         <option value="東">東エリア</option>
-        <option value="中央" selected>中央エリア</option>
+        <option value="中央">中央エリア</option>
         <option value="西">西エリア</option>
         <option value="その他">その他</option>
       </select>
 
       <div class="grid2">
-        <div><label>緯度</label><input required id="mLat" type="number" step="any" /></div>
-        <div><label>経度</label><input required id="mLng" type="number" step="any" /></div>
+        <div><label>緯度</label><input id="mLat" type="number" step="any" /></div>
+        <div><label>経度</label><input id="mLng" type="number" step="any" /></div>
       </div>
       <div class="grid2">
         <div><label>定期巡回周期（日）</label><input id="mRegularInterval" type="number" min="1" value="14" /></div>
         <div><label>補充周期（日）</label><input id="mSupplyInterval" type="number" min="1" value="7" /></div>
       </div>
-      <label>最終 定期巡回日</label><input required id="mLastRegular" type="date" />
+      <label>最終 定期巡回日</label><input id="mLastRegular" type="date" />
       <div class="checkrow"><input id="mWeekly" type="checkbox"><span>中間補充を自動候補にする</span></div>
       <label>最終 補充日</label><input id="mLastSupply" type="date" />
       <label>最終 集金日</label><input id="mLastCollection" type="date" />
@@ -684,7 +686,12 @@
 const DBKEY='vendingRoutePwaV1';
 const today=()=>new Date().toISOString().slice(0,10);
 const isoDaysAgo=(d)=>{const x=new Date();x.setDate(x.getDate()-d);return x.toISOString().slice(0,10)}
-const dayDiff=(a,b)=>Math.floor((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000);
+const dayDiff=(a,b)=>{
+  if(!a||!b) return -9999;
+  const da=new Date(a+'T12:00:00'),dbb=new Date(b+'T12:00:00');
+  if(Number.isNaN(da.getTime())||Number.isNaN(dbb.getTime())) return -9999;
+  return Math.floor((dbb-da)/86400000);
+};
 const fmtTime=(sec)=>{sec=Math.max(0,Math.floor(sec));const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;return h?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`};
 const uid=()=>Math.random().toString(36).slice(2,10);
 
@@ -772,14 +779,18 @@ function urgency(m){
   const rd=dayDiff(m.lastRegular,today()), sd=dayDiff(m.lastSupply||m.lastRegular,today()), cd=dayDiff(m.lastCollection||m.lastRegular,today());
   const ri=regularInterval(m), si=supplyInterval(m);
   let score=0;
-  if(rd>=ri) score += 120 + (rd-ri)*25;
-  else if(rd===ri-1) score+=70; else if(rd===ri-2) score+=45; else if(rd===ri-3) score+=25;
-  if(m.weekly){
+  if(rd>=0){
+    if(rd>=ri) score += 120 + (rd-ri)*25;
+    else if(rd===ri-1) score+=70; else if(rd===ri-2) score+=45; else if(rd===ri-3) score+=25;
+  }
+  if(m.weekly && sd>=0){
     if(sd>=si) score+=65+(sd-si)*15;
     else if(sd===si-1) score+=30;
   }
-  if(cd>=14) score+=110+(cd-14)*20;
-  else if(cd>=12) score+=45;
+  if(cd>=0){
+    if(cd>=14) score+=110+(cd-14)*20;
+    else if(cd>=12) score+=45;
+  }
   if(m.prioritySupply) score+=100;
   return score;
 }
@@ -790,7 +801,7 @@ function workFor(m){
     if(supplyDue(m)||m.prioritySupply) w.push('原料');
     if(collectionDue(m)) w.push('集金');
   }
-  return w.length?w:['原料'];
+  return w;
 }
 function hav(a,b){
   const R=6371,toRad=x=>x*Math.PI/180;
@@ -826,7 +837,7 @@ function generateRoute(area='all'){
     date:today(),createdAt:Date.now(),areaFilter:area,
     stops:chosen.map((m,i)=>({
       id:uid(),machineId:m.id,order:i+1,status:'pending',
-      workTypes:workFor(m),plannedMinutes:Number(m.workMinutes||25)
+      workTypes:(workFor(m).length?workFor(m):['原料']),plannedMinutes:Number(m.workMinutes||25)
     }))
   };
   save();hideModal('routeOptionsModal');renderAll();
@@ -1055,13 +1066,17 @@ function navigateToMachine(machineId){
   window.location.href=`https://maps.apple.com/?daddr=${encodeURIComponent(lat+','+lng)}&dirflg=d`;
 }
 function machineStatusInfo(m){
+  if(!m.lastRegular && !m.lastCollection){
+    return {label:'情報未設定',dot:'gray',rank:9};
+  }
   const rd=dayDiff(m.lastRegular,today()), ri=regularInterval(m);
   const cd=dayDiff(m.lastCollection||m.lastRegular,today());
   if(rd>=ri||cd>=14) return {label:rd>=ri?`定期 ${rd}日経過`:`集金 ${cd}日経過`,dot:'red',rank:0};
   if(m.prioritySupply) return {label:'早め補充',dot:'orange',rank:1};
   if(m.weekly && supplyDue(m)) return {label:'補充時期',dot:'orange',rank:1};
   if(rd>=ri-2||cd>=12) return {label:'期限間近',dot:'orange',rank:2};
-  return {label:`定期まで${Math.max(0,ri-rd)}日`,dot:'green',rank:3};
+  if(rd>=0) return {label:`定期まで${Math.max(0,ri-rd)}日`,dot:'green',rank:3};
+  return {label:'情報未設定',dot:'gray',rank:9};
 }
 function renderMachines(){
   machineCount.textContent=db.machines.length;
@@ -1125,7 +1140,7 @@ function editMachine(id){
   document.querySelector('#machineForm .primary').textContent='保存する';
   mName.value=m.name||'';
   mNumber.value=m.number||'';
-  mArea.value=m.area&&m.area!=='未設定'?m.area:'中央';
+  mArea.value=m.area||'未設定';
   mLat.value=m.lat??'';
   mLng.value=m.lng??'';
   mRegularInterval.value=m.regularIntervalDays||14;
@@ -1206,7 +1221,7 @@ function addMachineToToday(machineId){
   const m=machine(machineId);if(!m)return;
   const r=ensureRoute();
   if(r.stops.some(s=>s.machineId===machineId)){alert('すでに今日の巡回に入っています。');return}
-  r.stops.push({id:uid(),machineId,order:r.stops.length+1,status:'pending',workTypes:workFor(m),plannedMinutes:Number(m.workMinutes||25)});
+  r.stops.push({id:uid(),machineId,order:r.stops.length+1,status:'pending',workTypes:(workFor(m).length?workFor(m):['原料']),plannedMinutes:Number(m.workMinutes||25)});
   save();renderAll();showMapMachineCard(machineId);
 }
 function showMapMachineCard(machineId){
@@ -1491,15 +1506,15 @@ function openMachineModal(lat='',lng=''){
   document.querySelector('#machineForm .primary').textContent='登録する';
   mName.value='';
   mNumber.value='';
-  mArea.value='中央';
+  mArea.value='未設定';
   mLat.value=lat||'';
   mLng.value=lng||'';
   mRegularInterval.value=14;
   mSupplyInterval.value=7;
-  mLastRegular.value=today();
+  mLastRegular.value='';
   mWeekly.checked=false;
-  mLastSupply.value=today();
-  mLastCollection.value=today();
+  mLastSupply.value='';
+  mLastCollection.value='';
   mPrioritySupply.checked=false;
   mInventoryMemo.value='';
   mWorkMinutes.value=25;
@@ -1782,15 +1797,15 @@ machineForm.addEventListener('submit',e=>{
   const data={
     name:mName.value.trim(),
     number:mNumber.value.trim(),
-    area:mArea.value||'その他',
-    lat:+mLat.value,
-    lng:+mLng.value,
+    area:mArea.value||'未設定',
+    lat:mLat.value!==''?+mLat.value:null,
+    lng:mLng.value!==''?+mLng.value:null,
     regularIntervalDays:+mRegularInterval.value||14,
     supplyIntervalDays:+mSupplyInterval.value||7,
-    lastRegular:mLastRegular.value,
+    lastRegular:mLastRegular.value||'',
     weekly:mWeekly.checked,
-    lastSupply:mLastSupply.value||mLastRegular.value,
-    lastCollection:mLastCollection.value||mLastRegular.value,
+    lastSupply:mLastSupply.value||'',
+    lastCollection:mLastCollection.value||'',
     prioritySupply:mPrioritySupply.checked,
     inventoryMemo:mInventoryMemo.value.trim(),
     workMinutes:+mWorkMinutes.value||25,
