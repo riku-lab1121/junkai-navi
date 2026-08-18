@@ -346,6 +346,141 @@ nav button{
   max-height:calc(100dvh - 285px)!important;
   touch-action:pan-x pan-y pinch-zoom;
 }
+
+/* Ver.6.0 MAP UI */
+.map-v6-page{
+  height:calc(100dvh - 84px);
+  padding:0!important;
+  overflow:hidden;
+  background:#f4f4f6;
+}
+.map-v6-toolbar{
+  position:relative;
+  z-index:50;
+  padding:10px 12px 8px;
+  background:#f4f4f6;
+}
+.map-v6-searchrow{
+  display:grid;
+  grid-template-columns:1fr auto auto;
+  gap:8px;
+}
+.map-v6-searchbox{
+  height:48px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  background:#fff;
+  border-radius:15px;
+  padding:0 14px;
+  box-shadow:0 2px 10px rgba(0,0,0,.06);
+}
+.map-v6-searchbox input{
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+  min-width:0;
+  font-size:15px;
+}
+.map-v6-searchbtn,.map-v6-menubtn{
+  height:48px;
+  border-radius:15px;
+  padding:0 15px;
+  background:#111827;
+  color:#fff;
+  font-weight:900;
+}
+.map-v6-menubtn{min-width:48px;padding:0}
+.map-v6-menu{
+  position:absolute;
+  top:66px;
+  left:12px;
+  right:12px;
+  z-index:90;
+  background:rgba(255,255,255,.98);
+  backdrop-filter:blur(18px);
+  border-radius:18px;
+  padding:12px;
+  box-shadow:0 12px 30px rgba(0,0,0,.18);
+}
+.map-v6-menu-title{font-size:11px;color:#64748b;font-weight:850;margin:2px 0 7px}
+.map-v6-segment{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.map-v6-segment button,.map-v6-area button{
+  padding:9px 10px;
+  border-radius:10px;
+  background:#eef0f3;
+  font-size:12px;
+  font-weight:850;
+}
+.map-v6-segment button.active,.map-v6-area button.active{background:#111827;color:#fff}
+.map-v6-area{display:flex;gap:6px;flex-wrap:wrap}
+.map-v6-stage{
+  position:relative;
+  height:calc(100dvh - 84px - 66px);
+  overflow:hidden;
+  border-radius:0;
+}
+.map-v6-stage #map{
+  position:absolute!important;
+  inset:0!important;
+  width:100%!important;
+  height:100%!important;
+  max-height:none!important;
+  border-radius:0!important;
+  z-index:1!important;
+}
+.map-v6-locate{
+  position:absolute;
+  right:14px;
+  bottom:18px;
+  z-index:30;
+  width:52px;
+  height:52px;
+  border-radius:50%;
+  background:#111827;
+  color:#fff;
+  font-size:24px;
+  box-shadow:0 6px 20px rgba(0,0,0,.24);
+}
+.map-v6-sheet{
+  position:fixed;
+  left:10px;
+  right:10px;
+  bottom:78px;
+  z-index:9000;
+  max-height:46dvh;
+  overflow:auto;
+  background:#fff;
+  border-radius:22px;
+  padding:12px 16px 16px;
+  box-shadow:0 -8px 30px rgba(0,0,0,.18);
+}
+.map-v6-sheet-handle{
+  width:42px;height:5px;border-radius:99px;background:#d1d5db;margin:0 auto 10px;
+}
+.map-v6-page .map-search-results{
+  position:absolute;
+  top:66px;
+  left:12px;
+  right:68px;
+  z-index:100;
+  max-height:48dvh;
+  overflow:auto;
+  background:#fff;
+  border-radius:16px;
+  box-shadow:0 12px 30px rgba(0,0,0,.18);
+}
+.map-v6-page .map-register-mode-banner{
+  left:12px!important;
+  right:12px!important;
+  bottom:14px!important;
+  z-index:80!important;
+}
+.map-v6-page + *{pointer-events:auto}
+nav{
+  z-index:20000!important;
+}
 </style>
 </head>
 <body>
@@ -501,39 +636,33 @@ nav button{
       </div>
     </section>
 
-    <section id="mapPage" class="hidden">
-      <div class="map-shell">
-        <div class="map-search">
-          <div class="map-search-box">
+    <section id="mapPage" class="hidden map-v6-page">
+      <div class="map-v6-toolbar">
+        <div class="map-v6-searchrow">
+          <div class="map-v6-searchbox">
             <span>⌕</span>
-            <input id="mapSearchInput" placeholder="自販機名・場所を検索" autocomplete="off" />
+            <input id="mapSearchInput" placeholder="自販機・店舗・施設を検索" autocomplete="off" />
           </div>
-          <button class="map-search-go" id="mapSearchBtn">検索</button>
+          <button id="mapSearchBtn" class="map-v6-searchbtn">検索</button>
+          <button id="mapMenuBtn" class="map-v6-menubtn">•••</button>
         </div>
-        <div class="map-search-results hidden" id="mapSearchResults"></div>
-        <div class="map-overlay-top">
-          <div class="map-tools">
-            <button class="map-tool-btn active" id="mapTodayBtn">今日強調</button>
-            <button class="map-tool-btn" id="mapAllBtn">通常</button>
-            <button class="map-tool-btn" id="mapOptionsBtn">絞り込み</button>
+        <div id="mapSearchResults" class="map-search-results hidden"></div>
+        <div id="mapOptionsPanel" class="map-v6-menu hidden">
+          <div class="map-v6-menu-title">MAP表示</div>
+          <div class="map-v6-segment">
+            <button id="mapTodayBtn" class="active">今日強調</button>
+            <button id="mapAllBtn">通常</button>
           </div>
+          <div class="map-v6-menu-title">エリア</div>
+          <div id="mapAreaFilters" class="map-v6-area"></div>
+          <button id="mapRegisterMenuBtn" class="secondary" style="width:100%;margin-top:8px">＋ 地図から登録</button>
         </div>
+      </div>
 
-        <div class="map-options hidden" id="mapOptionsPanel">
-          <h4>エリア</h4>
-          <div class="map-options-grid" id="mapAreaSegment">
-            <button data-maparea="all" class="active">全エリア</button>
-            <button data-maparea="東">東</button>
-            <button data-maparea="中央">中央</button>
-            <button data-maparea="西">西</button>
-            <button data-maparea="その他">その他</button>
-          </div>
-          <div class="map-mini-action">
-            <button class="secondary" id="mapRegisterMenuBtn">＋ 地図から登録</button>
-          </div>
-        </div>
-
+      <div class="map-v6-stage">
         <div id="map"></div>
+        <button id="locateBtn" class="map-v6-locate" title="現在地">⌖</button>
+
         <div class="map-register-mode-banner hidden" id="mapRegisterBanner">
           <span id="mapRegisterBannerText">登録したい場所を地図上で1回タップ</span>
           <div style="display:flex;gap:8px">
@@ -541,29 +670,25 @@ nav button{
             <button id="cancelMapRegisterBtn">キャンセル</button>
           </div>
         </div>
+      </div>
 
-
-        <div class="map-floating">
-          <button class="map-float-btn secondary-float" id="locateBtn" title="現在地">⌖</button>
-        </div>
-
-        <div class="map-card hidden" id="mapInfoCard">
-          <div class="row">
-            <div style="min-width:0;flex:1">
-              <div class="sub" id="mapInfoMeta"></div>
-              <div class="map-card-title" id="mapInfoTitle"></div>
-            </div>
-            <button class="map-card-close" id="mapInfoCloseBtn" aria-label="閉じる">×</button>
+      <div id="mapInfoCard" class="map-v6-sheet hidden">
+        <div class="map-v6-sheet-handle"></div>
+        <div class="row">
+          <div>
+            <div id="mapInfoMeta" class="sub"></div>
+            <h3 id="mapInfoTitle" style="margin:2px 0 0"></h3>
           </div>
-          <div style="margin-top:8px"><span class="pill" id="mapInfoStatus"></span></div>
-          <div class="worktags" id="mapInfoWork"></div>
-          <div class="map-mode-note" id="mapInfoMemo"></div>
-          <div class="map-card-actions">
-            <button class="secondary navbtn" id="mapInfoNavBtn">ナビ</button>
-            <button class="secondary" id="mapInfoAddBtn">巡回に追加</button>
-          </div>
-          <div class="map-card-added hidden" id="mapInfoAdded">✓ 今日の巡回に追加済み</div>
+          <button class="secondary" id="mapInfoCloseBtn">×</button>
         </div>
+        <div id="mapInfoStatus" class="pill green" style="margin-top:10px;display:inline-block"></div>
+        <div id="mapInfoWork" style="margin-top:10px"></div>
+        <div id="mapInfoMemo" class="sub" style="margin-top:10px"></div>
+        <div class="grid2" style="margin-top:12px">
+          <button class="secondary navbtn" id="mapInfoNavBtn">ナビ</button>
+          <button class="primary" id="mapInfoAddBtn">巡回に追加</button>
+        </div>
+        <button class="secondary hidden" id="mapInfoAdded" style="width:100%;margin-top:8px" disabled>巡回に追加済み</button>
       </div>
     </section>
 
@@ -1918,14 +2043,14 @@ function showMapMachineCard(machineId){
   mapInfoAddBtn.classList.toggle('hidden',!!stop);
   mapInfoAdded.classList.toggle('hidden',!stop);
   mapInfoCard.classList.remove('hidden');
-  document.querySelector('.map-shell')?.classList.add('card-open');
+  
 }
 function hideMapMachineCard(){
   selectedMapMachineId=null;
   selectedExternalPlace=null;
   clearPlaceSearchMarker();
   mapInfoCard.classList.add('hidden');
-  document.querySelector('.map-shell')?.classList.remove('card-open');
+  
 }
 
 
@@ -2021,7 +2146,7 @@ function focusApplePlace(index){
   mapInfoWork.innerHTML='';mapInfoMemo.textContent=selectedExternalPlace.address;
   mapInfoAddBtn.textContent='ここに自販機登録';mapInfoAddBtn.disabled=false;mapInfoAddBtn.classList.remove('hidden');
   mapInfoAdded.classList.add('hidden');mapInfoCard.classList.remove('hidden');
-  document.querySelector('.map-shell')?.classList.add('card-open');
+  
 }
 function registerAtExternalPlace(){
   if(!selectedExternalPlace)return;
@@ -2287,7 +2412,7 @@ function switchPage(p){
     hideMapMachineCard();
     closeMapSearch();
     if(mapOptionsPanel) mapOptionsPanel.classList.add('hidden');
-    if(mapOptionsBtn) mapOptionsBtn.classList.remove('active');
+    if(mapMenuBtn) mapMenuBtn.classList.remove('active');
     if(mapRegisterBanner) mapRegisterBanner.classList.add('hidden');
   }
 
@@ -2307,8 +2432,10 @@ function switchPage(p){
     if(db.settings?.gpsAuto!==false) startLocationTracking(false);
     setTimeout(()=>{
       if(page!=='map') return;
-      map.invalidateSize();
-      renderMapMarkers();
+      requestAnimationFrame(()=>{
+        map.invalidateSize(true);
+        renderMapMarkers();
+      });
       if(mapMode==='today'&&(todaysRoute()?.stops||[]).length)fitMapVisible();
     },100);
   }
@@ -2342,7 +2469,7 @@ function setMapRegisterMode(on){
   mapRegisterMode=!!on;
   if(mapRegisterBanner) mapRegisterBanner.classList.toggle('hidden',!mapRegisterMode);
   if(mapOptionsPanel) mapOptionsPanel.classList.add('hidden');
-  if(mapOptionsBtn) mapOptionsBtn.classList.remove('active');
+  if(mapMenuBtn) mapMenuBtn.classList.remove('active');
   closeMapSearch();
   hideMapMachineCard();
   if(!mapRegisterMode) clearTempRegisterMarker();
@@ -2401,7 +2528,7 @@ function initMap(){
     hideMapMachineCard();
     closeMapSearch();
     if(mapOptionsPanel) mapOptionsPanel.classList.add('hidden');
-    if(mapOptionsBtn) mapOptionsBtn.classList.remove('active');
+    if(mapMenuBtn) mapMenuBtn.classList.remove('active');
   });
 
   map.on('contextmenu',e=>{
@@ -2504,7 +2631,7 @@ function showMapSiteCard(key){
   mapInfoAddBtn.classList.add('hidden');
   mapInfoAdded.classList.add('hidden');
   mapInfoCard.classList.remove('hidden');
-  document.querySelector('.map-shell')?.classList.add('card-open');
+  
 }
 function renderMapMarkers(){
   if(!map)return;
@@ -3292,16 +3419,17 @@ locateBtn.addEventListener('click',locateUser);
 
 mapTodayBtn.addEventListener('click',()=>setMapMode('today'));
 mapAllBtn.addEventListener('click',()=>setMapMode('all'));
-mapOptionsBtn.addEventListener('click',()=>{
+mapMenuBtn.addEventListener('click',()=>{
   mapOptionsPanel.classList.toggle('hidden');
-  mapOptionsBtn.classList.toggle('active',!mapOptionsPanel.classList.contains('hidden'));
+  mapMenuBtn.classList.toggle('active',!mapOptionsPanel.classList.contains('hidden'));
+  closeMapSearch();
 });
 mapRegisterMenuBtn.addEventListener('click',()=>openRegisterPage('map'));
 cancelMapRegisterBtn.addEventListener('click',()=>{setMapRegisterMode(false);clearTempRegisterMarker();});
 document.querySelectorAll('#mapAreaSegment button').forEach(b=>b.addEventListener('click',()=>{
   setMapArea(b.dataset.maparea);
   mapOptionsPanel.classList.add('hidden');
-  mapOptionsBtn.classList.remove('active');
+  mapMenuBtn.classList.remove('active');
 }));
 mapInfoCloseBtn.addEventListener('click',hideMapMachineCard);
 mapInfoNavBtn.addEventListener('click',()=>{if(selectedExternalPlace)navigateExternalPlace();else if(selectedMapMachineId)navigateToMachine(selectedMapMachineId)});
@@ -3326,6 +3454,13 @@ if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').cat
 setInterval(()=>{if(db.active || (hasDeparted()&&!hasReturned())){renderShift();renderActive();renderHome()}},1000);
 fillAreaControls();
 applyAppSettings();
+
+window.addEventListener('resize',()=>{
+  if(page==='map'&&map){
+    setTimeout(()=>map.invalidateSize(true),80);
+  }
+});
+
 renderAll();
 </script>
 </body>
