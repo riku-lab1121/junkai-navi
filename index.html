@@ -185,6 +185,8 @@
     .dash-tile.alert{background:#fef2f2;color:#991b1b}
     .dash-tile.warn{background:#fff7ed;color:#9a3412}
     .task-item,.trouble-item{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:9px;background:#fff}
+    .toast{position:fixed;left:50%;bottom:105px;transform:translateX(-50%);z-index:9000;background:#111827;color:#fff;padding:11px 16px;border-radius:999px;font-size:13px;font-weight:800;box-shadow:0 8px 24px rgba(0,0,0,.24);white-space:nowrap}
+
     .task-item.done{opacity:.55}
     .priority-high{color:#b91c1c;font-weight:900}
     .priority-mid{color:#c2410c;font-weight:850}
@@ -482,7 +484,9 @@
 
   <button class="fab" id="fab">＋</button>
 
-  <nav>
+  <div class="toast hidden" id="appToast"></div>
+
+<nav>
     <button data-page="home" class="active"><span class="ico">⌂</span>ホーム</button>
     <button data-page="map"><span class="ico">⌖</span>MAP</button>
     <button data-page="route"><span class="ico">≡</span>巡回</button>
@@ -708,6 +712,11 @@ const defaults={
 };
 let db=load();
 if(!db.machines) db.machines=[];
+if(!db.routes) db.routes={};
+if(!db.logs) db.logs=[];
+if(!db.shifts) db.shifts={};
+if(!db.tasks) db.tasks=[];
+if(!db.troubles) db.troubles=[];
 db.machines.forEach(m=>{
   if(!m.area) m.area='未設定';
   if(!m.regularIntervalDays) m.regularIntervalDays=14;
@@ -715,8 +724,8 @@ db.machines.forEach(m=>{
   if(!m.lastCollection) m.lastCollection=m.lastRegular||today();
   if(m.prioritySupply===undefined) m.prioritySupply=false;
   if(m.inventoryMemo===undefined) m.inventoryMemo='';
-  if(m.lat!==undefined) m.lat=Number(m.lat);
-  if(m.lng!==undefined) m.lng=Number(m.lng);
+  if(m.lat!==undefined && m.lat!==null && m.lat!=='') m.lat=Number(m.lat); else m.lat=null;
+  if(m.lng!==undefined && m.lng!==null && m.lng!=='') m.lng=Number(m.lng); else m.lng=null;
 });
 save();
 let page='home', map=null, markers=[], routeLine=null, userLocationMarker=null, selectedStopId=null, mapDraft=null, tickHandle=null, pendingDeleteId=null, editingMachineId=null, mapRegisterMode=false, longPressTimer=null, longPressStart=null, suppressNextMapClick=false, mapMode='today', mapArea='all', selectedMapMachineId=null, geoWatchId=null, lastUserPosition=null, tempRegisterMarker=null;
@@ -925,7 +934,7 @@ function endWork(){
   if(act.workTypes.includes('集金')) m.lastCollection=today();
   db.active=null;save();renderAll();
 }
-function renderAll(){renderHeader();renderShift();renderHome();renderRoute();renderMachines();renderMapMarkers();renderActive()}
+function renderAll(){renderHeader();renderShift();renderHome();renderRoute();renderMachines();renderMapMarkers();renderActive();renderWorkDashboard()}
 
 function renderShift(){
   const s=todaysShift();
@@ -1672,6 +1681,8 @@ function fillMachineSelect(sel,optional){
   });
 }
 function renderWorkDashboard(){
+  if(!Array.isArray(db.troubles)) db.troubles=[];
+  if(!Array.isArray(db.tasks)) db.tasks=[];
   const openTroubles=db.troubles.filter(t=>t.status!=='done').length;
   const openTasks=db.tasks.filter(t=>!t.done);
   homeTroubleCount.textContent=openTroubles;
@@ -1720,6 +1731,15 @@ function openWorkManager(filter='today'){
   workFilter=filter;
   document.querySelectorAll('#workFilterBar button').forEach(b=>b.classList.toggle('active',b.dataset.workfilter===filter));
   renderWorkManager();showModal('workManagerModal');
+}
+
+
+let toastTimer=null;
+function showToast(message){
+  appToast.textContent=message;
+  appToast.classList.remove('hidden');
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>appToast.classList.add('hidden'),1800);
 }
 
 function showModal(id){
@@ -1794,12 +1814,30 @@ settingsBtn.addEventListener('click',()=>{setSettingsFields();showModal('setting
 saveSettings.addEventListener('click',()=>{db.settings={start:sStart.value,return:sReturn.value,breakGoal:+sBreak.value,maxStops:+sMax.value,workBudget:+sWorkBudget.value};save();hideModal('settingsModal');renderAll()});
 machineForm.addEventListener('submit',e=>{
   e.preventDefault();
+
+  const name=mName.value.trim();
+  if(!name){
+    alert('自販機名だけ入力してください。');
+    mName.focus();
+    return;
+  }
+
+  const latValue=mLat.value.trim();
+  const lngValue=mLng.value.trim();
+  const lat=latValue===''?null:Number(latValue);
+  const lng=lngValue===''?null:Number(lngValue);
+
+  if((latValue!=='' && !Number.isFinite(lat)) || (lngValue!=='' && !Number.isFinite(lng))){
+    alert('位置情報が正しくありません。');
+    return;
+  }
+
   const data={
-    name:mName.value.trim(),
+    name,
     number:mNumber.value.trim(),
     area:mArea.value||'未設定',
-    lat:mLat.value!==''?+mLat.value:null,
-    lng:mLng.value!==''?+mLng.value:null,
+    lat,
+    lng,
     regularIntervalDays:+mRegularInterval.value||14,
     supplyIntervalDays:+mSupplyInterval.value||7,
     lastRegular:mLastRegular.value||'',
@@ -1811,17 +1849,33 @@ machineForm.addEventListener('submit',e=>{
     workMinutes:+mWorkMinutes.value||25,
     memo:mMemo.value.trim()
   };
+
+  let savedName=data.name;
   if(editingMachineId){
     const m=machine(editingMachineId);
-    if(m) Object.assign(m,data);
+    if(!m){
+      alert('編集対象が見つかりませんでした。');
+      return;
+    }
+    Object.assign(m,data);
   }else{
     db.machines.push({id:uid(),...data});
   }
+
   editingMachineId=null;
   clearTempRegisterMarker();
-  save();
+
+  try{
+    save();
+  }catch(err){
+    console.error(err);
+    alert('保存に失敗しました。');
+    return;
+  }
+
   hideModal('machineModal');
   renderAll();
+  showToast(`${savedName} を登録しました`);
 });
 areaFilter.addEventListener('change',renderMachines);
 locateBtn.addEventListener('click',locateUser);
