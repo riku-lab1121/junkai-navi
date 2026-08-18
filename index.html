@@ -308,6 +308,10 @@ nav{
   left:0!important;
   right:0!important;
   bottom:0!important;
+  transform:none!important;
+  width:100%!important;
+  max-width:760px!important;
+  margin:0 auto!important;
   z-index:10000!important;
   pointer-events:auto!important;
 }
@@ -480,6 +484,62 @@ nav button{
 .map-v6-page + *{pointer-events:auto}
 nav{
   z-index:20000!important;
+}
+
+/* Ver.6.1: 全画面の横ズレ修正 */
+html,body{
+  width:100%;
+  max-width:100%;
+  overflow-x:hidden!important;
+}
+body{
+  position:relative;
+}
+.app{
+  width:100%!important;
+  max-width:760px!important;
+  margin-left:auto!important;
+  margin-right:auto!important;
+  overflow-x:hidden!important;
+}
+.content{
+  width:100%;
+  max-width:100%;
+  overflow-x:hidden;
+}
+
+/* 過去の translateX(-50%) を完全に解除 */
+nav{
+  position:fixed!important;
+  left:0!important;
+  right:0!important;
+  bottom:0!important;
+  transform:none!important;
+  width:100%!important;
+  max-width:760px!important;
+  margin:0 auto!important;
+  z-index:20000!important;
+  display:grid!important;
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  padding-left:max(8px,env(safe-area-inset-left))!important;
+  padding-right:max(8px,env(safe-area-inset-right))!important;
+}
+nav button{
+  min-width:0!important;
+  width:100%!important;
+  overflow:hidden;
+  white-space:nowrap;
+}
+
+/* MAPも画面外へはみ出させない */
+#mapPage,.map-v6-page,.map-v6-toolbar,.map-v6-stage{
+  width:100%!important;
+  max-width:100%!important;
+  margin-left:0!important;
+  margin-right:0!important;
+}
+.map-v6-stage{
+  contain:layout paint;
 }
 </style>
 </head>
@@ -2416,7 +2476,8 @@ function switchPage(p){
     if(mapRegisterBanner) mapRegisterBanner.classList.add('hidden');
   }
 
-  page=p;['home','map','route','calendar','machines','register','report'].forEach(x=>document.getElementById(x+'Page').classList.toggle('hidden',x!==p));
+  page=p;
+  if(window.scrollX!==0) window.scrollTo(0,window.scrollY);['home','map','route','calendar','machines','register','report'].forEach(x=>document.getElementById(x+'Page').classList.toggle('hidden',x!==p));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));
   fab.classList.toggle('hidden',p!=='machines');
   renderHeader();
@@ -3460,6 +3521,21 @@ window.addEventListener('resize',()=>{
     setTimeout(()=>map.invalidateSize(true),80);
   }
 });
+
+
+function repairViewportLayout(){
+  document.documentElement.scrollLeft=0;
+  document.body.scrollLeft=0;
+  const nav=document.querySelector('nav');
+  if(nav){
+    nav.style.transform='none';
+    nav.style.left='0';
+    nav.style.right='0';
+  }
+}
+window.addEventListener('orientationchange',()=>setTimeout(repairViewportLayout,120));
+window.addEventListener('pageshow',repairViewportLayout);
+repairViewportLayout();
 
 renderAll();
 </script>
