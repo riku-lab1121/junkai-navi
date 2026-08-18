@@ -1299,29 +1299,7 @@ function setAreaFilter(area){
   renderMachines();
 }
 function editMachine(id){
-  fillAreaControls();
-  const m=machine(id);
-  if(!m)return;
-  editingMachineId=id;
-  document.querySelector('#machineModal h2').textContent='自販機を編集';
-  document.querySelector('#machineForm .primary').textContent='保存する';
-  mName.value=m.name||'';
-  mSite.value=m.site||'';
-  mNumber.value=m.number||'';
-  mArea.value=m.area||'未設定';
-  mLat.value=m.lat??'';
-  mLng.value=m.lng??'';
-  mRegularInterval.value=m.regularIntervalDays||14;
-  mSupplyInterval.value=m.supplyIntervalDays||7;
-  mLastRegular.value=m.lastRegular||today();
-  mWeekly.checked=!!m.weekly;
-  mLastSupply.value=m.lastSupply||m.lastRegular||today();
-  mLastCollection.value=m.lastCollection||m.lastRegular||today();
-  mPrioritySupply.checked=!!m.prioritySupply;
-  mInventoryMemo.value=m.inventoryMemo||'';
-  mWorkMinutes.value=m.workMinutes||25;
-  mMemo.value=m.memo||'';
-  showModal('machineModal');
+  openRegisterPage('machines',id);
 }
 function deleteMachine(id){
   const m=machine(id);
@@ -1456,6 +1434,7 @@ function searchPlaceInAppleMaps(){
 
 
 let registerReturnPage='machines';
+let registerEditingId=null;
 let registerMapPickMode=false;
 
 function fillRegisterArea(){
@@ -1466,6 +1445,7 @@ function fillRegisterArea(){
 }
 function resetRegisterPage(){
   registerMapPickMode=false;
+  registerEditingId=null;
   registerPageForm.reset();
   fillRegisterArea();
   rpArea.value='未設定';
@@ -1487,13 +1467,44 @@ function renderRegisterLocation(){
     rpClearLocation.classList.add('hidden');
   }
 }
-function openRegisterPage(returnPage='machines'){
+function openRegisterPage(returnPage='machines',machineId=null){
   registerReturnPage=returnPage;
   resetRegisterPage();
+  fillRegisterArea();
+
+  if(machineId){
+    const m=machine(machineId);
+    if(!m){alert('編集対象が見つかりません。');return}
+    registerEditingId=machineId;
+    rpName.value=m.name||'';
+    rpSite.value=m.site||'';
+    rpNumber.value=m.number||'';
+    if([...rpArea.options].some(o=>o.value===(m.area||'未設定'))) rpArea.value=m.area||'未設定';
+    rpLat.value=m.lat??'';
+    rpLng.value=m.lng??'';
+    rpRegularInterval.value=m.regularIntervalDays||14;
+    rpSupplyInterval.value=m.supplyIntervalDays||7;
+    rpLastRegular.value=m.lastRegular||'';
+    rpLastSupply.value=m.lastSupply||'';
+    rpLastCollection.value=m.lastCollection||'';
+    rpWeekly.checked=!!m.weekly;
+    rpInventoryMemo.value=m.inventoryMemo||'';
+    rpMemo.value=m.memo||'';
+    document.querySelector('#registerPage .section-title').textContent='編集';
+    document.querySelector('#registerPage [style*="font-size:24px"]').textContent='自販機を編集';
+    registerSaveBtn.textContent='この内容で保存する';
+  }else{
+    document.querySelector('#registerPage .section-title').textContent='新規登録';
+    document.querySelector('#registerPage [style*="font-size:24px"]').textContent='自販機を登録';
+    registerSaveBtn.textContent='この内容で登録する';
+  }
+
+  renderRegisterLocation();
   switchPage('register');
   window.scrollTo({top:0,behavior:'smooth'});
 }
 function closeRegisterPage(){
+  registerEditingId=null;
   switchPage(registerReturnPage||'machines');
 }
 function useCurrentLocationForRegister(){
@@ -1548,7 +1559,7 @@ function saveRegisterPage(){
     // 保存直前にストレージと同期して、他画面の最新データを消さない。
     syncDbFromStorage();
 
-    const id=uid();
+    const id=registerEditingId||uid();
     const data={
       id,
       name,
@@ -1571,7 +1582,14 @@ function saveRegisterPage(){
     };
 
     if(!Array.isArray(db.machines)) db.machines=[];
-    db.machines.push(data);
+    if(registerEditingId){
+      const idx=db.machines.findIndex(m=>m.id===registerEditingId);
+      if(idx<0) throw new Error('編集対象が見つかりません');
+      const createdAt=db.machines[idx].createdAt;
+      db.machines[idx]={...db.machines[idx],...data,createdAt};
+    }else{
+      db.machines.push(data);
+    }
 
     // 直接保存
     localStorage.setItem(DBKEY,JSON.stringify(db));
@@ -1587,7 +1605,8 @@ function saveRegisterPage(){
     db={...defaults,...verify};
     if(!Array.isArray(db.machines)) db.machines=[];
 
-    showToast(`${name} を登録しました`);
+    showToast(registerEditingId?`${name} を保存しました`:`${name} を登録しました`);
+    registerEditingId=null;
 
     registerReturnPage='machines';
     page='register';
@@ -1601,7 +1620,8 @@ function saveRegisterPage(){
     alert(`登録できませんでした。\n${err?.message||'保存エラー'}`);
   }finally{
     btn.disabled=false;
-    btn.textContent=original;
+    if(page==='register') btn.textContent=registerEditingId?'この内容で保存する':'この内容で登録する';
+    else btn.textContent=original;
   }
 }
 
