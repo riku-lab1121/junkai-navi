@@ -213,7 +213,12 @@
     .timebox b{display:block;font-size:18px;margin-top:2px}
     .returnbtn{background:#fff1f2;color:#be123c}
     .departbtn{background:#111827;color:#fff}
-  </style>
+  
+.site-machine-list{display:grid;gap:8px;margin-top:10px}
+.site-machine-row{width:100%;border:1px solid #e5e7eb;background:#fff;border-radius:14px;padding:12px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.site-machine-row:active{transform:scale(.985);background:#f8fafc}
+.site-count-marker{display:flex;align-items:center;justify-content:center;min-width:42px;height:42px;border-radius:22px;background:#111827;color:#fff;font-weight:900;border:4px solid #fff;box-shadow:0 4px 14px #0003;padding:0 8px}
+</style>
 </head>
 <body>
 <div class="app">
@@ -741,6 +746,7 @@ function syncDbFromStorage(){
       if(!Array.isArray(db.tasks)) db.tasks=[];
       if(!Array.isArray(db.troubles)) db.troubles=[];
 if(!Array.isArray(db.areas)||!db.areas.length) db.areas=['高松','坂出','丸亀','宇多津','与島'];
+db.machines.forEach(m=>{if(m.site===undefined)m.site='';});
       db.machines.forEach(m=>{
         if(!m.area) m.area='未設定';
         if(!m.regularIntervalDays) m.regularIntervalDays=14;
@@ -1076,7 +1082,7 @@ function renderRoute(){
     el.innerHTML=`<div class="stop-head">
       <div>
         <div class="sub">${String(i+1).padStart(2,'0')} ・ ${escapeHtml(m.area||'未設定')} ・ ${state}</div>
-        <div class="stop-name">${escapeHtml(m.name)}</div>
+        <div class="stop-name">${m.site?`<div class="sub">${escapeHtml(m.site)}</div>`:''}${escapeHtml(m.name)}</div>
         <div class="worktags">${s.workTypes.map(w=>`<span class="tag">${w}</span>`).join('')}</div>
         ${memo}
       </div>
@@ -1210,6 +1216,7 @@ function editMachine(id){
   document.querySelector('#machineModal h2').textContent='自販機を編集';
   document.querySelector('#machineForm .primary').textContent='保存する';
   mName.value=m.name||'';
+  mSite.value=m.site||'';
   mNumber.value=m.number||'';
   mArea.value=m.area||'未設定';
   mLat.value=m.lat??'';
@@ -1483,93 +1490,80 @@ function initMap(){
 
   renderMapMarkers();
 }
+
+function machineSiteKey(m){
+  // Explicit site name is primary. Coordinates keep unrelated same-name facilities separate.
+  const site=(m.site||m.name||'').trim();
+  const lat=m.lat==null?'':Number(m.lat).toFixed(5);
+  const lng=m.lng==null?'':Number(m.lng).toFixed(5);
+  return `${site}|${lat}|${lng}`;
+}
+function mapMachineGroups(){
+  const groups=new Map();
+  db.machines.filter(mapMachineVisible).forEach(m=>{
+    const key=machineSiteKey(m);
+    if(!groups.has(key)) groups.set(key,{key,site:(m.site||m.name||'未設定'),lat:m.lat,lng:m.lng,machines:[]});
+    groups.get(key).machines.push(m);
+  });
+  return [...groups.values()];
+}
+function showMapSiteCard(key){
+  const g=mapMachineGroups().find(x=>x.key===key);
+  if(!g)return;
+  const today=g.machines.filter(m=>!!routeStopForMachine(m.id));
+  const rows=g.machines.map(m=>{
+    const s=machineStatusInfo(m);
+    return `<button class="site-machine-row" onclick="showMapMachineCard('${m.id}')">
+      <div><b>${escapeHtml(m.name||'名称未設定')}</b><div class="sub">${escapeHtml(m.no||'#-')} ・ ${escapeHtml(m.area||'未設定')}</div></div>
+      <span class="status ${s.cls}">${escapeHtml(s.label)}</span>
+    </button>`;
+  }).join('');
+  mapMachineCard.classList.remove('hidden');
+  mapMachineCard.innerHTML=`<div class="map-card-head"><div><div class="sub">設置場所 ・ ${g.machines.length}台</div><h3>${escapeHtml(g.site)}</h3></div><button class="smallbtn" onclick="hideMapMachineCard()">×</button></div>
+    ${today.length?`<div class="notice">${today.length}台が今日の巡回対象</div>`:''}
+    <div class="site-machine-list">${rows}</div>`;
+}
 function renderMapMarkers(){
   if(!map)return;
-  markers.forEach(x=>x.remove());markers=[];
-  if(routeLine){routeLine.remove();routeLine=null}
+  machineMarkers.forEach(x=>map.removeLayer(x));
+  machineMarkers=[];
+  if(routeLine){map.removeLayer(routeLine);routeLine=null}
 
   const routePoints=[];
-  const allRouteStops=todaysRoute()?.stops||[];
-
-  db.machines.forEach(m=>{
-    if(m.lat===null||m.lng===null||m.lat===''||m.lng==='') return;
-    const lat=Number(m.lat),lng=Number(m.lng);
-    if(!Number.isFinite(lat)||!Number.isFinite(lng)) return;
-    if(!mapMachineVisible(m)) return;
-
-    const st=machineStatusInfo(m),idx=routeIndexForMachine(m.id),isToday=!!idx;
-    const cls=st.dot==='red'?'marker-red':st.dot==='orange'?'marker-orange':st.dot==='green'?'marker-green':'marker-gray';
-    const text=isToday?idx:(m.number||'');
-    const dim=mapMode==='today'&&!isToday?' dim':'';
-    const todayCls=isToday?' today':'';
-    const icon=L.divIcon({
-      className:'',
-      html:`<div class="marker-pin ${cls}${todayCls}${dim}">${escapeHtml(String(text).slice(0,3))}</div>`,
-      iconSize:[34,34],iconAnchor:[17,17]
-    });
-
-    const marker=L.marker([lat,lng],{icon}).addTo(map);
-    marker.on('click',e=>{
-      L.DomEvent.stopPropagation(e);
-      showMapMachineCard(m.id);
-    });
-    markers.push(marker);
+  const route=todaysRoute();
+  (route?.stops||[]).forEach(s=>{
+    const m=db.machines.find(x=>x.id===s.machineId);
+    if(m&&m.lat!=null&&m.lng!=null) routePoints.push([Number(m.lat),Number(m.lng)]);
   });
-
-  // 今日の巡回順を線で結ぶ
-  allRouteStops.forEach(s=>{
-    const m=machine(s.machineId);
-    if(!m)return;
-    if(mapArea!=='all'&&(m.area||'未設定')!==mapArea)return;
-    if(m.lat===null||m.lng===null||m.lat===''||m.lng==='') return;
-    const lat=Number(m.lat),lng=Number(m.lng);
-    if(Number.isFinite(lat)&&Number.isFinite(lng)) routePoints.push([lat,lng]);
-  });
-
   if(mapMode==='today' && routePoints.length>=2){
-    routeLine=L.polyline(routePoints,{
-      weight:5,
-      opacity:.78,
-      color:'#2563eb',
-      lineJoin:'round'
-    }).addTo(map);
+    routeLine=L.polyline(routePoints,{weight:5,opacity:.78,color:'#2563eb',lineJoin:'round'}).addTo(map);
     routeLine.bringToBack();
   }
-}
-function updateUserLocation(lat,lng,center=false){
-  lastUserPosition={lat,lng};
-  if(userLocationMarker) userLocationMarker.remove();
-  const icon=L.divIcon({
-    className:'',
-    html:'<div class="gps-ring"><div class="location-dot"></div></div>',
-    iconSize:[28,28],iconAnchor:[14,14]
+
+  mapMachineGroups().forEach(g=>{
+    if(g.lat==null||g.lng==null)return;
+    const todayMachines=g.machines.filter(m=>!!routeStopForMachine(m.id));
+    const isToday=todayMachines.length>0;
+    const dim=mapMode==='today'&&!isToday;
+    const count=g.machines.length;
+    let label;
+    if(count>1){
+      label=`${count}台`;
+    }else if(isToday){
+      const stop=routeStopForMachine(g.machines[0].id);
+      label=stop ? String((route?.stops||[]).findIndex(s=>s.machineId===g.machines[0].id)+1) : '●';
+    }else{
+      label='●';
+    }
+    const icon=L.divIcon({
+      className:'',
+      html:`<div class="site-count-marker" style="${dim?'opacity:.42;':''}">${label}</div>`,
+      iconSize:[54,46],iconAnchor:[27,23]
+    });
+    const marker=L.marker([Number(g.lat),Number(g.lng)],{icon}).addTo(map);
+    marker.on('click',()=>showMapSiteCard(g.key));
+    machineMarkers.push(marker);
   });
-  userLocationMarker=L.marker([lat,lng],{icon,zIndexOffset:2000,interactive:false}).addTo(map);
-  if(center) map.setView([lat,lng],16,{animate:true});
-}
-function startLocationTracking(center=false){
-  if(!navigator.geolocation){return}
-  if(geoWatchId!==null){
-    if(center&&lastUserPosition) map.setView([lastUserPosition.lat,lastUserPosition.lng],16,{animate:true});
-    return;
-  }
-  geoWatchId=navigator.geolocation.watchPosition(p=>{
-    updateUserLocation(p.coords.latitude,p.coords.longitude,center);
-    center=false;
-  },err=>{
-    console.warn('geolocation',err);
-  },{
-    enableHighAccuracy:true,
-    maximumAge:5000,
-    timeout:12000
-  });
-}
-function locateUser(){
-  if(lastUserPosition){
-    map.setView([lastUserPosition.lat,lastUserPosition.lng],16,{animate:true});
-    return;
-  }
-  startLocationTracking(true);
 }
 function fitMapVisible(){
   const points=[];
@@ -1756,6 +1750,7 @@ function fillMachineSelect(sel,optional){
 function renderWorkDashboard(){
   if(!Array.isArray(db.troubles)) db.troubles=[];
       if(!Array.isArray(db.areas)||!db.areas.length) db.areas=['高松','坂出','丸亀','宇多津','与島'];
+      db.machines.forEach(m=>{if(m.site===undefined)m.site='';});
   if(!Array.isArray(db.tasks)) db.tasks=[];
   const openTroubles=db.troubles.filter(t=>t.status!=='done').length;
   const openTasks=db.tasks.filter(t=>!t.done);
@@ -1991,7 +1986,7 @@ mapInfoCloseBtn.addEventListener('click',hideMapMachineCard);
 mapInfoNavBtn.addEventListener('click',()=>selectedMapMachineId&&navigateToMachine(selectedMapMachineId));
 mapInfoAddBtn.addEventListener('click',()=>selectedMapMachineId&&addMachineToToday(selectedMapMachineId));
 
-window.renameArea=renameArea;window.deleteArea=deleteArea;window.toggleTask=toggleTask;window.setTroubleStatus=setTroubleStatus;window.addMachineToToday=addMachineToToday;window.addEventListener('storage',e=>{
+window.showMapSiteCard=showMapSiteCard;window.renameArea=renameArea;window.deleteArea=deleteArea;window.toggleTask=toggleTask;window.setTroubleStatus=setTroubleStatus;window.addMachineToToday=addMachineToToday;window.addEventListener('storage',e=>{
   if(e.key===DBKEY){
     syncDbFromStorage();
     renderAll();
