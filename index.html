@@ -368,8 +368,8 @@
         <div class="map-search-results hidden" id="mapSearchResults"></div>
         <div class="map-overlay-top">
           <div class="map-tools">
-            <button class="map-tool-btn active" id="mapTodayBtn">今日</button>
-            <button class="map-tool-btn" id="mapAllBtn">全体</button>
+            <button class="map-tool-btn active" id="mapTodayBtn">今日強調</button>
+            <button class="map-tool-btn" id="mapAllBtn">通常</button>
             <button class="map-tool-btn" id="mapOptionsBtn">絞り込み</button>
           </div>
         </div>
@@ -728,7 +728,7 @@ db.machines.forEach(m=>{
   if(m.lng!==undefined && m.lng!==null && m.lng!=='') m.lng=Number(m.lng); else m.lng=null;
 });
 save();
-let page='home', map=null, markers=[], routeLine=null, userLocationMarker=null, selectedStopId=null, mapDraft=null, tickHandle=null, pendingDeleteId=null, editingMachineId=null, mapRegisterMode=false, longPressTimer=null, longPressStart=null, suppressNextMapClick=false, mapMode='today', mapArea='all', selectedMapMachineId=null, geoWatchId=null, lastUserPosition=null, tempRegisterMarker=null;
+let page='home', map=null, markers=[], routeLine=null, userLocationMarker=null, selectedStopId=null, mapDraft=null, tickHandle=null, pendingDeleteId=null, editingMachineId=null, mapRegisterMode=false, longPressTimer=null, longPressStart=null, suppressNextMapClick=false, mapMode='today', mapArea='all', selectedMapMachineId=null, geoWatchId=null, lastUserPosition=null, tempRegisterMarker=null, registeringFromMap=false;
 
 function load(){try{return {...defaults,...JSON.parse(localStorage.getItem(DBKEY)||'{}')}}catch(e){return structuredClone(defaults)}}
 function save(){localStorage.setItem(DBKEY,JSON.stringify(db));}
@@ -1208,16 +1208,13 @@ function routeIndexForMachine(machineId){
 }
 function mapMachineVisible(m){
   if(mapArea!=='all' && (m.area||'未設定')!==mapArea) return false;
-  if(mapMode==='today') return !!routeStopForMachine(m.id);
   return true;
 }
 function setMapMode(mode){
   hideMapMachineCard();
   mapMode=mode;
-  mapSearchBtn.addEventListener('click',()=>renderMapSearch(mapSearchInput.value));
-mapSearchInput.addEventListener('input',()=>renderMapSearch(mapSearchInput.value));
-mapSearchInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();renderMapSearch(mapSearchInput.value)}});
-document.querySelectorAll('#mapModeSegment button').forEach(b=>b.classList.toggle('active',b.dataset.mapmode===mode));
+  mapTodayBtn.classList.toggle('active',mode==='today');
+  mapAllBtn.classList.toggle('active',mode==='all');
   renderMapMarkers();
 }
 function setMapArea(area){
@@ -1326,6 +1323,7 @@ function setMapRegisterMode(on){
 }
 
 function openRegistrationAt(latlng){
+  registeringFromMap=true;
   clearTempRegisterMarker();
   const icon=L.divIcon({
     className:'',
@@ -1422,6 +1420,7 @@ function renderMapMarkers(){
   const allRouteStops=todaysRoute()?.stops||[];
 
   db.machines.forEach(m=>{
+    if(m.lat===null||m.lng===null||m.lat===''||m.lng==='') return;
     const lat=Number(m.lat),lng=Number(m.lng);
     if(!Number.isFinite(lat)||!Number.isFinite(lng)) return;
     if(!mapMachineVisible(m)) return;
@@ -1429,7 +1428,7 @@ function renderMapMarkers(){
     const st=machineStatusInfo(m),idx=routeIndexForMachine(m.id),isToday=!!idx;
     const cls=st.dot==='red'?'marker-red':st.dot==='orange'?'marker-orange':st.dot==='green'?'marker-green':'marker-gray';
     const text=isToday?idx:(m.number||'');
-    const dim=mapMode==='all'&&!isToday?' dim':'';
+    const dim=mapMode==='today'&&!isToday?' dim':'';
     const todayCls=isToday?' today':'';
     const icon=L.divIcon({
       className:'',
@@ -1450,11 +1449,12 @@ function renderMapMarkers(){
     const m=machine(s.machineId);
     if(!m)return;
     if(mapArea!=='all'&&(m.area||'未設定')!==mapArea)return;
+    if(m.lat===null||m.lng===null||m.lat===''||m.lng==='') return;
     const lat=Number(m.lat),lng=Number(m.lng);
     if(Number.isFinite(lat)&&Number.isFinite(lng)) routePoints.push([lat,lng]);
   });
 
-  if(routePoints.length>=2){
+  if(mapMode==='today' && routePoints.length>=2){
     routeLine=L.polyline(routePoints,{
       weight:5,
       opacity:.78,
@@ -1756,6 +1756,7 @@ document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>hideModal(b.dataset.close)));
 document.querySelectorAll('[data-close="machineModal"]').forEach(b=>b.addEventListener('click',()=>{
   editingMachineId=null;
+  registeringFromMap=false;
   clearTempRegisterMarker();
 }));
 generateRouteBtn.addEventListener('click',openRouteOptions);regenBtn.addEventListener('click',openRouteOptions);
@@ -1808,8 +1809,8 @@ cancelReturnBtn.addEventListener('click',()=>hideModal('returnModal'));
 confirmReturnBtn.addEventListener('click',finishReturn);
 cancelDeleteBtn.addEventListener('click',()=>{pendingDeleteId=null;hideModal('deleteModal')});
 confirmDeleteBtn.addEventListener('click',confirmDeleteMachine);
-addMachineBtn.addEventListener('click',()=>openMachineModal());
-fab.addEventListener('click',()=>openMachineModal());
+addMachineBtn.addEventListener('click',()=>{registeringFromMap=false;openMachineModal()});
+fab.addEventListener('click',()=>{registeringFromMap=false;openMachineModal()});
 settingsBtn.addEventListener('click',()=>{setSettingsFields();showModal('settingsModal')});
 saveSettings.addEventListener('click',()=>{db.settings={start:sStart.value,return:sReturn.value,breakGoal:+sBreak.value,maxStops:+sMax.value,workBudget:+sWorkBudget.value};save();hideModal('settingsModal');renderAll()});
 machineForm.addEventListener('submit',e=>{
@@ -1851,6 +1852,9 @@ machineForm.addEventListener('submit',e=>{
   };
 
   let savedName=data.name;
+  let savedId=editingMachineId;
+  const wasMapRegistration=registeringFromMap;
+
   if(editingMachineId){
     const m=machine(editingMachineId);
     if(!m){
@@ -1859,10 +1863,12 @@ machineForm.addEventListener('submit',e=>{
     }
     Object.assign(m,data);
   }else{
-    db.machines.push({id:uid(),...data});
+    savedId=uid();
+    db.machines.push({id:savedId,...data});
   }
 
   editingMachineId=null;
+  registeringFromMap=false;
   clearTempRegisterMarker();
 
   try{
@@ -1874,7 +1880,13 @@ machineForm.addEventListener('submit',e=>{
   }
 
   hideModal('machineModal');
+
   renderAll();
+
+  if(wasMapRegistration && savedId && data.lat!==null && data.lng!==null){
+    map.setView([data.lat,data.lng],17,{animate:true});
+    setTimeout(()=>showMapMachineCard(savedId),250);
+  }
   showToast(`${savedName} を登録しました`);
 });
 areaFilter.addEventListener('change',renderMachines);
