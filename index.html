@@ -301,6 +301,51 @@
 
 .map-register-mode-banner{bottom:86px!important}
 .map-register-mode-banner button{white-space:nowrap}
+
+/* Ver.5.3: MAPが下部ナビのタップを奪わないようにする */
+nav{
+  position:fixed!important;
+  left:0!important;
+  right:0!important;
+  bottom:0!important;
+  z-index:10000!important;
+  pointer-events:auto!important;
+}
+nav button{
+  position:relative;
+  z-index:10001;
+  pointer-events:auto!important;
+  touch-action:manipulation;
+}
+#mapPage{
+  padding-bottom:92px!important;
+}
+.map-shell{
+  position:relative;
+  overflow:hidden;
+}
+.map-shell .leaflet-container{
+  z-index:1!important;
+}
+.leaflet-pane,
+.leaflet-top,
+.leaflet-bottom,
+.leaflet-control{
+  z-index:auto;
+}
+.map-search,
+.map-overlay-top,
+.map-options,
+.map-floating,
+.map-register-mode-banner,
+.map-info-card{
+  z-index:700!important;
+}
+
+#map{
+  max-height:calc(100dvh - 285px)!important;
+  touch-action:pan-x pan-y pinch-zoom;
+}
 </style>
 </head>
 <body>
@@ -2237,7 +2282,15 @@ function saveRegisterPage(){
 
 function switchPage(p){
   syncDbFromStorage();
-  if(page==='map' && p!=='map') hideMapMachineCard();
+
+  if(page==='map' && p!=='map'){
+    hideMapMachineCard();
+    closeMapSearch();
+    if(mapOptionsPanel) mapOptionsPanel.classList.add('hidden');
+    if(mapOptionsBtn) mapOptionsBtn.classList.remove('active');
+    if(mapRegisterBanner) mapRegisterBanner.classList.add('hidden');
+  }
+
   page=p;['home','map','route','calendar','machines','register','report'].forEach(x=>document.getElementById(x+'Page').classList.toggle('hidden',x!==p));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));
   fab.classList.toggle('hidden',p!=='machines');
@@ -2253,6 +2306,7 @@ function switchPage(p){
     initMap();
     if(db.settings?.gpsAuto!==false) startLocationTracking(false);
     setTimeout(()=>{
+      if(page!=='map') return;
       map.invalidateSize();
       renderMapMarkers();
       if(mapMode==='today'&&(todaysRoute()?.stops||[]).length)fitMapVisible();
@@ -2992,16 +3046,24 @@ calendarNextBtn.addEventListener('click',()=>{
   else{const d=ymdDate(calendarAnchor);calendarAnchor=localYmd(new Date(d.getFullYear(),d.getMonth()+1,1,12))}
   renderCalendar();
 });
-document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{
-  haptic();
-  if(registerMapPickMode){
-    registerMapPickMode=false;
-    mapRegisterMode=false;
-    if(mapRegisterBanner) mapRegisterBanner.classList.add('hidden');
-    if(backToRegisterBtn) backToRegisterBtn.classList.add('hidden');
-  }
-  switchPage(b.dataset.page);
-}));
+document.querySelectorAll('nav button').forEach(b=>{
+  b.addEventListener('pointerdown',e=>e.stopPropagation());
+  b.addEventListener('touchstart',e=>e.stopPropagation(),{passive:true});
+  b.addEventListener('click',e=>{
+    e.preventDefault();
+    e.stopPropagation();
+    haptic();
+
+    if(registerMapPickMode){
+      registerMapPickMode=false;
+      mapRegisterMode=false;
+      if(mapRegisterBanner) mapRegisterBanner.classList.add('hidden');
+      if(backToRegisterBtn) backToRegisterBtn.classList.add('hidden');
+    }
+
+    switchPage(b.dataset.page);
+  });
+});
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>hideModal(b.dataset.close)));
 document.querySelectorAll('[data-close="machineModal"]').forEach(b=>b.addEventListener('click',()=>{
   editingMachineId=null;
