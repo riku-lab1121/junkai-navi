@@ -74,6 +74,13 @@
     .smallbtn{padding:8px 10px;border-radius:10px;background:#eef0f3;font-size:12px;font-weight:800}
     .notice{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;padding:11px;border-radius:12px;font-size:13px;margin-bottom:12px}
     .greenText{color:#15803d}.redText{color:#b91c1c}
+    .shift-card{border:1px solid var(--line)}
+    .shift-main{font-size:22px;font-weight:850}
+    .shift-times{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+    .timebox{background:#f8fafc;border-radius:13px;padding:11px}
+    .timebox b{display:block;font-size:18px;margin-top:2px}
+    .returnbtn{background:#fff1f2;color:#be123c}
+    .departbtn{background:#111827;color:#fff}
   </style>
 </head>
 <body>
@@ -107,7 +114,33 @@
         <button class="primary" id="generateRouteBtn" style="margin-top:14px">今日の巡回を作る</button>
       </div>
 
-      <div class="card" id="activeStatusCard">
+      
+      <div class="card shift-card">
+        <div class="row">
+          <div>
+            <div class="section-title">今日の勤務</div>
+            <div class="shift-main" id="shiftState">未出発</div>
+            <div class="sub" id="shiftDetail">出発すると作業・休憩を記録できます</div>
+          </div>
+          <span class="pill" id="shiftElapsed">00:00</span>
+        </div>
+
+        <div class="shift-times" id="shiftTimes">
+          <div class="timebox">
+            <span class="sub">出発</span>
+            <b id="departureTime">--:--</b>
+          </div>
+          <div class="timebox">
+            <span class="sub">帰社</span>
+            <b id="returnTime">--:--</b>
+          </div>
+        </div>
+
+        <button class="primary departbtn" id="departureBtn" style="margin-top:14px">出発</button>
+        <button class="primary returnbtn hidden" id="returnBtn" style="margin-top:10px">帰社する</button>
+      </div>
+
+<div class="card" id="activeStatusCard">
         <div class="section-title">いまの状態</div>
         <div class="row">
           <div>
@@ -130,6 +163,29 @@
           </div>
           <span class="pill" id="breakRemain">残り60分</span>
         </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">今日の時間内訳</div>
+        <div class="grid2">
+          <div class="timebox">
+            <span class="sub">移動時間</span>
+            <b id="travelTotal">0分</b>
+          </div>
+          <div class="timebox">
+            <span class="sub">作業時間</span>
+            <b id="workTotal">0分</b>
+          </div>
+          <div class="timebox">
+            <span class="sub">休憩時間</span>
+            <b id="breakSummary">0分</b>
+          </div>
+          <div class="timebox">
+            <span class="sub">勤務合計</span>
+            <b id="shiftTotal">0分</b>
+          </div>
+        </div>
+        <div class="mini" style="margin-top:10px">※ 移動時間＝出発〜現在（または帰社）から、作業時間と休憩時間を引いた時間</div>
       </div>
 
       <div class="card">
@@ -233,6 +289,21 @@
   </div>
 </div>
 
+
+<div class="modal hidden" id="returnModal">
+  <div class="sheet">
+    <h2>帰社を記録しますか？</h2>
+    <div class="card" style="background:#f9fafb;margin-bottom:14px">
+      <div style="font-weight:850;font-size:18px">今日の巡回を終了</div>
+      <div class="sub" style="margin-top:4px">帰社時刻を記録し、今日の勤務時間を確定します。</div>
+    </div>
+    <div class="grid2">
+      <button class="secondary" id="cancelReturnBtn">キャンセル</button>
+      <button class="secondary returnbtn" id="confirmReturnBtn">帰社する</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal hidden" id="settingsModal">
   <div class="sheet">
     <div class="row">
@@ -266,7 +337,7 @@ const defaults={
     {id:uid(),name:'サンプル：事務所B',number:'004',lat:34.3155,lng:134.0710,lastRegular:isoDaysAgo(9),weekly:true,lastSupply:isoDaysAgo(7),workMinutes:20,memo:''},
     {id:uid(),name:'サンプル：施設C',number:'005',lat:34.3650,lng:134.0310,lastRegular:isoDaysAgo(13),weekly:false,lastSupply:isoDaysAgo(13),workMinutes:25,memo:''}
   ],
-  routes:{}, logs:[], active:null
+  routes:{}, logs:[], active:null, shifts:{}
 };
 let db=load();
 let page='home', map=null, markers=[], selectedStopId=null, mapDraft=null, tickHandle=null, pendingDeleteId=null;
@@ -275,6 +346,50 @@ function load(){try{return {...defaults,...JSON.parse(localStorage.getItem(DBKEY
 function save(){localStorage.setItem(DBKEY,JSON.stringify(db));}
 function todaysRoute(){return db.routes[today()]||null}
 function ensureRoute(){if(!db.routes[today()]) db.routes[today()]={date:today(),stops:[],createdAt:Date.now()};return db.routes[today()]}
+function todaysShift(){
+  if(!db.shifts) db.shifts={};
+  return db.shifts[today()]||null;
+}
+function hasDeparted(){
+  return !!todaysShift()?.departureAt;
+}
+function hasReturned(){
+  return !!todaysShift()?.returnAt;
+}
+function timeLabel(ms){
+  if(!ms)return '--:--';
+  return new Date(ms).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',hour12:false});
+}
+function shiftElapsedSeconds(){
+  const s=todaysShift();
+  if(!s?.departureAt)return 0;
+  const end=s.returnAt||Date.now();
+  return Math.max(0,(end-s.departureAt)/1000);
+}
+function startDeparture(){
+  if(hasDeparted())return;
+  if(!db.shifts) db.shifts={};
+  db.shifts[today()]={date:today(),departureAt:Date.now(),returnAt:null};
+  save();
+  renderAll();
+}
+function requestReturn(){
+  if(!hasDeparted() || hasReturned())return;
+  if(db.active){
+    alert(db.active.type==='work'?'作業を終了してから帰社してください。':'休憩を終了してから帰社してください。');
+    return;
+  }
+  showModal('returnModal');
+}
+function finishReturn(){
+  const s=todaysShift();
+  if(!s || s.returnAt)return;
+  s.returnAt=Date.now();
+  save();
+  hideModal('returnModal');
+  renderAll();
+}
+
 function machine(id){return db.machines.find(m=>m.id===id)}
 function regularDue(m){return dayDiff(m.lastRegular,today())>=14}
 function weeklyDue(m){return m.weekly && dayDiff(m.lastSupply||m.lastRegular,today())>=7}
@@ -330,8 +445,22 @@ function getBreakSeconds(){
   return db.logs.filter(l=>l.date===t && l.type==='break' && l.end).reduce((sum,l)=>sum+Math.max(0,(l.end-l.start)/1000),0) +
     (db.active?.type==='break'?Math.max(0,(Date.now()-db.active.start)/1000):0);
 }
+function getWorkSeconds(){
+  const t=today();
+  return db.logs.filter(l=>l.date===t && l.type==='work' && l.end)
+    .reduce((sum,l)=>sum+Math.max(0,(l.end-l.start)/1000),0) +
+    (db.active?.type==='work'?Math.max(0,(Date.now()-db.active.start)/1000):0);
+}
+function getTravelSeconds(){
+  if(!hasDeparted()) return 0;
+  return Math.max(0, shiftElapsedSeconds() - getWorkSeconds() - getBreakSeconds());
+}
+function mins(sec){ return Math.max(0, Math.round(sec/60)); }
+
 function activeElapsed(){return db.active?Math.max(0,(Date.now()-db.active.start)/1000):0}
 function startBreak(){
+  if(!hasDeparted()){alert('先に「出発」を押してください。');return}
+  if(hasReturned()){alert('今日は帰社済みです。');return}
   if(db.active){alert('先に現在の計測を終了してください。');return}
   db.active={type:'break',start:Date.now()};save();renderAll();
 }
@@ -341,6 +470,8 @@ function endBreak(){
   db.active=null;save();renderAll();
 }
 function openWorkPicker(stopId){
+  if(!hasDeparted()){alert('先に「出発」を押してください。');return}
+  if(hasReturned()){alert('今日は帰社済みです。');return}
   if(db.active){alert('先に現在の計測を終了してください。');return}
   const s=(todaysRoute()?.stops||[]).find(x=>x.id===stopId) || currentStop();
   if(!s){alert('巡回ルートがありません。');return}
@@ -374,7 +505,35 @@ function endWork(){
   if(act.workTypes.includes('原料')) m.lastSupply=today();
   db.active=null;save();renderAll();
 }
-function renderAll(){renderHeader();renderHome();renderRoute();renderMachines();renderMapMarkers();renderActive()}
+function renderAll(){renderHeader();renderShift();renderHome();renderRoute();renderMachines();renderMapMarkers();renderActive()}
+
+function renderShift(){
+  const s=todaysShift();
+  const departed=!!s?.departureAt, returned=!!s?.returnAt;
+
+  departureTime.textContent=departed?timeLabel(s.departureAt):'--:--';
+  returnTime.textContent=returned?timeLabel(s.returnAt):'--:--';
+  shiftElapsed.textContent=fmtTime(shiftElapsedSeconds());
+
+  if(!departed){
+    shiftState.textContent='未出発';
+    shiftDetail.textContent='出発すると作業・休憩を記録できます';
+    departureBtn.classList.remove('hidden');
+    returnBtn.classList.add('hidden');
+    departureBtn.textContent='出発';
+  }else if(!returned){
+    shiftState.textContent='巡回中';
+    shiftDetail.textContent='移動時間を自動計測中。作業・休憩・帰社を記録できます';
+    departureBtn.classList.add('hidden');
+    returnBtn.classList.remove('hidden');
+  }else{
+    shiftState.textContent='帰社済み';
+    shiftDetail.textContent=`勤務記録 ${timeLabel(s.departureAt)}〜${timeLabel(s.returnAt)}`;
+    departureBtn.classList.add('hidden');
+    returnBtn.classList.add('hidden');
+  }
+}
+
 function renderHeader(){
   const titles={home:'ホーム',map:'MAP',route:'今日の巡回',machines:'自販機'};
   document.getElementById('pageTitle').textContent=titles[page];
@@ -396,9 +555,46 @@ function renderHome(){
   }
   const b=Math.round(getBreakSeconds()/60),goal=db.settings.breakGoal||60;
   breakTotal.textContent=b;breakGoal.textContent=goal;breakRemain.textContent=`残り${Math.max(0,goal-b)}分`;
+
+  const travelM=mins(getTravelSeconds());
+  const workM=mins(getWorkSeconds());
+  const breakM=mins(getBreakSeconds());
+  const shiftM=mins(shiftElapsedSeconds());
+
+  travelTotal.textContent=`${travelM}分`;
+  workTotal.textContent=`${workM}分`;
+  breakSummary.textContent=`${breakM}分`;
+  shiftTotal.textContent=`${shiftM}分`;
 }
 function renderActive(){
-  if(!db.active){activeState.textContent='待機中';activeDetail.textContent='作業または休憩を開始できます';activeTimer.textContent='00:00';breakBtn.textContent='休憩する';workBtn.textContent='作業開始';return}
+  if(!db.active){
+    activeTimer.textContent='00:00';
+    if(!hasDeparted()){
+      activeState.textContent='出発前';
+      activeDetail.textContent='「出発」を押すと作業・休憩が使えます';
+      breakBtn.textContent='休憩する';
+      workBtn.textContent='作業開始';
+      breakBtn.disabled=true; workBtn.disabled=true;
+      breakBtn.style.opacity='.45'; workBtn.style.opacity='.45';
+    }else if(hasReturned()){
+      activeState.textContent='本日の勤務終了';
+      activeDetail.textContent='帰社済みです';
+      breakBtn.textContent='休憩する';
+      workBtn.textContent='作業開始';
+      breakBtn.disabled=true; workBtn.disabled=true;
+      breakBtn.style.opacity='.45'; workBtn.style.opacity='.45';
+    }else{
+      activeState.textContent='移動中';
+      activeDetail.textContent='作業・休憩以外の時間は移動時間として記録されます';
+      breakBtn.textContent='休憩する';
+      workBtn.textContent='作業開始';
+      breakBtn.disabled=false; workBtn.disabled=false;
+      breakBtn.style.opacity='1'; workBtn.style.opacity='1';
+    }
+    return
+  }
+  breakBtn.disabled=false; workBtn.disabled=false;
+  breakBtn.style.opacity='1'; workBtn.style.opacity='1';
   const elapsed=fmtTime(activeElapsed());
   activeTimer.textContent=elapsed;
   if(db.active.type==='break'){
@@ -498,6 +694,10 @@ generateRouteBtn.addEventListener('click',generateRoute);regenBtn.addEventListen
 breakBtn.addEventListener('click',()=>db.active?.type==='break'?endBreak():startBreak());
 workBtn.addEventListener('click',()=>db.active?.type==='work'?endWork():openWorkPicker(currentStop()?.id));
 confirmWorkStart.addEventListener('click',startWork);
+departureBtn.addEventListener('click',startDeparture);
+returnBtn.addEventListener('click',requestReturn);
+cancelReturnBtn.addEventListener('click',()=>hideModal('returnModal'));
+confirmReturnBtn.addEventListener('click',finishReturn);
 cancelDeleteBtn.addEventListener('click',()=>{pendingDeleteId=null;hideModal('deleteModal')});
 confirmDeleteBtn.addEventListener('click',confirmDeleteMachine);
 addMachineBtn.addEventListener('click',()=>openMachineModal());
@@ -514,7 +714,7 @@ fitBtn.addEventListener('click',()=>{if(db.machines.length)map.fitBounds(L.latLn
 window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
-setInterval(()=>{if(db.active){renderActive();renderHome()}},1000);
+setInterval(()=>{if(db.active || (hasDeparted()&&!hasReturned())){renderShift();renderActive();renderHome()}},1000);
 renderAll();
 </script>
 </body>
