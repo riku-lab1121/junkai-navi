@@ -1393,41 +1393,10 @@ function switchPage(p){
     },100);
   }
 }
-function clearTempRegisterMarker(){
-  if(tempRegisterMarker){
-    tempRegisterMarker.remove();
-    tempRegisterMarker=null;
-  }
-}
-function setMapRegisterMode(on){
-  mapRegisterMode=!!on;
-  mapRegisterBanner.classList.toggle('hidden',!mapRegisterMode);
-  mapOptionsPanel.classList.add('hidden');
-  mapOptionsBtn.classList.remove('active');
-  closeMapSearch();
-  hideMapMachineCard();
-}
 
-function openRegistrationAt(latlng){
-  registeringFromMap=true;
-  clearTempRegisterMarker();
-  const icon=L.divIcon({
-    className:'',
-    html:'<div class="temp-register-pin"></div>',
-    iconSize:[38,38],
-    iconAnchor:[19,38]
-  });
-  tempRegisterMarker=L.marker([latlng.lat,latlng.lng],{
-    icon,
-    zIndexOffset:3000,
-    interactive:false
-  }).addTo(map);
-  map.panTo([latlng.lat,latlng.lng],{animate:true});
-  setTimeout(()=>{
-    setMapRegisterMode(false);
-    openMachineModal(latlng.lat,latlng.lng);
-  },220);
-}
+
+
+
 function startLongPressAt(latlng){
   cancelLongPress();
   longPressStart=latlng;
@@ -1442,6 +1411,41 @@ function cancelLongPress(){
   if(longPressTimer){clearTimeout(longPressTimer);longPressTimer=null}
   longPressStart=null;
 }
+
+function clearTempRegisterMarker(){
+  if(tempRegisterMarker){
+    try{tempRegisterMarker.remove()}catch(e){}
+    tempRegisterMarker=null;
+  }
+}
+function setMapRegisterMode(on){
+  mapRegisterMode=!!on;
+  if(mapRegisterBanner) mapRegisterBanner.classList.toggle('hidden',!mapRegisterMode);
+  if(mapOptionsPanel) mapOptionsPanel.classList.add('hidden');
+  if(mapOptionsBtn) mapOptionsBtn.classList.remove('active');
+  closeMapSearch();
+  hideMapMachineCard();
+  if(!mapRegisterMode) clearTempRegisterMarker();
+}
+function openRegistrationAt(latlng){
+  if(!map||!latlng)return;
+  registeringFromMap=true;
+  clearTempRegisterMarker();
+  const icon=L.divIcon({
+    className:'',
+    html:'<div class="temp-register-pin"></div>',
+    iconSize:[38,38],
+    iconAnchor:[19,38]
+  });
+  tempRegisterMarker=L.marker([latlng.lat,latlng.lng],{
+    icon,zIndexOffset:4000,interactive:false
+  }).addTo(map);
+  map.panTo([latlng.lat,latlng.lng],{animate:true});
+  mapRegisterMode=false;
+  if(mapRegisterBanner) mapRegisterBanner.classList.add('hidden');
+  setTimeout(()=>openMachineModal(latlng.lat,latlng.lng),180);
+}
+
 function initMap(){
   if(map)return;
 
@@ -1468,8 +1472,8 @@ function initMap(){
     }
     hideMapMachineCard();
     closeMapSearch();
-    mapOptionsPanel.classList.add('hidden');
-    mapOptionsBtn.classList.remove('active');
+    if(mapOptionsPanel) mapOptionsPanel.classList.add('hidden');
+    if(mapOptionsBtn) mapOptionsBtn.classList.remove('active');
   });
 
   map.on('contextmenu',e=>{
@@ -1901,6 +1905,8 @@ document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',
 document.querySelectorAll('[data-close="machineModal"]').forEach(b=>b.addEventListener('click',()=>{
   editingMachineId=null;
   registeringFromMap=false;
+  mapRegisterMode=false;
+  if(mapRegisterBanner) mapRegisterBanner.classList.add('hidden');
   clearTempRegisterMarker();
 }));
 generateRouteBtn.addEventListener('click',openRouteOptions);regenBtn.addEventListener('click',openRouteOptions);
@@ -2043,6 +2049,8 @@ machineForm.addEventListener('submit',e=>{
   showToast(`${savedName} を登録しました`);
 });
 areaFilter.addEventListener('change',renderMachines);
+mapRegisterMenuBtn.addEventListener('click',()=>setMapRegisterMode(true));
+cancelMapRegisterBtn.addEventListener('click',()=>setMapRegisterMode(false));
 locateBtn.addEventListener('click',locateUser);
 
 mapTodayBtn.addEventListener('click',()=>setMapMode('today'));
