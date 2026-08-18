@@ -107,16 +107,48 @@
     .map-search-box{flex:1;display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.96);backdrop-filter:blur(20px);border-radius:14px;padding:8px 10px;box-shadow:0 5px 18px rgba(0,0,0,.12)}
     .map-search-box input{border:0;background:transparent;padding:6px 4px;min-width:0}
     .map-search-box input:focus{outline:none}
-    .map-search-go{padding:10px 12px;border-radius:12px;background:#111827;color:#fff;font-weight:850}
+    .map-search-go{padding:10px 14px;border-radius:12px;background:#111827;color:#fff;font-weight:850}
     .map-search-results{position:absolute;top:62px;left:12px;right:12px;z-index:725;background:rgba(255,255,255,.98);backdrop-filter:blur(20px);border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:40dvh;overflow:auto}
     .map-search-item{padding:12px;border-bottom:1px solid var(--line)}
     .map-search-item:last-child{border-bottom:0}
     .map-search-item b{display:block}
     .map-search-hint{padding:11px;color:#64748b;font-size:12px}
-    .map-overlay-top{top:70px}
+    .map-tools{display:flex;gap:8px}
+    .map-tool-btn{background:rgba(255,255,255,.94);backdrop-filter:blur(18px);border-radius:13px;padding:9px 12px;font-size:12px;font-weight:850;box-shadow:0 4px 14px rgba(0,0,0,.12)}
+    .map-tool-btn.active{background:#111827;color:#fff}
+    .map-register-mode-banner{
+      position:absolute;left:12px;right:12px;bottom:16px;z-index:730;
+      background:rgba(17,24,39,.96);color:#fff;border-radius:16px;
+      padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.2);
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      font-size:13px;font-weight:800
+    }
+    .map-register-mode-banner button{
+      background:#fff;color:#111827;border-radius:10px;padding:8px 10px;font-weight:850
+    }
+    .temp-register-pin{
+      width:38px;height:38px;border-radius:50% 50% 50% 0;
+      transform:rotate(-45deg);background:#111827;border:3px solid #fff;
+      box-shadow:0 5px 16px rgba(0,0,0,.28)
+    }
+    .temp-register-pin:after{
+      content:'';position:absolute;width:10px;height:10px;border-radius:50%;
+      background:#fff;left:11px;top:11px
+    }
+
+    .map-options{position:absolute;top:122px;left:12px;z-index:710;width:220px;background:rgba(255,255,255,.98);backdrop-filter:blur(20px);border-radius:18px;padding:12px;box-shadow:0 10px 28px rgba(0,0,0,.18)}
+    .map-options h4{margin:2px 0 8px;font-size:12px;color:#64748b}
+    .map-options-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+    .map-options-grid button{padding:9px;border-radius:11px;background:#f1f5f9;font-size:12px;font-weight:800}
+    .map-options-grid button.active{background:#111827;color:#fff}
+    .map-mini-action{display:flex;gap:8px;margin-top:10px}
+    .map-mini-action button{flex:1;padding:10px;border-radius:11px;font-size:12px;font-weight:850}
+    .map-float-btn.secondary-float{background:#111827;color:#fff}
+
+    .map-overlay-top{top:76px;left:12px;right:auto;display:block}
     .gps-ring{width:28px;height:28px;border-radius:50%;background:rgba(10,132,255,.15);display:flex;align-items:center;justify-content:center}
 
-    .map-floating{position:absolute;right:14px;bottom:110px;z-index:650;display:flex;flex-direction:column;gap:10px;transition:bottom .2s ease}
+    .map-floating{position:absolute;right:14px;bottom:24px;z-index:650;display:flex;flex-direction:column;gap:10px;transition:bottom .2s ease}
     .map-float-btn{width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.95);backdrop-filter:blur(18px);box-shadow:0 5px 18px rgba(0,0,0,.14);font-size:20px;font-weight:900}
     .map-card{position:absolute;left:12px;right:12px;bottom:18px;z-index:640;background:rgba(255,255,255,.96);backdrop-filter:blur(22px);border-radius:20px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
     .map-card.hidden{display:none!important}
@@ -125,7 +157,7 @@
     .map-card{max-height:34dvh;overflow:auto}
     .map-card .row{align-items:flex-start}
     .map-card-close{width:34px;height:34px;border-radius:50%;background:#f1f5f9;font-size:18px;font-weight:900;flex:0 0 auto}
-    .map-shell.card-open .map-floating{bottom:290px}
+    .map-shell.card-open .map-floating{bottom:250px}
     .map-card-added{display:flex;align-items:center;justify-content:center;padding:12px;border-radius:12px;background:#ecfdf5;color:#166534;font-weight:850;margin-top:10px}
 
     .map-mode-note{font-size:11px;color:#64748b;margin-top:4px}
@@ -295,31 +327,42 @@
         <div class="map-search">
           <div class="map-search-box">
             <span>⌕</span>
-            <input id="mapSearchInput" placeholder="自販機・場所を検索" autocomplete="off" />
+            <input id="mapSearchInput" placeholder="自販機名・場所を検索" autocomplete="off" />
           </div>
           <button class="map-search-go" id="mapSearchBtn">検索</button>
         </div>
         <div class="map-search-results hidden" id="mapSearchResults"></div>
         <div class="map-overlay-top">
-          <div class="map-segment" id="mapModeSegment">
-            <button data-mapmode="today" class="active">今日</button>
-            <button data-mapmode="all">全体</button>
+          <div class="map-tools">
+            <button class="map-tool-btn active" id="mapTodayBtn">今日</button>
+            <button class="map-tool-btn" id="mapAllBtn">全体</button>
+            <button class="map-tool-btn" id="mapOptionsBtn">絞り込み</button>
           </div>
-          <div class="map-segment" id="mapAreaSegment">
+        </div>
+
+        <div class="map-options hidden" id="mapOptionsPanel">
+          <h4>エリア</h4>
+          <div class="map-options-grid" id="mapAreaSegment">
             <button data-maparea="all" class="active">全エリア</button>
             <button data-maparea="東">東</button>
             <button data-maparea="中央">中央</button>
             <button data-maparea="西">西</button>
             <button data-maparea="その他">その他</button>
           </div>
+          <div class="map-mini-action">
+            <button class="secondary" id="mapRegisterMenuBtn">＋ 地図から登録</button>
+          </div>
         </div>
 
         <div id="map"></div>
+        <div class="map-register-mode-banner hidden" id="mapRegisterBanner">
+          <span>登録したい場所を地図上で1回タップ</span>
+          <button id="cancelMapRegisterBtn">キャンセル</button>
+        </div>
+
 
         <div class="map-floating">
-          <button class="map-float-btn" id="mapRegisterBtn" title="地図から登録">＋</button>
-          <button class="map-float-btn" id="locateBtn" title="現在地">◎</button>
-          <button class="map-float-btn" id="fitBtn" title="全件表示">⌂</button>
+          <button class="map-float-btn secondary-float" id="locateBtn" title="現在地">◎</button>
         </div>
 
         <div class="map-card hidden" id="mapInfoCard">
@@ -584,7 +627,7 @@ db.machines.forEach(m=>{
   if(m.lng!==undefined) m.lng=Number(m.lng);
 });
 save();
-let page='home', map=null, markers=[], routeLine=null, userLocationMarker=null, selectedStopId=null, mapDraft=null, tickHandle=null, pendingDeleteId=null, editingMachineId=null, mapRegisterMode=false, longPressTimer=null, longPressStart=null, suppressNextMapClick=false, mapMode='today', mapArea='all', selectedMapMachineId=null, geoWatchId=null, lastUserPosition=null;
+let page='home', map=null, markers=[], routeLine=null, userLocationMarker=null, selectedStopId=null, mapDraft=null, tickHandle=null, pendingDeleteId=null, editingMachineId=null, mapRegisterMode=false, longPressTimer=null, longPressStart=null, suppressNextMapClick=false, mapMode='today', mapArea='all', selectedMapMachineId=null, geoWatchId=null, lastUserPosition=null, tempRegisterMarker=null;
 
 function load(){try{return {...defaults,...JSON.parse(localStorage.getItem(DBKEY)||'{}')}}catch(e){return structuredClone(defaults)}}
 function save(){localStorage.setItem(DBKEY,JSON.stringify(db));}
@@ -1150,7 +1193,7 @@ function switchPage(p){
   if(page==='map' && p!=='map') hideMapMachineCard();
   page=p;['home','map','route','machines'].forEach(x=>document.getElementById(x+'Page').classList.toggle('hidden',x!==p));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));
-  fab.classList.toggle('hidden',p!=='machines'&&p!=='map');
+  fab.classList.toggle('hidden',p!=='machines');
   renderHeader();
   if(p==='map'){
     initMap();
@@ -1158,11 +1201,39 @@ function switchPage(p){
     setTimeout(()=>{map.invalidateSize();renderMapMarkers();if(mapMode==='today'&&(todaysRoute()?.stops||[]).length)fitMapVisible()},100);
   }
 }
+function clearTempRegisterMarker(){
+  if(tempRegisterMarker){
+    tempRegisterMarker.remove();
+    tempRegisterMarker=null;
+  }
+}
 function setMapRegisterMode(on){
   mapRegisterMode=!!on;
-  mapRegisterBtn.classList.toggle('map-register-active',mapRegisterMode);
-  mapRegisterBtn.textContent=mapRegisterMode?'×':'+';
-  if(mapRegisterMode) hideMapMachineCard();
+  mapRegisterBanner.classList.toggle('hidden',!mapRegisterMode);
+  mapOptionsPanel.classList.add('hidden');
+  mapOptionsBtn.classList.remove('active');
+  closeMapSearch();
+  hideMapMachineCard();
+}
+
+function openRegistrationAt(latlng){
+  clearTempRegisterMarker();
+  const icon=L.divIcon({
+    className:'',
+    html:'<div class="temp-register-pin"></div>',
+    iconSize:[38,38],
+    iconAnchor:[19,38]
+  });
+  tempRegisterMarker=L.marker([latlng.lat,latlng.lng],{
+    icon,
+    zIndexOffset:3000,
+    interactive:false
+  }).addTo(map);
+  map.panTo([latlng.lat,latlng.lng],{animate:true});
+  setTimeout(()=>{
+    setMapRegisterMode(false);
+    openMachineModal(latlng.lat,latlng.lng);
+  },220);
 }
 function startLongPressAt(latlng){
   cancelLongPress();
@@ -1171,7 +1242,7 @@ function startLongPressAt(latlng){
     longPressTimer=null;
     suppressNextMapClick=true;
     if(navigator.vibrate) navigator.vibrate(20);
-    openMachineModal(latlng.lat,latlng.lng);
+    openRegistrationAt(latlng);
   },650);
 }
 function cancelLongPress(){
@@ -1199,18 +1270,18 @@ function initMap(){
   map.on('click',e=>{
     if(suppressNextMapClick){suppressNextMapClick=false;return}
     if(mapRegisterMode){
-      setMapRegisterMode(false);
-      openMachineModal(e.latlng.lat,e.latlng.lng);
+      openRegistrationAt(e.latlng);
       return;
     }
     hideMapMachineCard();
     closeMapSearch();
+    mapOptionsPanel.classList.add('hidden');
+    mapOptionsBtn.classList.remove('active');
   });
 
   map.on('contextmenu',e=>{
     L.DomEvent.preventDefault(e);
-    setMapRegisterMode(false);
-    openMachineModal(e.latlng.lat,e.latlng.lng);
+    openRegistrationAt(e.latlng);
   });
 
   const container=map.getContainer();
@@ -1480,7 +1551,10 @@ function hideModal(id){
 function setSettingsFields(){sStart.value=db.settings.start;sReturn.value=db.settings.return;sBreak.value=db.settings.breakGoal;sMax.value=db.settings.maxStops;sWorkBudget.value=db.settings.workBudget}
 document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>switchPage(b.dataset.page)));
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>hideModal(b.dataset.close)));
-document.querySelectorAll('[data-close="machineModal"]').forEach(b=>b.addEventListener('click',()=>{editingMachineId=null}));
+document.querySelectorAll('[data-close="machineModal"]').forEach(b=>b.addEventListener('click',()=>{
+  editingMachineId=null;
+  clearTempRegisterMarker();
+}));
 generateRouteBtn.addEventListener('click',openRouteOptions);regenBtn.addEventListener('click',openRouteOptions);
 breakBtn.addEventListener('click',()=>db.active?.type==='break'?endBreak():startBreak());
 workBtn.addEventListener('click',()=>db.active?.type==='work'?endWork():openWorkPicker(currentStop()?.id));
@@ -1502,13 +1576,7 @@ confirmReturnBtn.addEventListener('click',finishReturn);
 cancelDeleteBtn.addEventListener('click',()=>{pendingDeleteId=null;hideModal('deleteModal')});
 confirmDeleteBtn.addEventListener('click',confirmDeleteMachine);
 addMachineBtn.addEventListener('click',()=>openMachineModal());
-fab.addEventListener('click',()=>{
-  if(page==='map'){
-    setMapRegisterMode(!mapRegisterMode);
-  }else{
-    openMachineModal();
-  }
-});
+fab.addEventListener('click',()=>openMachineModal());
 settingsBtn.addEventListener('click',()=>{setSettingsFields();showModal('settingsModal')});
 saveSettings.addEventListener('click',()=>{db.settings={start:sStart.value,return:sReturn.value,breakGoal:+sBreak.value,maxStops:+sMax.value,workBudget:+sWorkBudget.value};save();hideModal('settingsModal');renderAll()});
 machineForm.addEventListener('submit',e=>{
@@ -1537,17 +1605,27 @@ machineForm.addEventListener('submit',e=>{
     db.machines.push({id:uid(),...data});
   }
   editingMachineId=null;
+  clearTempRegisterMarker();
   save();
   hideModal('machineModal');
   renderAll();
 });
-mapRegisterBtn.addEventListener('click',()=>setMapRegisterMode(!mapRegisterMode));
 areaFilter.addEventListener('change',renderMachines);
 locateBtn.addEventListener('click',locateUser);
-fitBtn.addEventListener('click',fitMapVisible);
 
-document.querySelectorAll('#mapModeSegment button').forEach(b=>b.addEventListener('click',()=>setMapMode(b.dataset.mapmode)));
-document.querySelectorAll('#mapAreaSegment button').forEach(b=>b.addEventListener('click',()=>setMapArea(b.dataset.maparea)));
+mapTodayBtn.addEventListener('click',()=>setMapMode('today'));
+mapAllBtn.addEventListener('click',()=>setMapMode('all'));
+mapOptionsBtn.addEventListener('click',()=>{
+  mapOptionsPanel.classList.toggle('hidden');
+  mapOptionsBtn.classList.toggle('active',!mapOptionsPanel.classList.contains('hidden'));
+});
+mapRegisterMenuBtn.addEventListener('click',()=>setMapRegisterMode(true));
+cancelMapRegisterBtn.addEventListener('click',()=>{setMapRegisterMode(false);clearTempRegisterMarker();});
+document.querySelectorAll('#mapAreaSegment button').forEach(b=>b.addEventListener('click',()=>{
+  setMapArea(b.dataset.maparea);
+  mapOptionsPanel.classList.add('hidden');
+  mapOptionsBtn.classList.remove('active');
+}));
 mapInfoCloseBtn.addEventListener('click',hideMapMachineCard);
 mapInfoNavBtn.addEventListener('click',()=>selectedMapMachineId&&navigateToMachine(selectedMapMachineId));
 mapInfoAddBtn.addEventListener('click',()=>selectedMapMachineId&&addMachineToToday(selectedMapMachineId));
