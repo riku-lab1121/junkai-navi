@@ -218,6 +218,21 @@
   </div>
 </div>
 
+
+<div class="modal hidden" id="deleteModal">
+  <div class="sheet">
+    <h2>自販機を削除しますか？</h2>
+    <div class="card" style="background:#f9fafb;margin-bottom:14px">
+      <div style="font-weight:850;font-size:18px" id="deleteMachineName"></div>
+      <div class="sub" style="margin-top:4px">この自販機の登録と、今日の巡回内のデータを削除します。</div>
+    </div>
+    <div class="grid2">
+      <button class="secondary" id="cancelDeleteBtn">キャンセル</button>
+      <button class="secondary danger" id="confirmDeleteBtn">削除する</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal hidden" id="settingsModal">
   <div class="sheet">
     <div class="row">
@@ -254,7 +269,7 @@ const defaults={
   routes:{}, logs:[], active:null
 };
 let db=load();
-let page='home', map=null, markers=[], selectedStopId=null, mapDraft=null, tickHandle=null;
+let page='home', map=null, markers=[], selectedStopId=null, mapDraft=null, tickHandle=null, pendingDeleteId=null;
 
 function load(){try{return {...defaults,...JSON.parse(localStorage.getItem(DBKEY)||'{}')}}catch(e){return structuredClone(defaults)}}
 function save(){localStorage.setItem(DBKEY,JSON.stringify(db));}
@@ -416,8 +431,37 @@ function renderMachines(){
   })
 }
 function deleteMachine(id){
-  if(!confirm('この自販機を削除しますか？'))return;
-  db.machines=db.machines.filter(m=>m.id!==id);save();renderAll();
+  const m=machine(id);
+  if(!m)return;
+  if(db.active?.type==='work' && db.active.machineId===id){
+    alert('この自販機は現在作業中です。先に作業を終了してください。');
+    return;
+  }
+  pendingDeleteId=id;
+  deleteMachineName.textContent=m.name;
+  showModal('deleteModal');
+}
+function confirmDeleteMachine(){
+  if(!pendingDeleteId)return;
+  const id=pendingDeleteId;
+
+  // 登録自販機から削除
+  db.machines=db.machines.filter(m=>m.id!==id);
+
+  // 保存済みルートからも参照を削除して順番を振り直す
+  Object.values(db.routes||{}).forEach(r=>{
+    if(!r?.stops)return;
+    r.stops=r.stops.filter(s=>s.machineId!==id);
+    r.stops.forEach((s,i)=>s.order=i+1);
+  });
+
+  // 試作版では該当自販機の作業履歴も削除
+  db.logs=(db.logs||[]).filter(l=>l.machineId!==id);
+
+  pendingDeleteId=null;
+  save();
+  hideModal('deleteModal');
+  renderAll();
 }
 function switchPage(p){
   page=p;['home','map','route','machines'].forEach(x=>document.getElementById(x+'Page').classList.toggle('hidden',x!==p));
@@ -454,6 +498,8 @@ generateRouteBtn.addEventListener('click',generateRoute);regenBtn.addEventListen
 breakBtn.addEventListener('click',()=>db.active?.type==='break'?endBreak():startBreak());
 workBtn.addEventListener('click',()=>db.active?.type==='work'?endWork():openWorkPicker(currentStop()?.id));
 confirmWorkStart.addEventListener('click',startWork);
+cancelDeleteBtn.addEventListener('click',()=>{pendingDeleteId=null;hideModal('deleteModal')});
+confirmDeleteBtn.addEventListener('click',confirmDeleteMachine);
 addMachineBtn.addEventListener('click',()=>openMachineModal());
 fab.addEventListener('click',()=>openMachineModal());
 settingsBtn.addEventListener('click',()=>{setSettingsFields();showModal('settingsModal')});
