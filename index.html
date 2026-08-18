@@ -285,6 +285,19 @@
 .place-result-marker{width:24px;height:24px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#0a84ff;border:3px solid #fff;box-shadow:0 3px 10px #0004}
 .apple-search-note{padding:10px;border-radius:12px;background:#f8fafc;font-size:11px;color:#64748b}
 .mapkit-token-status{font-size:11px;margin-top:6px}
+
+.settings-sheet{padding-bottom:32px}
+.settings-tabs{display:flex;gap:6px;overflow-x:auto;margin:14px 0 16px;padding-bottom:2px}
+.settings-tabs button{flex:0 0 auto;padding:9px 13px;border-radius:11px;background:#eef0f3;font-weight:850;font-size:12px}
+.settings-tabs button.active{background:#111827;color:#fff}
+.settings-group{background:#f8fafc;border-radius:16px;padding:14px;margin-bottom:12px}
+.settings-panel.hidden{display:none!important}
+.settings-area-summary{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.settings-area-chip{padding:6px 9px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:11px;font-weight:800}
+.compact-ui .card{padding:14px}
+.compact-ui .sheet{padding:18px}
+.compact-ui .machine-table th,.compact-ui .machine-table td{padding:9px 8px}
+.compact-ui .route-item{padding:10px}
 </style>
 </head>
 <body>
@@ -936,42 +949,111 @@
 </div>
 
 <div class="modal hidden" id="settingsModal">
-  <div class="sheet">
+  <div class="sheet settings-sheet">
     <div class="row">
-      <h2>勤務設定</h2>
+      <div>
+        <div class="section-title" style="margin:0">アプリ</div>
+        <h2 style="margin:2px 0 0">設定</h2>
+      </div>
       <button class="secondary" data-close="settingsModal">閉じる</button>
     </div>
-    <label>勤務開始</label><input id="sStart" type="time" />
-    <label>帰社目標</label><input id="sReturn" type="time" />
-    <label>休憩目標（分）</label><input id="sBreak" type="number" min="0" />
-    <label>最大巡回台数</label><input id="sMax" type="number" min="1" max="50" />
-    <label>1日の作業上限（分・移動除く）</label><input id="sWorkBudget" type="number" min="30" />
-    
-    <div class="card" style="margin-top:16px;background:#f8fafc">
-      <div class="section-title">MAP店舗・施設検索</div>
-      <label>Apple Maps / MapKit JS トークン</label>
-      <input id="sMapKitToken" type="password" placeholder="Maps tokenを貼り付け" autocomplete="off" />
-      <div class="mapkit-token-status" id="mapKitTokenStatus">未設定の場合は登録済み自販機検索＋Apple Maps外部検索を使います。</div>
+
+    <div class="settings-tabs" id="settingsTabs">
+      <button class="active" data-settings-tab="work">勤務</button>
+      <button data-settings-tab="route">巡回</button>
+      <button data-settings-tab="map">MAP</button>
+      <button data-settings-tab="display">表示</button>
+      <button data-settings-tab="area">エリア</button>
+      <button data-settings-tab="data">データ</button>
     </div>
 
-    <div class="card" style="margin-top:16px;background:#f8fafc">
-      <div class="row"><div><div class="section-title">エリア設定</div><div class="sub">高松・坂出など自由に追加できます</div></div>
-      <button class="secondary" type="button" id="areaSettingsBtn">編集</button></div>
-    </div>
-
-    <div class="card" style="margin-top:16px;background:#f8fafc">
-      <div class="section-title">バックアップ・一括登録</div>
-      <div class="backup-actions">
-        <button class="secondary" type="button" id="exportCsvBtn">自販機CSV出力</button>
-        <button class="secondary" type="button" id="importCsvBtn">CSV読込</button>
-        <button class="secondary" type="button" id="exportBackupBtn">完全バックアップ</button>
-        <button class="secondary" type="button" id="importBackupBtn">復元</button>
+    <div class="settings-panel" data-settings-panel="work">
+      <div class="settings-group">
+        <div class="section-title">勤務時間</div>
+        <label>勤務開始</label><input id="sStart" type="time" />
+        <label>帰社目標</label><input id="sReturn" type="time" />
+        <label>休憩目標（分）</label><input id="sBreak" type="number" min="0" />
       </div>
-      <input class="hidden" id="csvFileInput" type="file" accept=".csv,text/csv" />
-      <input class="hidden" id="backupFileInput" type="file" accept=".json,application/json" />
-      <div class="mini" style="margin-top:8px">CSVはExcelで開けます。完全バックアップは巡回履歴・勤務記録も含みます。</div>
     </div>
-<button class="primary" id="saveSettings" style="margin-top:16px">保存</button>
+
+    <div class="settings-panel hidden" data-settings-panel="route">
+      <div class="settings-group">
+        <div class="section-title">巡回作成</div>
+        <label>最大巡回台数</label><input id="sMax" type="number" min="1" max="100" />
+        <label>1日の作業上限（分・移動除く）</label><input id="sWorkBudget" type="number" min="30" />
+        <label>巡回作成の初期モード</label>
+        <select id="sRouteDefaultMode">
+          <option value="recommended">おすすめ</option>
+          <option value="all">登録済み全部を候補</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="settings-panel hidden" data-settings-panel="map">
+      <div class="settings-group">
+        <div class="section-title">MAP表示</div>
+        <label>初期ズーム</label>
+        <input id="sMapZoom" type="range" min="10" max="18" step="1" />
+        <div class="row"><span class="sub">広域</span><b id="sMapZoomLabel">14</b><span class="sub">詳細</span></div>
+
+        <label>MAPを開いた時の表示</label>
+        <select id="sMapDefaultMode">
+          <option value="today">今日を強調</option>
+          <option value="all">通常</option>
+        </select>
+
+        <div class="checkrow"><input id="sGpsAuto" type="checkbox"><span>MAPを開いたら現在地を自動追跡</span></div>
+      </div>
+
+      <div class="settings-group">
+        <div class="section-title">店舗・施設検索</div>
+        <label>Apple Maps / MapKit JS トークン</label>
+        <input id="sMapKitToken" type="password" placeholder="Maps tokenを貼り付け" autocomplete="off" />
+        <div class="mapkit-token-status" id="mapKitTokenStatus">未設定の場合は登録済み自販機検索＋Apple Maps外部検索を使います。</div>
+      </div>
+    </div>
+
+    <div class="settings-panel hidden" data-settings-panel="display">
+      <div class="settings-group">
+        <div class="section-title">アプリ表示</div>
+        <label>画面の情報量</label>
+        <select id="sDensity">
+          <option value="standard">標準</option>
+          <option value="compact">コンパクト</option>
+        </select>
+        <div class="checkrow"><input id="sHaptics" type="checkbox"><span>ボタン操作時の軽い振動</span></div>
+      </div>
+    </div>
+
+    <div class="settings-panel hidden" data-settings-panel="area">
+      <div class="settings-group">
+        <div class="row">
+          <div>
+            <div class="section-title">巡回エリア</div>
+            <div class="sub">高松・坂出など自由に追加できます</div>
+          </div>
+          <button class="secondary" type="button" id="areaSettingsBtn">編集</button>
+        </div>
+        <div id="settingsAreaSummary" class="settings-area-summary"></div>
+      </div>
+    </div>
+
+    <div class="settings-panel hidden" data-settings-panel="data">
+      <div class="settings-group">
+        <div class="section-title">バックアップ・一括登録</div>
+        <div class="backup-actions">
+          <button class="secondary" type="button" id="exportCsvBtn">自販機CSV出力</button>
+          <button class="secondary" type="button" id="importCsvBtn">CSV読込</button>
+          <button class="secondary" type="button" id="exportBackupBtn">完全バックアップ</button>
+          <button class="secondary" type="button" id="importBackupBtn">復元</button>
+        </div>
+        <input class="hidden" id="csvFileInput" type="file" accept=".csv,text/csv" />
+        <input class="hidden" id="backupFileInput" type="file" accept=".json,application/json" />
+        <div class="mini" style="margin-top:8px">完全バックアップには自販機・巡回・勤務記録・予定を含みます。</div>
+      </div>
+    </div>
+
+    <button class="primary" id="saveSettings" style="margin-top:16px">設定を保存</button>
   </div>
 </div>
 
@@ -994,7 +1076,7 @@ const fmtTime=(sec)=>{sec=Math.max(0,Math.floor(sec));const h=Math.floor(sec/360
 const uid=()=>Math.random().toString(36).slice(2,10);
 
 const defaults={
-  settings:{start:'08:30',return:'17:00',breakGoal:60,maxStops:15,workBudget:360,mapKitToken:''},
+  settings:{start:'08:30',return:'17:00',breakGoal:60,maxStops:15,workBudget:360,mapKitToken:'',routeDefaultMode:'recommended',mapZoom:14,mapDefaultMode:'today',gpsAuto:true,density:'standard',haptics:true},
   machines:[
     {id:uid(),name:'サンプル：市役所前',number:'001',lat:34.3428,lng:134.0466,lastRegular:isoDaysAgo(14),weekly:true,lastSupply:isoDaysAgo(7),workMinutes:25,memo:''},
     {id:uid(),name:'サンプル：工場A',number:'002',lat:34.3295,lng:134.0205,lastRegular:isoDaysAgo(12),weekly:false,lastSupply:isoDaysAgo(12),workMinutes:30,memo:''},
@@ -1037,6 +1119,13 @@ function syncDbFromStorage(){
       if(!db.shifts) db.shifts={};
       if(!Array.isArray(db.tasks)) db.tasks=[];
       if(!Array.isArray(db.troubles)) db.troubles=[];
+if(!db.settings)db.settings={};
+if(db.settings.routeDefaultMode===undefined)db.settings.routeDefaultMode='recommended';
+if(db.settings.mapZoom===undefined)db.settings.mapZoom=14;
+if(db.settings.mapDefaultMode===undefined)db.settings.mapDefaultMode='today';
+if(db.settings.gpsAuto===undefined)db.settings.gpsAuto=true;
+if(db.settings.density===undefined)db.settings.density='standard';
+if(db.settings.haptics===undefined)db.settings.haptics=true;
 if(!Array.isArray(db.areas)||!db.areas.length) db.areas=['高松','坂出','丸亀','宇多津','与島'];
 db.machines.forEach(m=>{if(m.site===undefined)m.site='';});
       db.machines.forEach(m=>{
@@ -1360,7 +1449,7 @@ function openRouteOptions(){
   fillAreaControls();
   const r=todaysRoute();
   routeArea.value=r?.areaFilter||'all';
-  routeCandidateMode.value=r?.candidateMode||'recommended';
+  routeCandidateMode.value=r?.candidateMode||db.settings?.routeDefaultMode||'recommended';
   routeMaxStops.value=db.settings.maxStops||15;
   routeBudget.value=db.settings.workBudget||360;
   routeIncludeTrouble.checked=true;
@@ -1445,7 +1534,7 @@ function endWork(){
   if(act.workTypes.includes('集金')) m.lastCollection=today();
   db.active=null;save();renderAll();
 }
-function renderAll(){renderHeader();renderShift();renderHome();renderRoute();renderMachines();renderMapMarkers();renderActive();renderWorkDashboard()}
+function renderAll(){applyAppSettings();renderHeader();renderShift();renderHome();renderRoute();renderMachines();renderMapMarkers();renderActive();renderWorkDashboard()}
 
 function renderShift(){
   const s=todaysShift();
@@ -2137,8 +2226,9 @@ function switchPage(p){
   if(p==='home'){renderHome();renderShift();renderActive();renderWorkDashboard();}
 
   if(p==='map'){
+    if(!map) mapMode=db.settings?.mapDefaultMode||'today';
     initMap();
-    startLocationTracking(false);
+    if(db.settings?.gpsAuto!==false) startLocationTracking(false);
     setTimeout(()=>{
       map.invalidateSize();
       renderMapMarkers();
@@ -2221,7 +2311,7 @@ function initMap(){
     touchZoom:true,
     zoomControl:false,
     preferCanvas:true
-  }).setView([34.3428,134.0466],12);
+  }).setView([34.3428,134.0466],Number(db.settings?.mapZoom||14));
 
   L.tileLayer(`https://tile.openstreetmap.org/{z}/{x}/{y}.png`,{
     maxZoom:19,
@@ -2624,6 +2714,13 @@ function fillMachineSelect(sel,optional){
 }
 function renderWorkDashboard(){
   if(!Array.isArray(db.troubles)) db.troubles=[];
+      if(!db.settings)db.settings={};
+      if(db.settings.routeDefaultMode===undefined)db.settings.routeDefaultMode='recommended';
+      if(db.settings.mapZoom===undefined)db.settings.mapZoom=14;
+      if(db.settings.mapDefaultMode===undefined)db.settings.mapDefaultMode='today';
+      if(db.settings.gpsAuto===undefined)db.settings.gpsAuto=true;
+      if(db.settings.density===undefined)db.settings.density='standard';
+      if(db.settings.haptics===undefined)db.settings.haptics=true;
       if(!Array.isArray(db.areas)||!db.areas.length) db.areas=['高松','坂出','丸亀','宇多津','与島'];
       db.machines.forEach(m=>{if(m.site===undefined)m.site='';});
   if(!Array.isArray(db.tasks)) db.tasks=[];
@@ -2829,7 +2926,39 @@ function hideModal(id){
   if(!document.querySelector('.modal:not(.hidden)')) document.body.classList.remove('modal-open');
   if(map && page==='map') setTimeout(()=>map.invalidateSize(),80);
 }
-function setSettingsFields(){sStart.value=db.settings.start;sReturn.value=db.settings.return;sBreak.value=db.settings.breakGoal;sMax.value=db.settings.maxStops;sWorkBudget.value=db.settings.workBudget}
+function renderSettingsAreaSummary(){
+  settingsAreaSummary.innerHTML=areaNames().length
+    ? areaNames().map(a=>`<span class="settings-area-chip">${escapeHtml(a)}</span>`).join('')
+    : '<span class="sub">エリアはまだありません</span>';
+}
+function setSettingsTab(name){
+  document.querySelectorAll('#settingsTabs button').forEach(b=>b.classList.toggle('active',b.dataset.settingsTab===name));
+  document.querySelectorAll('[data-settings-panel]').forEach(p=>p.classList.toggle('hidden',p.dataset.settingsPanel!==name));
+}
+function applyAppSettings(){
+  document.body.classList.toggle('compact-ui',db.settings?.density==='compact');
+}
+function haptic(){
+  if(db.settings?.haptics && navigator.vibrate)navigator.vibrate(8);
+}
+function setSettingsFields(){
+  sStart.value=db.settings.start||'08:30';
+  sReturn.value=db.settings.return||'17:00';
+  sBreak.value=db.settings.breakGoal??60;
+  sMax.value=db.settings.maxStops??15;
+  sWorkBudget.value=db.settings.workBudget??360;
+  sRouteDefaultMode.value=db.settings.routeDefaultMode||'recommended';
+  sMapZoom.value=db.settings.mapZoom??14;
+  sMapZoomLabel.textContent=sMapZoom.value;
+  sMapDefaultMode.value=db.settings.mapDefaultMode||'today';
+  sGpsAuto.checked=db.settings.gpsAuto!==false;
+  sMapKitToken.value=db.settings.mapKitToken||'';
+  sDensity.value=db.settings.density||'standard';
+  sHaptics.checked=db.settings.haptics!==false;
+  mapKitTokenStatus.textContent=db.settings.mapKitToken?'店舗・施設検索：設定済み':'未設定の場合は登録済み自販機検索＋Apple Maps外部検索を使います。';
+  renderSettingsAreaSummary();
+  setSettingsTab('work');
+}
 
 calendarWeekBtn.addEventListener('click',()=>{calendarMode='week';renderCalendar()});
 calendarMonthBtn.addEventListener('click',()=>{calendarMode='month';renderCalendar()});
@@ -2844,7 +2973,7 @@ calendarNextBtn.addEventListener('click',()=>{
   else{const d=ymdDate(calendarAnchor);calendarAnchor=localYmd(new Date(d.getFullYear(),d.getMonth()+1,1,12))}
   renderCalendar();
 });
-document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>switchPage(b.dataset.page)));
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{haptic();switchPage(b.dataset.page)}));
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>hideModal(b.dataset.close)));
 document.querySelectorAll('[data-close="machineModal"]').forEach(b=>b.addEventListener('click',()=>{
   editingMachineId=null;
@@ -2923,8 +3052,35 @@ areaAddForm.addEventListener('submit',e=>{
   if(n==='未設定'||n==='全エリア'){alert('その名前は使用できません。');return}
   if(!db.areas.includes(n))db.areas.push(n);newAreaName.value='';save();fillAreaControls();renderAreaSettings();renderAll();showToast(`${n}を追加しました`);
 });
+document.querySelectorAll('#settingsTabs button').forEach(b=>b.addEventListener('click',()=>{
+  haptic();
+  setSettingsTab(b.dataset.settingsTab);
+}));
+sMapZoom.addEventListener('input',()=>sMapZoomLabel.textContent=sMapZoom.value);
 settingsBtn.addEventListener('click',()=>{setSettingsFields();showModal('settingsModal')});
-saveSettings.addEventListener('click',()=>{db.settings={...db.settings,start:sStart.value,return:sReturn.value,breakGoal:+sBreak.value,maxStops:+sMax.value,workBudget:+sWorkBudget.value,mapKitToken:sMapKitToken.value.trim()};mapKitLoadingPromise=null;save();hideModal('settingsModal');renderAll();showToast('設定を保存しました')});
+saveSettings.addEventListener('click',()=>{
+  db.settings={
+    ...db.settings,
+    start:sStart.value,
+    return:sReturn.value,
+    breakGoal:+sBreak.value,
+    maxStops:+sMax.value,
+    workBudget:+sWorkBudget.value,
+    routeDefaultMode:sRouteDefaultMode.value,
+    mapZoom:+sMapZoom.value,
+    mapDefaultMode:sMapDefaultMode.value,
+    gpsAuto:sGpsAuto.checked,
+    mapKitToken:sMapKitToken.value.trim(),
+    density:sDensity.value,
+    haptics:sHaptics.checked
+  };
+  mapKitLoadingPromise=null;
+  applyAppSettings();
+  save();
+  hideModal('settingsModal');
+  renderAll();
+  showToast('設定を保存しました');
+});
 machineForm.addEventListener('submit',e=>{
   e.preventDefault();
 
@@ -3076,6 +3232,7 @@ window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=rende
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 setInterval(()=>{if(db.active || (hasDeparted()&&!hasReturned())){renderShift();renderActive();renderHome()}},1000);
 fillAreaControls();
+applyAppSettings();
 renderAll();
 </script>
 </body>

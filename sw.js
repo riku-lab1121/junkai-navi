@@ -1,4 +1,4 @@
-const CACHE='vending-route-v5-0';
+const CACHE='vending-route-v5-1';
 const CORE=['./','./index.html','./manifest.json'];
 self.addEventListener('install',event=>{
   self.skipWaiting();
