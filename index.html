@@ -74,6 +74,26 @@
     .smallbtn{padding:8px 10px;border-radius:10px;background:#eef0f3;font-size:12px;font-weight:800}
     .notice{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;padding:11px;border-radius:12px;font-size:13px;margin-bottom:12px}
     .greenText{color:#15803d}.redText{color:#b91c1c}
+    .map-register-active{background:#111827!important;color:#fff!important}
+    .map-register-banner{background:#e0f2fe;border-color:#7dd3fc;color:#075985}
+    .table-wrap{overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:16px;background:#fff}
+    .machine-table{width:100%;min-width:850px;border-collapse:separate;border-spacing:0;font-size:13px}
+    .machine-table th,.machine-table td{padding:11px 10px;border-bottom:1px solid var(--line);border-right:1px solid #f1f2f4;white-space:nowrap;text-align:left;vertical-align:middle}
+    .machine-table th{position:sticky;top:0;z-index:4;background:#f8fafc;color:#475569;font-size:11px;font-weight:850}
+    .machine-table tr:last-child td{border-bottom:0}
+    .machine-table td.name-cell{font-weight:800;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+    .machine-table th:first-child,.machine-table td:first-child{position:sticky;left:0;z-index:3;background:#fff}
+    .machine-table th:first-child{z-index:5;background:#f8fafc}
+    .machine-table tbody tr:nth-child(even) td{background:#fbfcfd}
+    .machine-table tbody tr:nth-child(even) td:first-child{background:#fbfcfd}
+    .table-toolbar{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:10px}
+    .area-chips{display:flex;gap:7px;overflow:auto;padding-bottom:2px}
+    .area-chip{flex:0 0 auto;padding:7px 10px;border-radius:999px;background:#f1f5f9;font-size:12px;font-weight:800}
+    .status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:#94a3b8}
+    .status-dot.red{background:#dc2626}.status-dot.orange{background:#f59e0b}.status-dot.green{background:#16a34a}
+    .compact-select{width:auto;min-width:150px;padding:9px 10px}
+    .editbtn{background:#e0e7ff;color:#3730a3}
+
     .shift-card{border:1px solid var(--line)}
     .shift-main{font-size:22px;font-weight:850}
     .shift-times{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
@@ -195,12 +215,13 @@
     </section>
 
     <section id="mapPage" class="hidden">
-      <div class="notice">地図上のピンをタップすると状態を確認できます。長押しで新規登録位置をセットできます。</div>
-      <div id="map"></div>
+      <div class="notice" id="mapNotice">ピンをタップすると自販機の状態を確認できます。新規登録は「＋ 地図から登録」を押して、場所を1回タップしてください。</div>
       <div class="map-actions">
+        <button class="secondary" id="mapRegisterBtn">＋ 地図から登録</button>
         <button class="secondary" id="locateBtn">現在地</button>
         <button class="secondary" id="fitBtn">全件表示</button>
       </div>
+      <div id="map"></div>
     </section>
 
     <section id="routePage" class="hidden">
@@ -225,8 +246,41 @@
           </div>
           <button class="secondary" id="addMachineBtn">＋ 登録</button>
         </div>
+        <div class="area-chips" id="areaChips" style="margin-top:12px"></div>
       </div>
-      <div class="card" id="machineList"></div>
+
+      <div class="card">
+        <div class="table-toolbar">
+          <div class="section-title" style="margin:0">自販機一覧</div>
+          <select id="areaFilter" class="compact-select">
+            <option value="all">全エリア</option>
+            <option value="東">東エリア</option>
+            <option value="中央">中央エリア</option>
+            <option value="西">西エリア</option>
+            <option value="その他">その他</option>
+            <option value="未設定">未設定</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="machine-table">
+            <thead>
+              <tr>
+                <th>エリア</th>
+                <th>管理No</th>
+                <th>自販機名</th>
+                <th>状態</th>
+                <th>最終定期</th>
+                <th>最終補充</th>
+                <th>7日補充</th>
+                <th>作業目安</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="machineTableBody"></tbody>
+          </table>
+        </div>
+        <div id="machineEmpty" class="empty hidden">自販機を登録してください。</div>
+      </div>
     </section>
   </main>
 
@@ -249,6 +303,14 @@
     <form id="machineForm">
       <label>自販機名</label><input required id="mName" placeholder="例：○○工場" />
       <label>管理番号</label><input id="mNumber" placeholder="例：042" />
+      <label>エリア</label>
+      <select id="mArea" required>
+        <option value="東">東エリア</option>
+        <option value="中央" selected>中央エリア</option>
+        <option value="西">西エリア</option>
+        <option value="その他">その他</option>
+      </select>
+
       <div class="grid2">
         <div><label>緯度</label><input required id="mLat" type="number" step="any" /></div>
         <div><label>経度</label><input required id="mLng" type="number" step="any" /></div>
@@ -340,7 +402,14 @@ const defaults={
   routes:{}, logs:[], active:null, shifts:{}
 };
 let db=load();
-let page='home', map=null, markers=[], selectedStopId=null, mapDraft=null, tickHandle=null, pendingDeleteId=null;
+if(!db.machines) db.machines=[];
+db.machines.forEach(m=>{
+  if(!m.area) m.area='未設定';
+  if(m.lat!==undefined) m.lat=Number(m.lat);
+  if(m.lng!==undefined) m.lng=Number(m.lng);
+});
+save();
+let page='home', map=null, markers=[], selectedStopId=null, mapDraft=null, tickHandle=null, pendingDeleteId=null, editingMachineId=null, mapRegisterMode=false, longPressTimer=null, longPressStart=null, suppressNextMapClick=false;
 
 function load(){try{return {...defaults,...JSON.parse(localStorage.getItem(DBKEY)||'{}')}}catch(e){return structuredClone(defaults)}}
 function save(){localStorage.setItem(DBKEY,JSON.stringify(db));}
@@ -615,16 +684,81 @@ function renderRoute(){
     routeList.appendChild(el);
   })
 }
+function machineStatusInfo(m){
+  const rd=dayDiff(m.lastRegular,today());
+  if(rd>=14) return {label:`定期 ${rd}日経過`,dot:'red',rank:0};
+  if(m.weekly && weeklyDue(m)) return {label:'補充時期',dot:'orange',rank:1};
+  const left=Math.max(0,14-rd);
+  return {label:`定期まで${left}日`,dot:'green',rank:2};
+}
 function renderMachines(){
-  machineCount.textContent=db.machines.length;machineList.innerHTML='';
-  if(!db.machines.length){machineList.innerHTML='<div class="empty">自販機を登録してください。</div>';return}
-  db.machines.slice().sort((a,b)=>urgency(b)-urgency(a)).forEach(m=>{
-    const el=document.createElement('div');el.className='machine';
-    const rd=dayDiff(m.lastRegular,today()),label=rd>=14?`定期 ${rd}日経過`:m.weekly&&weeklyDue(m)?'補充時期':`定期まで${14-rd}日`;
-    const cls=rd>=14?'redText':m.weekly&&weeklyDue(m)?'':'greenText';
-    el.innerHTML=`<div><b>${m.name}</b><div class="sub">#${m.number||'-'} ・ <span class="${cls}">${label}</span></div></div><button class="smallbtn danger" onclick="deleteMachine('${m.id}')">削除</button>`;
-    machineList.appendChild(el);
-  })
+  machineCount.textContent=db.machines.length;
+
+  const counts={東:0,中央:0,西:0,その他:0,未設定:0};
+  db.machines.forEach(m=>counts[m.area||'未設定']=(counts[m.area||'未設定']||0)+1);
+  areaChips.innerHTML=['東','中央','西','その他','未設定']
+    .filter(a=>counts[a]>0)
+    .map(a=>`<button class="area-chip" onclick="setAreaFilter('${a}')">${a} ${counts[a]}台</button>`).join('');
+
+  const filter=areaFilter.value||'all';
+  let rows=db.machines.slice()
+    .filter(m=>filter==='all'||(m.area||'未設定')===filter)
+    .sort((a,b)=>{
+      const order={東:0,中央:1,西:2,その他:3,未設定:4};
+      const ao=order[a.area||'未設定']??9, bo=order[b.area||'未設定']??9;
+      if(ao!==bo) return ao-bo;
+      const sa=machineStatusInfo(a).rank, sb=machineStatusInfo(b).rank;
+      if(sa!==sb) return sa-sb;
+      return String(a.number||'').localeCompare(String(b.number||''),'ja',{numeric:true});
+    });
+
+  machineTableBody.innerHTML='';
+  machineEmpty.classList.toggle('hidden',rows.length>0);
+  document.querySelector('.table-wrap').classList.toggle('hidden',rows.length===0);
+
+  rows.forEach(m=>{
+    const st=machineStatusInfo(m);
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td><b>${escapeHtml(m.area||'未設定')}</b></td>
+      <td>#${escapeHtml(m.number||'-')}</td>
+      <td class="name-cell" title="${escapeHtml(m.name)}">${escapeHtml(m.name)}</td>
+      <td><span class="status-dot ${st.dot}"></span>${escapeHtml(st.label)}</td>
+      <td>${escapeHtml(m.lastRegular||'-')}</td>
+      <td>${escapeHtml(m.lastSupply||'-')}</td>
+      <td>${m.weekly?'あり':'なし'}</td>
+      <td>${Number(m.workMinutes||25)}分</td>
+      <td>
+        <button class="smallbtn editbtn" onclick="editMachine('${m.id}')">編集</button>
+        <button class="smallbtn danger" onclick="deleteMachine('${m.id}')">削除</button>
+      </td>`;
+    machineTableBody.appendChild(tr);
+  });
+}
+function escapeHtml(v){
+  return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function setAreaFilter(area){
+  areaFilter.value=area;
+  renderMachines();
+}
+function editMachine(id){
+  const m=machine(id);
+  if(!m)return;
+  editingMachineId=id;
+  document.querySelector('#machineModal h2').textContent='自販機を編集';
+  document.querySelector('#machineForm .primary').textContent='保存する';
+  mName.value=m.name||'';
+  mNumber.value=m.number||'';
+  mArea.value=m.area&&m.area!=='未設定'?m.area:'中央';
+  mLat.value=m.lat??'';
+  mLng.value=m.lng??'';
+  mLastRegular.value=m.lastRegular||today();
+  mWeekly.checked=!!m.weekly;
+  mLastSupply.value=m.lastSupply||m.lastRegular||today();
+  mWorkMinutes.value=m.workMinutes||25;
+  mMemo.value=m.memo||'';
+  showModal('machineModal');
 }
 function deleteMachine(id){
   const m=machine(id);
@@ -664,25 +798,106 @@ function switchPage(p){
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));
   fab.classList.toggle('hidden',p!=='machines'&&p!=='map');
   renderHeader();
-  if(p==='map'){initMap();setTimeout(()=>map.invalidateSize(),50)}
+  if(p==='map'){
+    initMap();
+    setTimeout(()=>{map.invalidateSize();renderMapMarkers()},80);
+  }
+}
+function setMapRegisterMode(on){
+  mapRegisterMode=!!on;
+  mapRegisterBtn.classList.toggle('map-register-active',mapRegisterMode);
+  mapRegisterBtn.textContent=mapRegisterMode?'キャンセル':'＋ 地図から登録';
+  mapNotice.classList.toggle('map-register-banner',mapRegisterMode);
+  mapNotice.textContent=mapRegisterMode
+    ? '登録モードです。自販機を置きたい場所を地図上で1回タップしてください。'
+    : 'ピンをタップすると自販機の状態を確認できます。新規登録は「＋ 地図から登録」を押して、場所を1回タップしてください。';
+}
+function startLongPressAt(latlng){
+  cancelLongPress();
+  longPressStart=latlng;
+  longPressTimer=setTimeout(()=>{
+    longPressTimer=null;
+    suppressNextMapClick=true;
+    if(navigator.vibrate) navigator.vibrate(20);
+    openMachineModal(latlng.lat,latlng.lng);
+  },650);
+}
+function cancelLongPress(){
+  if(longPressTimer){clearTimeout(longPressTimer);longPressTimer=null}
+  longPressStart=null;
 }
 function initMap(){
   if(map)return;
-  map=L.map('map').setView([34.3428,134.0466],12);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
-  map.on('contextmenu',e=>{mapDraft=e.latlng;openMachineModal(e.latlng.lat,e.latlng.lng)});
+  map=L.map('map',{tap:true,touchZoom:true}).setView([34.3428,134.0466],12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom:19,
+    attribution:'&copy; OpenStreetMap'
+  }).addTo(map);
+
+  // 登録モード: 1タップで緯度経度を取得
+  map.on('click',e=>{
+    if(suppressNextMapClick){suppressNextMapClick=false;return}
+    if(!mapRegisterMode)return;
+    setMapRegisterMode(false);
+    openMachineModal(e.latlng.lat,e.latlng.lng);
+  });
+
+  // PC/一部ブラウザの長押し・右クリック
+  map.on('contextmenu',e=>{
+    L.DomEvent.preventDefault(e);
+    setMapRegisterMode(false);
+    openMachineModal(e.latlng.lat,e.latlng.lng);
+  });
+
+  // iPhone Safari/PWA向け長押し
+  const container=map.getContainer();
+  let touchOrigin=null;
+  container.addEventListener('touchstart',ev=>{
+    if(ev.touches.length!==1)return;
+    const t=ev.touches[0];
+    touchOrigin={x:t.clientX,y:t.clientY};
+    const rect=container.getBoundingClientRect();
+    const point=L.point(t.clientX-rect.left,t.clientY-rect.top);
+    startLongPressAt(map.containerPointToLatLng(point));
+  },{passive:true});
+
+  container.addEventListener('touchmove',ev=>{
+    if(!touchOrigin||ev.touches.length!==1){cancelLongPress();return}
+    const t=ev.touches[0];
+    const dx=t.clientX-touchOrigin.x,dy=t.clientY-touchOrigin.y;
+    if(Math.hypot(dx,dy)>12) cancelLongPress();
+  },{passive:true});
+
+  container.addEventListener('touchend',()=>{touchOrigin=null;cancelLongPress()},{passive:true});
+  container.addEventListener('touchcancel',()=>{touchOrigin=null;cancelLongPress()},{passive:true});
+
   renderMapMarkers();
 }
 function renderMapMarkers(){
-  if(!map)return;markers.forEach(x=>x.remove());markers=[];
+  if(!map)return;
+  markers.forEach(x=>x.remove());markers=[];
   db.machines.forEach(m=>{
+    if(!Number.isFinite(Number(m.lat))||!Number.isFinite(Number(m.lng))) return;
     const status=regularDue(m)?'🔴':weeklyDue(m)?'🟠':'⚪';
-    const marker=L.marker([m.lat,m.lng]).addTo(map).bindPopup(`<b>${status} ${m.name}</b><br>#${m.number||'-'}<br>最終定期 ${m.lastRegular}<br>${m.weekly?'中間補充あり':'定期巡回のみ'}`);
+    const marker=L.marker([Number(m.lat),Number(m.lng)]).addTo(map)
+      .bindPopup(`<b>${status} ${escapeHtml(m.name)}</b><br>${escapeHtml(m.area||'未設定')} / #${escapeHtml(m.number||'-')}<br>最終定期 ${escapeHtml(m.lastRegular||'-')}<br>${m.weekly?'中間補充あり':'定期巡回のみ'}`);
     markers.push(marker);
-  })
+  });
 }
 function openMachineModal(lat='',lng=''){
-  mName.value='';mNumber.value='';mLat.value=lat||'';mLng.value=lng||'';mLastRegular.value=today();mWeekly.checked=false;mLastSupply.value=today();mWorkMinutes.value=25;mMemo.value='';
+  editingMachineId=null;
+  document.querySelector('#machineModal h2').textContent='自販機を登録';
+  document.querySelector('#machineForm .primary').textContent='登録する';
+  mName.value='';
+  mNumber.value='';
+  mArea.value='中央';
+  mLat.value=lat||'';
+  mLng.value=lng||'';
+  mLastRegular.value=today();
+  mWeekly.checked=false;
+  mLastSupply.value=today();
+  mWorkMinutes.value=25;
+  mMemo.value='';
   showModal('machineModal');
 }
 function showModal(id){document.getElementById(id).classList.remove('hidden')}
@@ -690,6 +905,7 @@ function hideModal(id){document.getElementById(id).classList.add('hidden')}
 function setSettingsFields(){sStart.value=db.settings.start;sReturn.value=db.settings.return;sBreak.value=db.settings.breakGoal;sMax.value=db.settings.maxStops;sWorkBudget.value=db.settings.workBudget}
 document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>switchPage(b.dataset.page)));
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>hideModal(b.dataset.close)));
+document.querySelectorAll('[data-close="machineModal"]').forEach(b=>b.addEventListener('click',()=>{editingMachineId=null}));
 generateRouteBtn.addEventListener('click',generateRoute);regenBtn.addEventListener('click',generateRoute);
 breakBtn.addEventListener('click',()=>db.active?.type==='break'?endBreak():startBreak());
 workBtn.addEventListener('click',()=>db.active?.type==='work'?endWork():openWorkPicker(currentStop()?.id));
@@ -701,17 +917,45 @@ confirmReturnBtn.addEventListener('click',finishReturn);
 cancelDeleteBtn.addEventListener('click',()=>{pendingDeleteId=null;hideModal('deleteModal')});
 confirmDeleteBtn.addEventListener('click',confirmDeleteMachine);
 addMachineBtn.addEventListener('click',()=>openMachineModal());
-fab.addEventListener('click',()=>openMachineModal());
+fab.addEventListener('click',()=>{
+  if(page==='map'){
+    setMapRegisterMode(!mapRegisterMode);
+  }else{
+    openMachineModal();
+  }
+});
 settingsBtn.addEventListener('click',()=>{setSettingsFields();showModal('settingsModal')});
 saveSettings.addEventListener('click',()=>{db.settings={start:sStart.value,return:sReturn.value,breakGoal:+sBreak.value,maxStops:+sMax.value,workBudget:+sWorkBudget.value};save();hideModal('settingsModal');renderAll()});
 machineForm.addEventListener('submit',e=>{
   e.preventDefault();
-  db.machines.push({id:uid(),name:mName.value.trim(),number:mNumber.value.trim(),lat:+mLat.value,lng:+mLng.value,lastRegular:mLastRegular.value,weekly:mWeekly.checked,lastSupply:mLastSupply.value||mLastRegular.value,workMinutes:+mWorkMinutes.value||25,memo:mMemo.value.trim()});
-  save();hideModal('machineModal');renderAll();
+  const data={
+    name:mName.value.trim(),
+    number:mNumber.value.trim(),
+    area:mArea.value||'その他',
+    lat:+mLat.value,
+    lng:+mLng.value,
+    lastRegular:mLastRegular.value,
+    weekly:mWeekly.checked,
+    lastSupply:mLastSupply.value||mLastRegular.value,
+    workMinutes:+mWorkMinutes.value||25,
+    memo:mMemo.value.trim()
+  };
+  if(editingMachineId){
+    const m=machine(editingMachineId);
+    if(m) Object.assign(m,data);
+  }else{
+    db.machines.push({id:uid(),...data});
+  }
+  editingMachineId=null;
+  save();
+  hideModal('machineModal');
+  renderAll();
 });
+mapRegisterBtn.addEventListener('click',()=>setMapRegisterMode(!mapRegisterMode));
+areaFilter.addEventListener('change',renderMachines);
 locateBtn.addEventListener('click',()=>navigator.geolocation?.getCurrentPosition(p=>map.setView([p.coords.latitude,p.coords.longitude],15),()=>alert('現在地を取得できませんでした。')));
 fitBtn.addEventListener('click',()=>{if(db.machines.length)map.fitBounds(L.latLngBounds(db.machines.map(m=>[m.lat,m.lng])).pad(.2))});
-window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;
+window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 setInterval(()=>{if(db.active || (hasDeparted()&&!hasReturned())){renderShift();renderActive();renderHome()}},1000);
