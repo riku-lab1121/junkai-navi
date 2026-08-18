@@ -447,14 +447,7 @@
       <div class="card">
         <div class="table-toolbar">
           <div class="section-title" style="margin:0">自販機一覧</div>
-          <select id="areaFilter" class="compact-select">
-            <option value="all">全エリア</option>
-            <option value="東">東エリア</option>
-            <option value="中央">中央エリア</option>
-            <option value="西">西エリア</option>
-            <option value="その他">その他</option>
-            <option value="未設定">未設定</option>
-          </select>
+          <select id="areaFilter" class="compact-select"><option value="all">全エリア</option></select>
         </div>
         <div class="table-wrap">
           <table class="machine-table">
@@ -505,13 +498,7 @@
       <label>自販機名</label><input required id="mName" placeholder="例：○○工場" />
       <label>管理番号</label><input id="mNumber" placeholder="例：042" />
       <label>エリア</label>
-      <select id="mArea">
-        <option value="未設定" selected>未設定</option>
-        <option value="東">東エリア</option>
-        <option value="中央">中央エリア</option>
-        <option value="西">西エリア</option>
-        <option value="その他">その他</option>
-      </select>
+      <select id="mArea"><option value="未設定">未設定</option></select>
 
       <div class="grid2">
         <div><label>緯度</label><input id="mLat" type="number" step="any" /></div>
@@ -629,18 +616,23 @@
   </div>
 </div>
 
+<div class="modal hidden" id="areaSettingsModal">
+  <div class="sheet">
+    <div class="row"><h2>エリア設定</h2><button class="secondary" data-close="areaSettingsModal">閉じる</button></div>
+    <div class="notice">地名を自由に登録できます。自販機・MAP・巡回で共通して使います。</div>
+    <form id="areaAddForm" class="row" style="margin:14px 0">
+      <input id="newAreaName" placeholder="例：高松、坂出、丸亀" style="margin:0;flex:1" />
+      <button class="primary" type="submit" style="width:auto;padding:12px 18px">＋追加</button>
+    </form>
+    <div id="areaSettingsList"></div>
+  </div>
+</div>
+
 <div class="modal hidden" id="routeOptionsModal">
   <div class="sheet">
     <div class="row"><h2>今日の巡回を作る</h2><button class="secondary" data-close="routeOptionsModal">閉じる</button></div>
     <label>対象エリア</label>
-    <select id="routeArea">
-      <option value="all">全エリア</option>
-      <option value="東">東エリア</option>
-      <option value="中央">中央エリア</option>
-      <option value="西">西エリア</option>
-      <option value="その他">その他</option>
-      <option value="未設定">未設定</option>
-    </select>
+    <select id="routeArea"><option value="all">全エリア</option></select>
     <div class="urgent-note">期限超過・集金期限・「早めに補充」は優先して候補に入ります。</div>
     <button class="primary" id="confirmGenerateRoute" style="margin-top:14px">この条件で作成</button>
   </div>
@@ -669,6 +661,11 @@
     <label>最大巡回台数</label><input id="sMax" type="number" min="1" max="50" />
     <label>1日の作業上限（分・移動除く）</label><input id="sWorkBudget" type="number" min="30" />
     
+    <div class="card" style="margin-top:16px;background:#f8fafc">
+      <div class="row"><div><div class="section-title">エリア設定</div><div class="sub">高松・坂出など自由に追加できます</div></div>
+      <button class="secondary" type="button" id="areaSettingsBtn">編集</button></div>
+    </div>
+
     <div class="card" style="margin-top:16px;background:#f8fafc">
       <div class="section-title">バックアップ・一括登録</div>
       <div class="backup-actions">
@@ -743,6 +740,7 @@ function syncDbFromStorage(){
       if(!db.shifts) db.shifts={};
       if(!Array.isArray(db.tasks)) db.tasks=[];
       if(!Array.isArray(db.troubles)) db.troubles=[];
+if(!Array.isArray(db.areas)||!db.areas.length) db.areas=['高松','坂出','丸亀','宇多津','与島'];
       db.machines.forEach(m=>{
         if(!m.area) m.area='未設定';
         if(!m.regularIntervalDays) m.regularIntervalDays=14;
@@ -1099,6 +1097,44 @@ function navigateToMachine(machineId){
   if(!Number.isFinite(lat)||!Number.isFinite(lng)){alert('位置情報が登録されていません。');return}
   window.location.href=`https://maps.apple.com/?daddr=${encodeURIComponent(lat+','+lng)}&dirflg=d`;
 }
+
+function areaNames(){
+  return [...new Set([...(db.areas||[]),...db.machines.map(m=>m.area).filter(a=>a&&a!=='未設定')])];
+}
+function fillAreaControls(){
+  const current=areaFilter.value||'all';
+  areaFilter.innerHTML='<option value="all">全エリア</option>'+areaNames().map(a=>`<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('')+'<option value="未設定">未設定</option>';
+  if([...areaFilter.options].some(o=>o.value===current)) areaFilter.value=current;
+  routeArea.innerHTML='<option value="all">全エリア</option>'+areaNames().map(a=>`<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('')+'<option value="未設定">未設定</option>';
+  mArea.innerHTML='<option value="未設定">未設定</option>'+areaNames().map(a=>`<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
+  const host=document.getElementById('mapAreaFilters');
+  if(host){
+    host.innerHTML=`<button data-maparea="all">全エリア</button>`+areaNames().map(a=>`<button data-maparea="${escapeHtml(a)}">${escapeHtml(a)}</button>`).join('')+`<button data-maparea="未設定">未設定</button>`;
+    host.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>setMapArea(b.dataset.maparea)));
+    host.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.maparea===mapArea));
+  }
+}
+function renderAreaSettings(){
+  areaSettingsList.innerHTML='';
+  areaNames().forEach(a=>{
+    const count=db.machines.filter(m=>m.area===a).length;
+    const el=document.createElement('div');el.className='task-item';
+    el.innerHTML=`<div class="row"><div><b>${escapeHtml(a)}</b><div class="sub">${count}台</div></div><div style="display:flex;gap:6px"><button class="smallbtn" onclick="renameArea('${encodeURIComponent(a)}')">名前変更</button><button class="smallbtn danger" onclick="deleteArea('${encodeURIComponent(a)}')">削除</button></div></div>`;
+    areaSettingsList.appendChild(el);
+  });
+  if(!areaNames().length) areaSettingsList.innerHTML='<div class="empty">エリアはありません。</div>';
+}
+function renameArea(x){
+  const old=decodeURIComponent(x), n=prompt('新しいエリア名',old);
+  if(!n||!n.trim()||n.trim()===old)return;
+  const next=n.trim(); db.areas=(db.areas||[]).map(a=>a===old?next:a); db.machines.forEach(m=>{if(m.area===old)m.area=next});
+  db.areas=[...new Set(db.areas)]; save(); fillAreaControls(); renderAreaSettings(); renderAll();
+}
+function deleteArea(x){
+  const a=decodeURIComponent(x),count=db.machines.filter(m=>m.area===a).length;
+  if(!confirm(count?`${a}を削除しますか？\n${count}台は「未設定」になります。`:`${a}を削除しますか？`))return;
+  db.areas=(db.areas||[]).filter(v=>v!==a);db.machines.forEach(m=>{if(m.area===a)m.area='未設定'});save();fillAreaControls();renderAreaSettings();renderAll();
+}
 function machineStatusInfo(m){
   if(!m.lastRegular && !m.lastCollection){
     return {label:'情報未設定',dot:'gray',rank:9};
@@ -1115,18 +1151,18 @@ function machineStatusInfo(m){
 function renderMachines(){
   machineCount.textContent=db.machines.length;
 
-  const counts={東:0,中央:0,西:0,その他:0,未設定:0};
+  const counts={未設定:0};
+  areaNames().forEach(a=>counts[a]=0);
   db.machines.forEach(m=>counts[m.area||'未設定']=(counts[m.area||'未設定']||0)+1);
-  areaChips.innerHTML=['東','中央','西','その他','未設定']
-    .filter(a=>counts[a]>0)
-    .map(a=>`<button class="area-chip" onclick="setAreaFilter('${a}')">${a} ${counts[a]}台</button>`).join('');
+  areaChips.innerHTML=[...areaNames(),'未設定'].filter(a=>counts[a]>0)
+    .map(a=>`<button class="area-chip" onclick="setAreaFilter('${a}')">${escapeHtml(a)} ${counts[a]}台</button>`).join('');
 
   const filter=areaFilter.value||'all';
   let rows=db.machines.slice()
     .filter(m=>filter==='all'||(m.area||'未設定')===filter)
     .sort((a,b)=>{
-      const order={東:0,中央:1,西:2,その他:3,未設定:4};
-      const ao=order[a.area||'未設定']??9, bo=order[b.area||'未設定']??9;
+      const order=Object.fromEntries([...areaNames(),'未設定'].map((x,i)=>[x,i]));
+      const ao=order[a.area||'未設定']??99, bo=order[b.area||'未設定']??99;
       if(ao!==bo) return ao-bo;
       const sa=machineStatusInfo(a).rank, sb=machineStatusInfo(b).rank;
       if(sa!==sb) return sa-sb;
@@ -1167,6 +1203,7 @@ function setAreaFilter(area){
   renderMachines();
 }
 function editMachine(id){
+  fillAreaControls();
   const m=machine(id);
   if(!m)return;
   editingMachineId=id;
@@ -1545,6 +1582,7 @@ function fitMapVisible(){
   if(points.length) map.fitBounds(L.latLngBounds(points).pad(.18),{animate:true});
 }
 function openMachineModal(lat='',lng=''){
+  fillAreaControls();
   editingMachineId=null;
   document.querySelector('#machineModal h2').textContent='自販機を登録';
   document.querySelector('#machineForm .primary').textContent='登録する';
@@ -1717,6 +1755,7 @@ function fillMachineSelect(sel,optional){
 }
 function renderWorkDashboard(){
   if(!Array.isArray(db.troubles)) db.troubles=[];
+      if(!Array.isArray(db.areas)||!db.areas.length) db.areas=['高松','坂出','丸亀','宇多津','与島'];
   if(!Array.isArray(db.tasks)) db.tasks=[];
   const openTroubles=db.troubles.filter(t=>t.status!=='done').length;
   const openTasks=db.tasks.filter(t=>!t.done);
@@ -1846,6 +1885,12 @@ cancelDeleteBtn.addEventListener('click',()=>{pendingDeleteId=null;hideModal('de
 confirmDeleteBtn.addEventListener('click',confirmDeleteMachine);
 addMachineBtn.addEventListener('click',()=>{registeringFromMap=false;openMachineModal()});
 fab.addEventListener('click',()=>{registeringFromMap=false;openMachineModal()});
+areaSettingsBtn.addEventListener('click',()=>{renderAreaSettings();showModal('areaSettingsModal')});
+areaAddForm.addEventListener('submit',e=>{
+  e.preventDefault();const n=newAreaName.value.trim();if(!n)return;
+  if(n==='未設定'||n==='全エリア'){alert('その名前は使用できません。');return}
+  if(!db.areas.includes(n))db.areas.push(n);newAreaName.value='';save();fillAreaControls();renderAreaSettings();renderAll();showToast(`${n}を追加しました`);
+});
 settingsBtn.addEventListener('click',()=>{setSettingsFields();showModal('settingsModal')});
 saveSettings.addEventListener('click',()=>{db.settings={start:sStart.value,return:sReturn.value,breakGoal:+sBreak.value,maxStops:+sMax.value,workBudget:+sWorkBudget.value};save();hideModal('settingsModal');renderAll()});
 machineForm.addEventListener('submit',e=>{
@@ -1946,7 +1991,7 @@ mapInfoCloseBtn.addEventListener('click',hideMapMachineCard);
 mapInfoNavBtn.addEventListener('click',()=>selectedMapMachineId&&navigateToMachine(selectedMapMachineId));
 mapInfoAddBtn.addEventListener('click',()=>selectedMapMachineId&&addMachineToToday(selectedMapMachineId));
 
-window.toggleTask=toggleTask;window.setTroubleStatus=setTroubleStatus;window.addMachineToToday=addMachineToToday;window.addEventListener('storage',e=>{
+window.renameArea=renameArea;window.deleteArea=deleteArea;window.toggleTask=toggleTask;window.setTroubleStatus=setTroubleStatus;window.addMachineToToday=addMachineToToday;window.addEventListener('storage',e=>{
   if(e.key===DBKEY){
     syncDbFromStorage();
     renderAll();
@@ -1963,6 +2008,7 @@ window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMa
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 setInterval(()=>{if(db.active || (hasDeparted()&&!hasReturned())){renderShift();renderActive();renderHome()}},1000);
+fillAreaControls();
 renderAll();
 </script>
 </body>
