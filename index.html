@@ -103,6 +103,19 @@
     .map-segment{display:flex;background:rgba(255,255,255,.92);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.55);border-radius:14px;padding:4px;box-shadow:0 5px 18px rgba(0,0,0,.12);overflow:auto}
     .map-segment button{background:transparent;border-radius:10px;padding:8px 11px;font-size:12px;font-weight:850;white-space:nowrap}
     .map-segment button.active{background:#111827;color:#fff}
+    .map-search{position:absolute;top:12px;left:12px;right:12px;z-index:720;display:flex;gap:8px}
+    .map-search-box{flex:1;display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.96);backdrop-filter:blur(20px);border-radius:14px;padding:8px 10px;box-shadow:0 5px 18px rgba(0,0,0,.12)}
+    .map-search-box input{border:0;background:transparent;padding:6px 4px;min-width:0}
+    .map-search-box input:focus{outline:none}
+    .map-search-go{padding:10px 12px;border-radius:12px;background:#111827;color:#fff;font-weight:850}
+    .map-search-results{position:absolute;top:62px;left:12px;right:12px;z-index:725;background:rgba(255,255,255,.98);backdrop-filter:blur(20px);border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:40dvh;overflow:auto}
+    .map-search-item{padding:12px;border-bottom:1px solid var(--line)}
+    .map-search-item:last-child{border-bottom:0}
+    .map-search-item b{display:block}
+    .map-search-hint{padding:11px;color:#64748b;font-size:12px}
+    .map-overlay-top{top:70px}
+    .gps-ring{width:28px;height:28px;border-radius:50%;background:rgba(10,132,255,.15);display:flex;align-items:center;justify-content:center}
+
     .map-floating{position:absolute;right:14px;bottom:110px;z-index:650;display:flex;flex-direction:column;gap:10px;transition:bottom .2s ease}
     .map-float-btn{width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.95);backdrop-filter:blur(18px);box-shadow:0 5px 18px rgba(0,0,0,.14);font-size:20px;font-weight:900}
     .map-card{position:absolute;left:12px;right:12px;bottom:18px;z-index:640;background:rgba(255,255,255,.96);backdrop-filter:blur(22px);border-radius:20px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
@@ -279,6 +292,14 @@
 
     <section id="mapPage" class="hidden">
       <div class="map-shell">
+        <div class="map-search">
+          <div class="map-search-box">
+            <span>⌕</span>
+            <input id="mapSearchInput" placeholder="自販機・場所を検索" autocomplete="off" />
+          </div>
+          <button class="map-search-go" id="mapSearchBtn">検索</button>
+        </div>
+        <div class="map-search-results hidden" id="mapSearchResults"></div>
         <div class="map-overlay-top">
           <div class="map-segment" id="mapModeSegment">
             <button data-mapmode="today" class="active">今日</button>
@@ -563,7 +584,7 @@ db.machines.forEach(m=>{
   if(m.lng!==undefined) m.lng=Number(m.lng);
 });
 save();
-let page='home', map=null, markers=[], routeLine=null, userLocationMarker=null, selectedStopId=null, mapDraft=null, tickHandle=null, pendingDeleteId=null, editingMachineId=null, mapRegisterMode=false, longPressTimer=null, longPressStart=null, suppressNextMapClick=false, mapMode='today', mapArea='all', selectedMapMachineId=null;
+let page='home', map=null, markers=[], routeLine=null, userLocationMarker=null, selectedStopId=null, mapDraft=null, tickHandle=null, pendingDeleteId=null, editingMachineId=null, mapRegisterMode=false, longPressTimer=null, longPressStart=null, suppressNextMapClick=false, mapMode='today', mapArea='all', selectedMapMachineId=null, geoWatchId=null, lastUserPosition=null;
 
 function load(){try{return {...defaults,...JSON.parse(localStorage.getItem(DBKEY)||'{}')}}catch(e){return structuredClone(defaults)}}
 function save(){localStorage.setItem(DBKEY,JSON.stringify(db));}
@@ -1041,7 +1062,10 @@ function mapMachineVisible(m){
 function setMapMode(mode){
   hideMapMachineCard();
   mapMode=mode;
-  document.querySelectorAll('#mapModeSegment button').forEach(b=>b.classList.toggle('active',b.dataset.mapmode===mode));
+  mapSearchBtn.addEventListener('click',()=>renderMapSearch(mapSearchInput.value));
+mapSearchInput.addEventListener('input',()=>renderMapSearch(mapSearchInput.value));
+mapSearchInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();renderMapSearch(mapSearchInput.value)}});
+document.querySelectorAll('#mapModeSegment button').forEach(b=>b.classList.toggle('active',b.dataset.mapmode===mode));
   renderMapMarkers();
 }
 function setMapArea(area){
@@ -1081,6 +1105,47 @@ function hideMapMachineCard(){
   document.querySelector('.map-shell')?.classList.remove('card-open');
 }
 
+
+function closeMapSearch(){
+  mapSearchResults.classList.add('hidden');
+  mapSearchResults.innerHTML='';
+}
+function focusMachineFromSearch(id){
+  const m=machine(id);if(!m)return;
+  closeMapSearch();
+  map.setView([Number(m.lat),Number(m.lng)],16,{animate:true});
+  setTimeout(()=>showMapMachineCard(id),250);
+}
+function renderMapSearch(query){
+  const q=query.trim().toLowerCase();
+  if(!q){closeMapSearch();return}
+  const hits=db.machines.filter(m=>{
+    return [m.name,m.number,m.area,m.address,m.inventoryMemo,m.memo]
+      .filter(Boolean).some(v=>String(v).toLowerCase().includes(q));
+  }).slice(0,8);
+
+  let items=hits.map(m=>`
+    <button class="map-search-item" style="width:100%;text-align:left;background:transparent" onclick="focusMachineFromSearch('${m.id}')">
+      <b>${escapeHtml(m.name)}</b>
+      <span class="sub">${escapeHtml(m.area||'未設定')} / #${escapeHtml(m.number||'-')}</span>
+    </button>`).join('');
+
+  items += `
+    <button class="map-search-item" style="width:100%;text-align:left;background:transparent" onclick="searchPlaceInAppleMaps()">
+      <b>「${escapeHtml(query)}」をApple Mapsで検索</b>
+      <span class="sub">住所・施設・地名など一般の場所を検索</span>
+    </button>`;
+
+  mapSearchResults.innerHTML=items;
+  mapSearchResults.classList.remove('hidden');
+}
+function searchPlaceInAppleMaps(){
+  const q=mapSearchInput.value.trim();
+  if(!q)return;
+  closeMapSearch();
+  window.location.href=`https://maps.apple.com/?q=${encodeURIComponent(q)}`;
+}
+
 function switchPage(p){
   if(page==='map' && p!=='map') hideMapMachineCard();
   page=p;['home','map','route','machines'].forEach(x=>document.getElementById(x+'Page').classList.toggle('hidden',x!==p));
@@ -1089,6 +1154,7 @@ function switchPage(p){
   renderHeader();
   if(p==='map'){
     initMap();
+    startLocationTracking(false);
     setTimeout(()=>{map.invalidateSize();renderMapMarkers();if(mapMode==='today'&&(todaysRoute()?.stops||[]).length)fitMapVisible()},100);
   }
 }
@@ -1138,6 +1204,7 @@ function initMap(){
       return;
     }
     hideMapMachineCard();
+    closeMapSearch();
   });
 
   map.on('contextmenu',e=>{
@@ -1217,15 +1284,40 @@ function renderMapMarkers(){
     routeLine.bringToBack();
   }
 }
+function updateUserLocation(lat,lng,center=false){
+  lastUserPosition={lat,lng};
+  if(userLocationMarker) userLocationMarker.remove();
+  const icon=L.divIcon({
+    className:'',
+    html:'<div class="gps-ring"><div class="location-dot"></div></div>',
+    iconSize:[28,28],iconAnchor:[14,14]
+  });
+  userLocationMarker=L.marker([lat,lng],{icon,zIndexOffset:2000,interactive:false}).addTo(map);
+  if(center) map.setView([lat,lng],16,{animate:true});
+}
+function startLocationTracking(center=false){
+  if(!navigator.geolocation){return}
+  if(geoWatchId!==null){
+    if(center&&lastUserPosition) map.setView([lastUserPosition.lat,lastUserPosition.lng],16,{animate:true});
+    return;
+  }
+  geoWatchId=navigator.geolocation.watchPosition(p=>{
+    updateUserLocation(p.coords.latitude,p.coords.longitude,center);
+    center=false;
+  },err=>{
+    console.warn('geolocation',err);
+  },{
+    enableHighAccuracy:true,
+    maximumAge:5000,
+    timeout:12000
+  });
+}
 function locateUser(){
-  if(!navigator.geolocation){alert('現在地を取得できません。');return}
-  navigator.geolocation.getCurrentPosition(p=>{
-    const lat=p.coords.latitude,lng=p.coords.longitude;
-    if(userLocationMarker) userLocationMarker.remove();
-    const icon=L.divIcon({className:'',html:'<div class="location-dot"></div>',iconSize:[18,18],iconAnchor:[9,9]});
-    userLocationMarker=L.marker([lat,lng],{icon,zIndexOffset:1000}).addTo(map);
-    map.setView([lat,lng],15,{animate:true});
-  },()=>alert('現在地を取得できませんでした。'),{enableHighAccuracy:true,timeout:8000});
+  if(lastUserPosition){
+    map.setView([lastUserPosition.lat,lastUserPosition.lng],16,{animate:true});
+    return;
+  }
+  startLocationTracking(true);
 }
 function fitMapVisible(){
   const points=[];
@@ -1460,7 +1552,7 @@ mapInfoCloseBtn.addEventListener('click',hideMapMachineCard);
 mapInfoNavBtn.addEventListener('click',()=>selectedMapMachineId&&navigateToMachine(selectedMapMachineId));
 mapInfoAddBtn.addEventListener('click',()=>selectedMapMachineId&&addMachineToToday(selectedMapMachineId));
 
-window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
+window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 setInterval(()=>{if(db.active || (hasDeparted()&&!hasReturned())){renderShift();renderActive();renderHome()}},1000);
