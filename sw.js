@@ -1,13 +1,9 @@
-const CACHE='vending-route-v4-4';
+const CACHE='vending-route-v4-5';
 const CORE=['./','./index.html','./manifest.json'];
-
 self.addEventListener('install',event=>{
   self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE).then(cache=>cache.addAll(CORE))
-  );
+  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(CORE)));
 });
-
 self.addEventListener('activate',event=>{
   event.waitUntil(
     caches.keys()
@@ -15,11 +11,8 @@ self.addEventListener('activate',event=>{
       .then(()=>self.clients.claim())
   );
 });
-
 self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET') return;
-
-  // GitHub Pagesで更新したHTMLを優先して取得。
   event.respondWith(
     fetch(event.request)
       .then(response=>{

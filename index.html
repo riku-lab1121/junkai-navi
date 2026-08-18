@@ -235,6 +235,14 @@
 
 #registerSaveBtn:disabled{opacity:.55}
 #registerSaveBtn:active{transform:scale(.985)}
+
+.same-site-btn{width:100%;margin-top:10px;background:#eef2ff;color:#3730a3}
+.daily-report-card.hidden{display:none!important}
+.report-summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+.report-summary-grid .box{background:#f8fafc;border-radius:13px;padding:11px}
+.report-summary-grid .box b{display:block;font-size:20px;margin-top:3px}
+.report-log-item{border-top:1px solid var(--line);padding:10px 0}
+.report-log-item:first-child{border-top:0}
 </style>
 </head>
 <body>
@@ -292,6 +300,17 @@
 
         <button class="primary departbtn" id="departureBtn" style="margin-top:14px">出発</button>
         <button class="primary returnbtn hidden" id="returnBtn" style="margin-top:10px">帰社する</button>
+      </div>
+
+<div class="card daily-report-card hidden" id="returnedReportCard">
+        <div class="row">
+          <div>
+            <div class="section-title">今日の日報</div>
+            <div style="font-size:20px;font-weight:900">勤務終了済み</div>
+            <div class="sub">帰社後の日報を確認できます</div>
+          </div>
+          <button class="secondary" id="openDailyReportBtn">日報を見る</button>
+        </div>
       </div>
 
 <div class="card" id="activeStatusCard">
@@ -524,6 +543,8 @@
           <select id="rpArea"></select>
         </div>
 
+        <button type="button" class="secondary same-site-btn hidden" id="addSameSiteBtn">＋ 同じ場所にもう1台追加</button>
+
         <div class="reg-section">
           <div class="reg-title">場所</div>
           <div class="reg-location" id="rpLocationBox">
@@ -704,6 +725,17 @@
       <div class="checkrow"><input id="troubleAddRoute" type="checkbox" checked><span>今日の巡回に追加する</span></div>
       <button class="primary" type="submit" style="margin-top:14px">受付する</button>
     </form>
+  </div>
+</div>
+
+<div class="modal hidden" id="dailyReportModal">
+  <div class="sheet">
+    <div class="row"><h2>今日の日報</h2><button class="secondary" data-close="dailyReportModal">閉じる</button></div>
+    <div id="dailyReportContent"></div>
+    <div class="grid2" style="margin-top:14px">
+      <button class="secondary" id="dailyReportCsvBtn">CSVで保存</button>
+      <button class="primary" id="dailyReportCopyBtn">日報をコピー</button>
+    </div>
   </div>
 </div>
 
@@ -1080,6 +1112,7 @@ function renderShift(){
     departureBtn.classList.add('hidden');
     returnBtn.classList.add('hidden');
   }
+  returnedReportCard.classList.toggle('hidden',!returned);
 }
 
 function renderHeader(){
@@ -1493,10 +1526,12 @@ function openRegisterPage(returnPage='machines',machineId=null){
     document.querySelector('#registerPage .section-title').textContent='編集';
     document.querySelector('#registerPage [style*="font-size:24px"]').textContent='自販機を編集';
     registerSaveBtn.textContent='この内容で保存する';
+    addSameSiteBtn.classList.remove('hidden');
   }else{
     document.querySelector('#registerPage .section-title').textContent='新規登録';
     document.querySelector('#registerPage [style*="font-size:24px"]').textContent='自販機を登録';
     registerSaveBtn.textContent='この内容で登録する';
+    addSameSiteBtn.classList.add('hidden');
   }
 
   renderRegisterLocation();
@@ -1532,6 +1567,36 @@ function chooseLocationOnMapForRegister(){
     mapRegisterBanner.querySelector('span').textContent='登録画面に設定する場所を地図上で1回タップ';
   }
 }
+
+function addSameSiteMachineFromEdit(){
+  if(!registerEditingId)return;
+  const m=machine(registerEditingId);
+  if(!m){alert('元の自販機が見つかりません。');return}
+
+  registerEditingId=null;
+  rpName.value='';
+  rpNumber.value='';
+  rpSite.value=m.site||'';
+  if([...rpArea.options].some(o=>o.value===(m.area||'未設定'))) rpArea.value=m.area||'未設定';
+  rpLat.value=m.lat??'';
+  rpLng.value=m.lng??'';
+  rpRegularInterval.value=m.regularIntervalDays||14;
+  rpSupplyInterval.value=m.supplyIntervalDays||7;
+  rpLastRegular.value='';
+  rpLastSupply.value='';
+  rpLastCollection.value='';
+  rpWeekly.checked=!!m.weekly;
+  rpInventoryMemo.value='';
+  rpMemo.value='';
+
+  document.querySelector('#registerPage .section-title').textContent='追加登録';
+  document.querySelector('#registerPage [style*="font-size:24px"]').textContent='同じ場所に自販機を追加';
+  registerSaveBtn.textContent='この場所に追加する';
+  addSameSiteBtn.classList.add('hidden');
+  renderRegisterLocation();
+  rpName.focus();
+}
+
 function saveRegisterPage(){
   const btn=registerSaveBtn;
   const original=btn.textContent;
@@ -2156,6 +2221,64 @@ function showToast(message){
   toastTimer=setTimeout(()=>appToast.classList.add('hidden'),1800);
 }
 
+
+function dailyReportData(){
+  const shift=todaysShift();
+  const works=(db.logs||[]).filter(l=>l.date===today()&&l.type==='work'&&l.end);
+  const breaks=(db.logs||[]).filter(l=>l.date===today()&&l.type==='break'&&l.end);
+  const route=todaysRoute();
+  const workSec=works.reduce((a,l)=>a+Math.max(0,(l.end-l.start)/1000),0);
+  const breakSec=breaks.reduce((a,l)=>a+Math.max(0,(l.end-l.start)/1000),0);
+  const shiftSec=shift?.departureAt?Math.max(0,((shift.returnAt||Date.now())-shift.departureAt)/1000):0;
+  return {shift,works,breaks,route,workSec,breakSec,shiftSec,
+    travelSec:Math.max(0,shiftSec-workSec-breakSec),
+    done:(route?.stops||[]).filter(s=>s.status==='done').length};
+}
+function reportMinutes(sec){return Math.max(0,Math.round(sec/60))}
+function renderDailyReport(){
+  const r=dailyReportData();
+  if(!r.shift?.departureAt){dailyReportContent.innerHTML='<div class="empty">今日の勤務記録はありません。</div>';return}
+  const rows=r.works.map(l=>{
+    const m=machine(l.machineId);
+    const min=Math.max(1,Math.round((l.end-l.start)/60000));
+    return `<div class="report-log-item"><div class="row"><div><b>${escapeHtml(m?.name||'自販機')}</b><div class="sub">${m?.site?escapeHtml(m.site)+' ・ ':''}${timeLabel(l.start)}〜${timeLabel(l.end)}</div></div><b>${min}分</b></div><div class="worktags">${(l.workTypes||[]).map(w=>`<span class="tag">${escapeHtml(w)}</span>`).join('')}</div></div>`;
+  }).join('');
+  dailyReportContent.innerHTML=`
+    <div class="sub">${today()}</div>
+    <div class="report-summary-grid">
+      <div class="box"><span class="sub">出発</span><b>${timeLabel(r.shift.departureAt)}</b></div>
+      <div class="box"><span class="sub">帰社</span><b>${r.shift.returnAt?timeLabel(r.shift.returnAt):'未帰社'}</b></div>
+      <div class="box"><span class="sub">勤務</span><b>${reportMinutes(r.shiftSec)}分</b></div>
+      <div class="box"><span class="sub">完了</span><b>${r.done}台</b></div>
+      <div class="box"><span class="sub">移動</span><b>${reportMinutes(r.travelSec)}分</b></div>
+      <div class="box"><span class="sub">作業</span><b>${reportMinutes(r.workSec)}分</b></div>
+      <div class="box"><span class="sub">休憩</span><b>${reportMinutes(r.breakSec)}分</b></div>
+      <div class="box"><span class="sub">作業件数</span><b>${r.works.length}件</b></div>
+    </div>
+    <div class="section-title">作業内容</div>
+    ${rows||'<div class="empty">作業記録はありません。</div>'}`;
+}
+function dailyReportText(){
+  const r=dailyReportData();
+  const lines=[
+    `【巡回日報 ${today()}】`,
+    `出発: ${r.shift?.departureAt?timeLabel(r.shift.departureAt):'-'}`,
+    `帰社: ${r.shift?.returnAt?timeLabel(r.shift.returnAt):'-'}`,
+    `勤務: ${reportMinutes(r.shiftSec)}分`,
+    `移動: ${reportMinutes(r.travelSec)}分`,
+    `作業: ${reportMinutes(r.workSec)}分`,
+    `休憩: ${reportMinutes(r.breakSec)}分`,
+    `完了: ${r.done}台`,
+    ''
+  ];
+  r.works.forEach(l=>{
+    const m=machine(l.machineId);
+    lines.push(`${m?.name||'自販機'} / ${(l.workTypes||[]).join('・')} / ${Math.max(1,Math.round((l.end-l.start)/60000))}分`);
+  });
+  return lines.join('\n');
+}
+function openDailyReport(){renderDailyReport();showModal('dailyReportModal')}
+
 function showModal(id){
   document.getElementById(id).classList.remove('hidden');
   document.body.classList.add('modal-open');
@@ -2322,6 +2445,14 @@ cancelMapRegisterBtn.addEventListener('click',()=>{
     registerMapPickMode=false;
     switchPage('register');
   }
+});
+addSameSiteBtn.addEventListener('click',addSameSiteMachineFromEdit);
+openDailyReportBtn.addEventListener('click',openDailyReport);
+dailyReportCsvBtn.addEventListener('click',()=>exportReportCsv(false));
+dailyReportCopyBtn.addEventListener('click',async()=>{
+  const text=dailyReportText();
+  try{await navigator.clipboard.writeText(text);showToast('日報をコピーしました')}
+  catch(e){prompt('日報をコピーしてください',text)}
 });
 registerCancelBtn.addEventListener('click',closeRegisterPage);
 rpUseCurrentLocation.addEventListener('click',useCurrentLocationForRegister);
