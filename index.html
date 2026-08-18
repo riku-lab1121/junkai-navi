@@ -437,7 +437,7 @@
         <div class="row">
           <div>
             <div class="section-title">登録自販機</div>
-            <div class="kpi"><span id="machineCount">0</span>台</div>
+            <div class="kpi"><span id="machineCount">0</span>台</div><div class="sub">MAP登録分もここに自動反映</div>
           </div>
           <button class="secondary" id="addMachineBtn">＋ 登録</button>
         </div>
@@ -732,6 +732,31 @@ let page='home', map=null, markers=[], routeLine=null, userLocationMarker=null, 
 
 function load(){try{return {...defaults,...JSON.parse(localStorage.getItem(DBKEY)||'{}')}}catch(e){return structuredClone(defaults)}}
 function save(){localStorage.setItem(DBKEY,JSON.stringify(db));}
+function syncDbFromStorage(){
+  try{
+    const stored=JSON.parse(localStorage.getItem(DBKEY)||'{}');
+    if(stored && typeof stored==='object'){
+      db={...defaults,...stored};
+      if(!Array.isArray(db.machines)) db.machines=[];
+      if(!db.routes) db.routes={};
+      if(!Array.isArray(db.logs)) db.logs=[];
+      if(!db.shifts) db.shifts={};
+      if(!Array.isArray(db.tasks)) db.tasks=[];
+      if(!Array.isArray(db.troubles)) db.troubles=[];
+      db.machines.forEach(m=>{
+        if(!m.area) m.area='未設定';
+        if(!m.regularIntervalDays) m.regularIntervalDays=14;
+        if(!m.supplyIntervalDays) m.supplyIntervalDays=7;
+        if(m.prioritySupply===undefined) m.prioritySupply=false;
+        if(m.inventoryMemo===undefined) m.inventoryMemo='';
+        if(m.lat!==undefined && m.lat!==null && m.lat!=='') m.lat=Number(m.lat); else m.lat=null;
+        if(m.lng!==undefined && m.lng!==null && m.lng!=='') m.lng=Number(m.lng); else m.lng=null;
+      });
+    }
+  }catch(err){
+    console.warn('syncDbFromStorage failed',err);
+  }
+}
 function todaysRoute(){return db.routes[today()]||null}
 function ensureRoute(){if(!db.routes[today()]) db.routes[today()]={date:today(),stops:[],createdAt:Date.now()};return db.routes[today()]}
 function todaysShift(){
@@ -1296,15 +1321,25 @@ function searchPlaceInAppleMaps(){
 }
 
 function switchPage(p){
+  syncDbFromStorage();
   if(page==='map' && p!=='map') hideMapMachineCard();
   page=p;['home','map','route','machines'].forEach(x=>document.getElementById(x+'Page').classList.toggle('hidden',x!==p));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));
   fab.classList.toggle('hidden',p!=='machines');
   renderHeader();
+
+  if(p==='machines') renderMachines();
+  if(p==='route') renderRoute();
+  if(p==='home'){renderHome();renderShift();renderActive();renderWorkDashboard();}
+
   if(p==='map'){
     initMap();
     startLocationTracking(false);
-    setTimeout(()=>{map.invalidateSize();renderMapMarkers();if(mapMode==='today'&&(todaysRoute()?.stops||[]).length)fitMapVisible()},100);
+    setTimeout(()=>{
+      map.invalidateSize();
+      renderMapMarkers();
+      if(mapMode==='today'&&(todaysRoute()?.stops||[]).length)fitMapVisible();
+    },100);
   }
 }
 function clearTempRegisterMarker(){
@@ -1882,8 +1917,10 @@ machineForm.addEventListener('submit',e=>{
   hideModal('machineModal');
 
   renderAll();
+  renderMachines();
 
   if(wasMapRegistration && savedId && data.lat!==null && data.lng!==null){
+    renderMapMarkers();
     map.setView([data.lat,data.lng],17,{animate:true});
     setTimeout(()=>showMapMachineCard(savedId),250);
   }
@@ -1909,7 +1946,20 @@ mapInfoCloseBtn.addEventListener('click',hideMapMachineCard);
 mapInfoNavBtn.addEventListener('click',()=>selectedMapMachineId&&navigateToMachine(selectedMapMachineId));
 mapInfoAddBtn.addEventListener('click',()=>selectedMapMachineId&&addMachineToToday(selectedMapMachineId));
 
-window.toggleTask=toggleTask;window.setTroubleStatus=setTroubleStatus;window.addMachineToToday=addMachineToToday;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
+window.toggleTask=toggleTask;window.setTroubleStatus=setTroubleStatus;window.addMachineToToday=addMachineToToday;window.addEventListener('storage',e=>{
+  if(e.key===DBKEY){
+    syncDbFromStorage();
+    renderAll();
+  }
+});
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'){
+    syncDbFromStorage();
+    renderAll();
+  }
+});
+
+window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 setInterval(()=>{if(db.active || (hasDeparted()&&!hasReturned())){renderShift();renderActive();renderHome()}},1000);
