@@ -232,6 +232,9 @@
 .reg-location .coords{font-size:11px;color:#64748b;margin-top:3px}
 .reg-savebar{position:fixed;left:50%;transform:translateX(-50%);bottom:78px;width:min(732px,calc(100% - 28px));z-index:55;background:rgba(244,244,246,.94);backdrop-filter:blur(16px);padding:10px;border-radius:18px}
 .reg-savebar button{width:100%;padding:15px;border-radius:14px;background:#111827;color:#fff;font-weight:900}
+
+#registerSaveBtn:disabled{opacity:.55}
+#registerSaveBtn:active{transform:scale(.985)}
 </style>
 </head>
 <body>
@@ -505,7 +508,7 @@
         </div>
       </div>
 
-      <form id="registerPageForm">
+      <form id="registerPageForm" novalidate onsubmit="return false;">
         <div class="reg-section">
           <div class="reg-title">基本情報</div>
           <label>自販機名 *</label>
@@ -557,7 +560,7 @@
         </div>
 
         <div class="reg-savebar">
-          <button type="submit">この内容で登録する</button>
+          <button type="button" id="registerSaveBtn">この内容で登録する</button>
         </div>
       </form>
     </section>
@@ -1519,35 +1522,87 @@ function chooseLocationOnMapForRegister(){
   }
 }
 function saveRegisterPage(){
-  const name=rpName.value.trim();
-  if(!name){alert('自販機名を入力してください。');rpName.focus();return}
+  const btn=registerSaveBtn;
+  const original=btn.textContent;
+  btn.disabled=true;
+  btn.textContent='保存中…';
 
-  const id=uid();
-  const data={
-    id,
-    name,
-    site:rpSite.value.trim(),
-    number:rpNumber.value.trim(),
-    area:rpArea.value||'未設定',
-    lat:rpLat.value!==''?Number(rpLat.value):null,
-    lng:rpLng.value!==''?Number(rpLng.value):null,
-    regularIntervalDays:Number(rpRegularInterval.value)||14,
-    supplyIntervalDays:Number(rpSupplyInterval.value)||7,
-    lastRegular:rpLastRegular.value||'',
-    weekly:rpWeekly.checked,
-    lastSupply:rpLastSupply.value||'',
-    lastCollection:rpLastCollection.value||'',
-    prioritySupply:false,
-    inventoryMemo:rpInventoryMemo.value.trim(),
-    workMinutes:25,
-    memo:rpMemo.value.trim()
-  };
-  db.machines.push(data);
-  save();
-  renderAll();
-  showToast(`${name} を登録しました`);
-  registerReturnPage='machines';
-  switchPage('machines');
+  try{
+    const name=(rpName.value||'').trim();
+    if(!name){
+      alert('自販機名を入力してください。');
+      rpName.focus();
+      return;
+    }
+
+    const latText=(rpLat.value||'').trim();
+    const lngText=(rpLng.value||'').trim();
+    const lat=latText===''?null:Number(latText);
+    const lng=lngText===''?null:Number(lngText);
+
+    if((latText!==''&&!Number.isFinite(lat))||(lngText!==''&&!Number.isFinite(lng))){
+      alert('位置情報が正しくありません。位置情報を外すか、もう一度設定してください。');
+      return;
+    }
+
+    // 保存直前にストレージと同期して、他画面の最新データを消さない。
+    syncDbFromStorage();
+
+    const id=uid();
+    const data={
+      id,
+      name,
+      site:(rpSite.value||'').trim(),
+      number:(rpNumber.value||'').trim(),
+      area:rpArea.value||'未設定',
+      lat,
+      lng,
+      regularIntervalDays:Number(rpRegularInterval.value)||14,
+      supplyIntervalDays:Number(rpSupplyInterval.value)||7,
+      lastRegular:rpLastRegular.value||'',
+      weekly:!!rpWeekly.checked,
+      lastSupply:rpLastSupply.value||'',
+      lastCollection:rpLastCollection.value||'',
+      prioritySupply:false,
+      inventoryMemo:(rpInventoryMemo.value||'').trim(),
+      workMinutes:25,
+      memo:(rpMemo.value||'').trim(),
+      createdAt:Date.now()
+    };
+
+    if(!Array.isArray(db.machines)) db.machines=[];
+    db.machines.push(data);
+
+    // 直接保存
+    localStorage.setItem(DBKEY,JSON.stringify(db));
+
+    // 保存検証
+    const verify=JSON.parse(localStorage.getItem(DBKEY)||'{}');
+    const saved=Array.isArray(verify.machines)&&verify.machines.some(m=>m.id===id);
+    if(!saved){
+      throw new Error('保存確認に失敗しました');
+    }
+
+    // 検証済みデータを採用
+    db={...defaults,...verify};
+    if(!Array.isArray(db.machines)) db.machines=[];
+
+    showToast(`${name} を登録しました`);
+
+    registerReturnPage='machines';
+    page='register';
+    switchPage('machines');
+    setTimeout(()=>{
+      syncDbFromStorage();
+      renderMachines();
+    },50);
+  }catch(err){
+    console.error('register save error',err);
+    alert(`登録できませんでした。\n${err?.message||'保存エラー'}`);
+  }finally{
+    btn.disabled=false;
+    btn.textContent=original;
+  }
 }
 
 function switchPage(p){
@@ -2252,7 +2307,8 @@ registerCancelBtn.addEventListener('click',closeRegisterPage);
 rpUseCurrentLocation.addEventListener('click',useCurrentLocationForRegister);
 rpChooseOnMap.addEventListener('click',chooseLocationOnMapForRegister);
 rpClearLocation.addEventListener('click',()=>{rpLat.value='';rpLng.value='';renderRegisterLocation()});
-registerPageForm.addEventListener('submit',e=>{e.preventDefault();saveRegisterPage()});
+registerPageForm.addEventListener('submit',e=>e.preventDefault());
+registerSaveBtn.addEventListener('click',saveRegisterPage);
 locateBtn.addEventListener('click',locateUser);
 
 mapTodayBtn.addEventListener('click',()=>setMapMode('today'));
