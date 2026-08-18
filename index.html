@@ -221,6 +221,17 @@
 
 .location-dot{width:18px;height:18px;border-radius:50%;background:#0a84ff;border:4px solid #fff;box-shadow:0 0 0 7px rgba(10,132,255,.20),0 3px 10px rgba(0,0,0,.22)}
 .gps-ring{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+
+.registration-page{padding:0 0 120px}
+.reg-hero{background:#fff;border-radius:22px;padding:18px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.reg-section{background:#fff;border-radius:18px;padding:16px;margin-bottom:12px}
+.reg-title{font-size:13px;color:#64748b;font-weight:850;margin-bottom:10px}
+.reg-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.reg-location{background:#f8fafc;border:1px solid #e5e7eb;border-radius:14px;padding:12px;margin-top:10px}
+.reg-location strong{display:block;font-size:14px}
+.reg-location .coords{font-size:11px;color:#64748b;margin-top:3px}
+.reg-savebar{position:fixed;left:50%;transform:translateX(-50%);bottom:78px;width:min(732px,calc(100% - 28px));z-index:55;background:rgba(244,244,246,.94);backdrop-filter:blur(16px);padding:10px;border-radius:18px}
+.reg-savebar button{width:100%;padding:15px;border-radius:14px;background:#111827;color:#fff;font-weight:900}
 </style>
 </head>
 <body>
@@ -481,7 +492,76 @@
         <div id="machineEmpty" class="empty hidden">自販機を登録してください。</div>
       </div>
     </section>
-  </main>
+  
+    <section id="registerPage" class="hidden registration-page">
+      <div class="reg-hero">
+        <div class="row">
+          <div>
+            <div class="section-title">新規登録</div>
+            <div style="font-size:24px;font-weight:900">自販機を登録</div>
+            <div class="sub">名前だけでも登録できます。場所や巡回情報は後から追加できます。</div>
+          </div>
+          <button class="secondary" id="registerCancelBtn">戻る</button>
+        </div>
+      </div>
+
+      <form id="registerPageForm">
+        <div class="reg-section">
+          <div class="reg-title">基本情報</div>
+          <label>自販機名 *</label>
+          <input id="rpName" required placeholder="例：丸亀市役所3F ①" />
+
+          <label>設置場所</label>
+          <input id="rpSite" placeholder="例：丸亀市役所 3F" />
+
+          <label>管理No</label>
+          <input id="rpNumber" placeholder="例：001" />
+
+          <label>エリア</label>
+          <select id="rpArea"></select>
+        </div>
+
+        <div class="reg-section">
+          <div class="reg-title">場所</div>
+          <div class="reg-location" id="rpLocationBox">
+            <strong id="rpLocationLabel">位置情報なし</strong>
+            <div class="coords" id="rpCoords">あとから設定できます</div>
+          </div>
+          <input type="hidden" id="rpLat" />
+          <input type="hidden" id="rpLng" />
+          <div class="reg-actions">
+            <button class="secondary" type="button" id="rpUseCurrentLocation">現在地を使う</button>
+            <button class="secondary" type="button" id="rpChooseOnMap">MAPで選ぶ</button>
+          </div>
+          <button class="secondary danger hidden" type="button" id="rpClearLocation" style="width:100%;margin-top:8px">位置情報を外す</button>
+        </div>
+
+        <div class="reg-section">
+          <div class="reg-title">巡回設定（任意）</div>
+          <div class="grid2">
+            <div><label>定期巡回周期</label><input id="rpRegularInterval" type="number" min="1" value="14" /></div>
+            <div><label>補充周期</label><input id="rpSupplyInterval" type="number" min="1" value="7" /></div>
+          </div>
+          <label>最終 定期巡回日</label><input id="rpLastRegular" type="date" />
+          <label>最終 補充日</label><input id="rpLastSupply" type="date" />
+          <label>最終 集金日</label><input id="rpLastCollection" type="date" />
+          <div class="checkrow"><input id="rpWeekly" type="checkbox"><span>中間補充を自動候補にする</span></div>
+        </div>
+
+        <div class="reg-section">
+          <div class="reg-title">メモ（任意）</div>
+          <label>原料・在庫メモ</label>
+          <textarea id="rpInventoryMemo" rows="2" placeholder="例：紙コップ少ない"></textarea>
+          <label>その他メモ</label>
+          <textarea id="rpMemo" rows="2"></textarea>
+        </div>
+
+        <div class="reg-savebar">
+          <button type="submit">この内容で登録する</button>
+        </div>
+      </form>
+    </section>
+</main>
 
   <button class="fab" id="fab">＋</button>
 
@@ -1000,7 +1080,7 @@ function renderShift(){
 }
 
 function renderHeader(){
-  const titles={home:'ホーム',map:'MAP',route:'今日の巡回',machines:'自販機'};
+  const titles={home:'ホーム',map:'MAP',route:'今日の巡回',machines:'自販機',register:'自販機登録'};
   document.getElementById('pageTitle').textContent=titles[page];
   const d=new Date();document.getElementById('todayLabel').textContent=d.toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'short'});
 }
@@ -1371,10 +1451,109 @@ function searchPlaceInAppleMaps(){
   window.location.href=`https://maps.apple.com/?q=${encodeURIComponent(q)}`;
 }
 
+
+let registerReturnPage='machines';
+let registerMapPickMode=false;
+
+function fillRegisterArea(){
+  rpArea.innerHTML='<option value="未設定">未設定</option>';
+  areaNames().forEach(a=>{
+    const o=document.createElement('option');o.value=a;o.textContent=a;rpArea.appendChild(o);
+  });
+}
+function resetRegisterPage(){
+  registerMapPickMode=false;
+  registerPageForm.reset();
+  fillRegisterArea();
+  rpArea.value='未設定';
+  rpRegularInterval.value=14;
+  rpSupplyInterval.value=7;
+  rpLat.value='';
+  rpLng.value='';
+  renderRegisterLocation();
+}
+function renderRegisterLocation(){
+  const lat=rpLat.value,lng=rpLng.value;
+  if(lat!==''&&lng!==''){
+    rpLocationLabel.textContent='位置情報あり';
+    rpCoords.textContent=`${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`;
+    rpClearLocation.classList.remove('hidden');
+  }else{
+    rpLocationLabel.textContent='位置情報なし';
+    rpCoords.textContent='あとから設定できます';
+    rpClearLocation.classList.add('hidden');
+  }
+}
+function openRegisterPage(returnPage='machines'){
+  registerReturnPage=returnPage;
+  resetRegisterPage();
+  switchPage('register');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function closeRegisterPage(){
+  switchPage(registerReturnPage||'machines');
+}
+function useCurrentLocationForRegister(){
+  if(!navigator.geolocation){alert('この端末では位置情報を使えません。');return}
+  rpUseCurrentLocation.disabled=true;
+  rpUseCurrentLocation.textContent='取得中…';
+  navigator.geolocation.getCurrentPosition(pos=>{
+    rpLat.value=pos.coords.latitude;
+    rpLng.value=pos.coords.longitude;
+    renderRegisterLocation();
+    rpUseCurrentLocation.disabled=false;
+    rpUseCurrentLocation.textContent='現在地を使う';
+  },err=>{
+    rpUseCurrentLocation.disabled=false;
+    rpUseCurrentLocation.textContent='現在地を使う';
+    alert(geoErrorMessage(err));
+  },{enableHighAccuracy:true,maximumAge:5000,timeout:15000});
+}
+function chooseLocationOnMapForRegister(){
+  registerMapPickMode=true;
+  registerReturnPage='register';
+  switchPage('map');
+  setMapRegisterMode(true);
+  if(mapRegisterBanner){
+    mapRegisterBanner.querySelector('span').textContent='登録画面に設定する場所を地図上で1回タップ';
+  }
+}
+function saveRegisterPage(){
+  const name=rpName.value.trim();
+  if(!name){alert('自販機名を入力してください。');rpName.focus();return}
+
+  const id=uid();
+  const data={
+    id,
+    name,
+    site:rpSite.value.trim(),
+    number:rpNumber.value.trim(),
+    area:rpArea.value||'未設定',
+    lat:rpLat.value!==''?Number(rpLat.value):null,
+    lng:rpLng.value!==''?Number(rpLng.value):null,
+    regularIntervalDays:Number(rpRegularInterval.value)||14,
+    supplyIntervalDays:Number(rpSupplyInterval.value)||7,
+    lastRegular:rpLastRegular.value||'',
+    weekly:rpWeekly.checked,
+    lastSupply:rpLastSupply.value||'',
+    lastCollection:rpLastCollection.value||'',
+    prioritySupply:false,
+    inventoryMemo:rpInventoryMemo.value.trim(),
+    workMinutes:25,
+    memo:rpMemo.value.trim()
+  };
+  db.machines.push(data);
+  save();
+  renderAll();
+  showToast(`${name} を登録しました`);
+  registerReturnPage='machines';
+  switchPage('machines');
+}
+
 function switchPage(p){
   syncDbFromStorage();
   if(page==='map' && p!=='map') hideMapMachineCard();
-  page=p;['home','map','route','machines'].forEach(x=>document.getElementById(x+'Page').classList.toggle('hidden',x!==p));
+  page=p;['home','map','route','machines','register'].forEach(x=>document.getElementById(x+'Page').classList.toggle('hidden',x!==p));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));
   fab.classList.toggle('hidden',p!=='machines');
   renderHeader();
@@ -1429,6 +1608,18 @@ function setMapRegisterMode(on){
 }
 function openRegistrationAt(latlng){
   if(!map||!latlng)return;
+
+  if(registerMapPickMode){
+    registerMapPickMode=false;
+    mapRegisterMode=false;
+    if(mapRegisterBanner) mapRegisterBanner.classList.add('hidden');
+    rpLat.value=latlng.lat;
+    rpLng.value=latlng.lng;
+    switchPage('register');
+    renderRegisterLocation();
+    return;
+  }
+
   registeringFromMap=true;
   clearTempRegisterMarker();
   const icon=L.divIcon({
@@ -1959,8 +2150,8 @@ cancelReturnBtn.addEventListener('click',()=>hideModal('returnModal'));
 confirmReturnBtn.addEventListener('click',finishReturn);
 cancelDeleteBtn.addEventListener('click',()=>{pendingDeleteId=null;hideModal('deleteModal')});
 confirmDeleteBtn.addEventListener('click',confirmDeleteMachine);
-addMachineBtn.addEventListener('click',()=>{registeringFromMap=false;openMachineModal()});
-fab.addEventListener('click',()=>{registeringFromMap=false;openMachineModal()});
+addMachineBtn.addEventListener('click',()=>openRegisterPage('machines'));
+fab.addEventListener('click',()=>openRegisterPage('machines'));
 areaSettingsBtn.addEventListener('click',()=>{renderAreaSettings();showModal('areaSettingsModal')});
 areaAddForm.addEventListener('submit',e=>{
   e.preventDefault();const n=newAreaName.value.trim();if(!n)return;
@@ -2049,8 +2240,19 @@ machineForm.addEventListener('submit',e=>{
   showToast(`${savedName} を登録しました`);
 });
 areaFilter.addEventListener('change',renderMachines);
-mapRegisterMenuBtn.addEventListener('click',()=>setMapRegisterMode(true));
-cancelMapRegisterBtn.addEventListener('click',()=>setMapRegisterMode(false));
+mapRegisterMenuBtn.addEventListener('click',()=>openRegisterPage('map'));
+cancelMapRegisterBtn.addEventListener('click',()=>{
+  setMapRegisterMode(false);
+  if(registerMapPickMode){
+    registerMapPickMode=false;
+    switchPage('register');
+  }
+});
+registerCancelBtn.addEventListener('click',closeRegisterPage);
+rpUseCurrentLocation.addEventListener('click',useCurrentLocationForRegister);
+rpChooseOnMap.addEventListener('click',chooseLocationOnMapForRegister);
+rpClearLocation.addEventListener('click',()=>{rpLat.value='';rpLng.value='';renderRegisterLocation()});
+registerPageForm.addEventListener('submit',e=>{e.preventDefault();saveRegisterPage()});
 locateBtn.addEventListener('click',locateUser);
 
 mapTodayBtn.addEventListener('click',()=>setMapMode('today'));
@@ -2059,7 +2261,7 @@ mapOptionsBtn.addEventListener('click',()=>{
   mapOptionsPanel.classList.toggle('hidden');
   mapOptionsBtn.classList.toggle('active',!mapOptionsPanel.classList.contains('hidden'));
 });
-mapRegisterMenuBtn.addEventListener('click',()=>setMapRegisterMode(true));
+mapRegisterMenuBtn.addEventListener('click',()=>openRegisterPage('map'));
 cancelMapRegisterBtn.addEventListener('click',()=>{setMapRegisterMode(false);clearTempRegisterMarker();});
 document.querySelectorAll('#mapAreaSegment button').forEach(b=>b.addEventListener('click',()=>{
   setMapArea(b.dataset.maparea);
@@ -2070,7 +2272,7 @@ mapInfoCloseBtn.addEventListener('click',hideMapMachineCard);
 mapInfoNavBtn.addEventListener('click',()=>selectedMapMachineId&&navigateToMachine(selectedMapMachineId));
 mapInfoAddBtn.addEventListener('click',()=>selectedMapMachineId&&addMachineToToday(selectedMapMachineId));
 
-window.showMapSiteCard=showMapSiteCard;window.renameArea=renameArea;window.deleteArea=deleteArea;window.toggleTask=toggleTask;window.setTroubleStatus=setTroubleStatus;window.addMachineToToday=addMachineToToday;window.addEventListener('storage',e=>{
+window.openRegisterPage=openRegisterPage;window.showMapSiteCard=showMapSiteCard;window.renameArea=renameArea;window.deleteArea=deleteArea;window.toggleTask=toggleTask;window.setTroubleStatus=setTroubleStatus;window.addMachineToToday=addMachineToToday;window.addEventListener('storage',e=>{
   if(e.key===DBKEY){
     syncDbFromStorage();
     renderAll();
