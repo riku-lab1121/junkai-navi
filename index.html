@@ -654,6 +654,17 @@ nav button{
 .simple-map-page .leaflet-container{z-index:1!important}
 .simple-map-page .leaflet-top,.simple-map-page .leaflet-bottom{z-index:10!important}
 nav{z-index:30000!important;pointer-events:auto!important}
+
+/* Ver.6.3 iPhone MAP→タブ遷移 */
+nav{
+  touch-action:none!important;
+  -webkit-user-select:none!important;
+  user-select:none!important;
+}
+nav button{
+  touch-action:none!important;
+  -webkit-tap-highlight-color:rgba(0,0,0,.08);
+}
 </style>
 </head>
 <body>
@@ -2589,18 +2600,27 @@ function saveRegisterPage(){
 function switchPage(p){
   syncDbFromStorage();
 
-  if(page==='map' && p!=='map'){
-    hideMapMachineCard();
-    closeMapSearch();
-    if(mapAreaFilters) mapAreaFilters.classList.add('hidden');
-    if(mapFilterBtn) mapFilterBtn.classList.remove('active');
-    if(mapRegisterBanner) mapRegisterBanner.classList.add('hidden');
+  const previousPage=page;
+  page=p;
+
+  // まず画面そのものを切り替える。MAPの後処理で失敗しても遷移は止めない。
+  ['home','map','route','calendar','machines','register','report'].forEach(x=>{
+    const el=document.getElementById(x+'Page');
+    if(el) el.classList.toggle('hidden',x!==p);
+  });
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));
+  if(fab) fab.classList.toggle('hidden',p!=='machines');
+
+  if(window.scrollX!==0) window.scrollTo(0,window.scrollY);
+
+  if(previousPage==='map' && p!=='map'){
+    try{hideMapMachineCard()}catch(e){console.warn(e)}
+    try{closeMapSearch()}catch(e){console.warn(e)}
+    try{if(mapAreaFilters) mapAreaFilters.classList.add('hidden')}catch(e){}
+    try{if(mapFilterBtn) mapFilterBtn.classList.remove('active')}catch(e){}
+    try{if(mapRegisterBanner) mapRegisterBanner.classList.add('hidden')}catch(e){}
   }
 
-  page=p;
-  if(window.scrollX!==0) window.scrollTo(0,window.scrollY);['home','map','route','calendar','machines','register','report'].forEach(x=>document.getElementById(x+'Page').classList.toggle('hidden',x!==p));
-  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));
-  fab.classList.toggle('hidden',p!=='machines');
   renderHeader();
 
   if(p==='machines') renderMachines();
@@ -2614,13 +2634,12 @@ function switchPage(p){
     if(db.settings?.gpsAuto!==false) startLocationTracking(false);
     setTimeout(()=>{
       if(page!=='map') return;
-      setTimeout(()=>{
-        if(page!=='map') return;
+      try{
         map.invalidateSize(true);
         renderMapMarkers();
-      },120);
-      if(mapMode==='today'&&(todaysRoute()?.stops||[]).length)fitMapVisible();
-    },100);
+        if(mapMode==='today'&&(todaysRoute()?.stops||[]).length)fitMapVisible();
+      }catch(e){console.warn('map refresh',e)}
+    },120);
   }
 }
 
@@ -3356,23 +3375,36 @@ calendarNextBtn.addEventListener('click',()=>{
   else{const d=ymdDate(calendarAnchor);calendarAnchor=localYmd(new Date(d.getFullYear(),d.getMonth()+1,1,12))}
   renderCalendar();
 });
+let lastNavActivation=0;
+function activateBottomNav(button,event){
+  const now=Date.now();
+  if(now-lastNavActivation<250)return;
+  lastNavActivation=now;
+
+  if(event){
+    try{event.preventDefault()}catch(e){}
+    try{event.stopPropagation()}catch(e){}
+  }
+
+  haptic();
+
+  if(registerMapPickMode){
+    registerMapPickMode=false;
+    mapRegisterMode=false;
+    try{if(mapRegisterBanner) mapRegisterBanner.classList.add('hidden')}catch(e){}
+    try{if(backToRegisterBtn) backToRegisterBtn.classList.add('hidden')}catch(e){}
+  }
+
+  switchPage(button.dataset.page);
+}
 document.querySelectorAll('nav button').forEach(b=>{
-  b.addEventListener('pointerdown',e=>e.stopPropagation());
-  b.addEventListener('touchstart',e=>e.stopPropagation(),{passive:true});
-  b.addEventListener('click',e=>{
-    e.preventDefault();
-    e.stopPropagation();
-    haptic();
-
-    if(registerMapPickMode){
-      registerMapPickMode=false;
-      mapRegisterMode=false;
-      if(mapRegisterBanner) mapRegisterBanner.classList.add('hidden');
-      if(backToRegisterBtn) backToRegisterBtn.classList.add('hidden');
-    }
-
-    switchPage(b.dataset.page);
+  // iPhone PWA + Leafletではclickがキャンセルされることがあるため、
+  // touchend / pointerup で直接切り替える。
+  b.addEventListener('touchend',e=>activateBottomNav(b,e),{passive:false});
+  b.addEventListener('pointerup',e=>{
+    if(e.pointerType!=='touch')activateBottomNav(b,e);
   });
+  b.addEventListener('click',e=>activateBottomNav(b,e));
 });
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>hideModal(b.dataset.close)));
 document.querySelectorAll('[data-close="machineModal"]').forEach(b=>b.addEventListener('click',()=>{
