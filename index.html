@@ -54,7 +54,7 @@
     #map{height:62dvh;min-height:430px;border-radius:18px;overflow:hidden}
     .map-actions{display:flex;gap:8px;margin:10px 0}
     .fab{position:fixed;right:max(18px,calc((100vw - 760px)/2 + 18px));bottom:98px;width:54px;height:54px;border-radius:50%;background:#111827;color:#fff;font-size:28px;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:30}
-    nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(760px,100%);z-index:40;background:rgba(255,255,255,.94);backdrop-filter:blur(18px);border-top:1px solid var(--line);padding:7px 8px max(7px,env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(4,1fr)}
+    nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(760px,100%);z-index:40;background:rgba(255,255,255,.94);backdrop-filter:blur(18px);border-top:1px solid var(--line);padding:7px 8px max(7px,env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(5,1fr)}
     nav button{background:transparent;padding:8px 4px;color:#6b7280;font-size:11px;font-weight:700}
     nav button.active{color:#111}
     nav .ico{display:block;font-size:20px;margin-bottom:2px}
@@ -258,6 +258,33 @@
 .route-preview-item:first-child{border-top:0}
 .route-reason{font-size:11px;color:#64748b;margin-top:2px}
 .route-reason.urgent{color:#b91c1c;font-weight:800}
+
+.route-create-buttons{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+.route-create-buttons button{padding:14px;border-radius:14px;font-weight:900}
+.manual-machine{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 6px;border-bottom:1px solid var(--line);background:transparent}
+.manual-machine.selected{background:#eff6ff}
+.manual-order{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:#111827;color:#fff;font-size:12px;font-weight:900;flex:0 0 auto}
+.manual-list{max-height:48dvh;overflow:auto}
+.calendar-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
+.calendar-toggle{display:flex;background:#eef0f3;border-radius:12px;padding:3px}
+.calendar-toggle button{padding:8px 11px;border-radius:9px;font-weight:850;font-size:12px}
+.calendar-toggle button.active{background:#111827;color:#fff}
+.week-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.week-day{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 3px;min-height:90px;text-align:center}
+.week-day.today{border:2px solid #0a84ff}
+.week-day .dow{font-size:10px;color:#64748b}.week-day .daynum{font-size:17px;font-weight:900;margin:3px 0 6px}
+.cal-dot{font-size:9px;border-radius:999px;padding:3px 4px;margin:2px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#f1f5f9}
+.cal-dot.task{background:#fff7ed;color:#9a3412}.cal-dot.route{background:#dbeafe;color:#1d4ed8}.cal-dot.due{background:#fef2f2;color:#991b1b}
+.month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.month-head{text-align:center;font-size:10px;color:#64748b;padding:5px 0}
+.month-day{background:#fff;border:1px solid var(--line);border-radius:9px;min-height:72px;padding:5px;overflow:hidden}
+.month-day.other{opacity:.35}.month-day.today{outline:2px solid #0a84ff}.month-day .n{font-size:12px;font-weight:900}
+.month-event{font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px;border-radius:5px;padding:2px 3px;background:#eef2ff}
+.calendar-detail{margin-top:12px;background:#fff;border-radius:16px;padding:14px}
+.calendar-detail-item{padding:9px 0;border-bottom:1px solid var(--line)}.calendar-detail-item:last-child{border-bottom:0}
+.place-result-marker{width:24px;height:24px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#0a84ff;border:3px solid #fff;box-shadow:0 3px 10px #0004}
+.apple-search-note{padding:10px;border-radius:12px;background:#f8fafc;font-size:11px;color:#64748b}
+.mapkit-token-status{font-size:11px;margin-top:6px}
 </style>
 </head>
 <body>
@@ -483,8 +510,12 @@
             <div class="section-title">今日のルート</div>
             <div><b><span id="routeCount">0</span>台</b>・予定 <span id="routeMinutes">0</span>分</div><div class="route-filter-note" id="routeAreaLabel">全エリア</div>
           </div>
-          <button class="smallbtn" id="regenBtn">再作成</button>
+          <button class="smallbtn" id="regenBtn">作成</button>
         </div>
+      </div>
+      <div class="route-create-buttons">
+        <button class="primary" id="quickAutoRouteBtn">おすすめで作る</button>
+        <button class="secondary" id="manualRouteBtn">手動で作る</button>
       </div>
       <div id="routeList" class="list"></div>
     </section>
@@ -639,6 +670,28 @@
         </div>
       </div>
     </section>
+
+    <section id="calendarPage" class="hidden">
+      <div class="card">
+        <div class="calendar-toolbar">
+          <button class="secondary" id="calendarPrevBtn">‹</button>
+          <div style="text-align:center;flex:1">
+            <div class="section-title" style="margin:0">カレンダー</div>
+            <div style="font-size:18px;font-weight:900" id="calendarTitle"></div>
+          </div>
+          <button class="secondary" id="calendarNextBtn">›</button>
+        </div>
+        <div class="row">
+          <div class="calendar-toggle">
+            <button id="calendarWeekBtn" class="active">1週間</button>
+            <button id="calendarMonthBtn">月</button>
+          </div>
+          <button class="secondary" id="calendarTodayBtn">今日</button>
+        </div>
+      </div>
+      <div id="calendarContent"></div>
+      <div class="calendar-detail" id="calendarDetail"></div>
+    </section>
 </main>
 
   <button class="fab" id="fab">＋</button>
@@ -649,6 +702,7 @@
     <button data-page="home" class="active"><span class="ico">⌂</span>ホーム</button>
     <button data-page="map"><span class="ico">⌖</span>MAP</button>
     <button data-page="route"><span class="ico">≡</span>巡回</button>
+    <button data-page="calendar"><span class="ico">□</span>予定</button>
     <button data-page="machines"><span class="ico">▣</span>自販機</button>
   </nav>
 </div>
@@ -805,6 +859,23 @@
   </div>
 </div>
 
+
+<div class="modal hidden" id="manualRouteModal">
+  <div class="sheet">
+    <div class="row"><h2>手動で巡回を作る</h2><button class="secondary" data-close="manualRouteModal">閉じる</button></div>
+    <div class="grid2">
+      <select id="manualRouteArea"><option value="all">全エリア</option></select>
+      <input id="manualRouteSearch" placeholder="自販機名・場所を検索" />
+    </div>
+    <div class="row" style="margin:10px 0">
+      <div><b id="manualSelectedCount">0</b>台選択</div>
+      <button class="secondary" id="manualClearBtn">すべて解除</button>
+    </div>
+    <div class="manual-list" id="manualRouteList"></div>
+    <button class="primary" id="manualCreateBtn" style="margin-top:14px">選択した順で作成</button>
+  </div>
+</div>
+
 <div class="modal hidden" id="routeOptionsModal">
   <div class="sheet">
     <div class="row"><h2>今日の巡回を作る</h2><button class="secondary" data-close="routeOptionsModal">閉じる</button></div>
@@ -877,6 +948,13 @@
     <label>1日の作業上限（分・移動除く）</label><input id="sWorkBudget" type="number" min="30" />
     
     <div class="card" style="margin-top:16px;background:#f8fafc">
+      <div class="section-title">MAP店舗・施設検索</div>
+      <label>Apple Maps / MapKit JS トークン</label>
+      <input id="sMapKitToken" type="password" placeholder="Maps tokenを貼り付け" autocomplete="off" />
+      <div class="mapkit-token-status" id="mapKitTokenStatus">未設定の場合は登録済み自販機検索＋Apple Maps外部検索を使います。</div>
+    </div>
+
+    <div class="card" style="margin-top:16px;background:#f8fafc">
       <div class="row"><div><div class="section-title">エリア設定</div><div class="sub">高松・坂出など自由に追加できます</div></div>
       <button class="secondary" type="button" id="areaSettingsBtn">編集</button></div>
     </div>
@@ -916,7 +994,7 @@ const fmtTime=(sec)=>{sec=Math.max(0,Math.floor(sec));const h=Math.floor(sec/360
 const uid=()=>Math.random().toString(36).slice(2,10);
 
 const defaults={
-  settings:{start:'08:30',return:'17:00',breakGoal:60,maxStops:15,workBudget:360},
+  settings:{start:'08:30',return:'17:00',breakGoal:60,maxStops:15,workBudget:360,mapKitToken:''},
   machines:[
     {id:uid(),name:'サンプル：市役所前',number:'001',lat:34.3428,lng:134.0466,lastRegular:isoDaysAgo(14),weekly:true,lastSupply:isoDaysAgo(7),workMinutes:25,memo:''},
     {id:uid(),name:'サンプル：工場A',number:'002',lat:34.3295,lng:134.0205,lastRegular:isoDaysAgo(12),weekly:false,lastSupply:isoDaysAgo(12),workMinutes:30,memo:''},
@@ -1062,6 +1140,40 @@ function hav(a,b){
   const h=Math.sin(dLat/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dLon/2)**2;
   return 2*R*Math.asin(Math.sqrt(h));
 }
+
+function openManualRoute(){
+  fillAreaControls();
+  manualRouteArea.innerHTML=routeArea.innerHTML;
+  manualRouteArea.value='all';manualRouteSearch.value='';
+  manualRouteSelected=(todaysRoute()?.stops||[]).map(s=>s.machineId);
+  renderManualRouteList();showModal('manualRouteModal');
+}
+function manualMachinesFiltered(){
+  const area=manualRouteArea.value||'all',q=manualRouteSearch.value.trim().toLowerCase();
+  return db.machines.filter(m=>{
+    if(area!=='all'&&(m.area||'未設定')!==area)return false;
+    return !q||[m.name,m.site,m.number,m.area].filter(Boolean).some(v=>String(v).toLowerCase().includes(q));
+  }).sort((a,b)=>String(a.site||a.name).localeCompare(String(b.site||b.name),'ja'));
+}
+function toggleManualMachine(id){
+  const i=manualRouteSelected.indexOf(id);if(i>=0)manualRouteSelected.splice(i,1);else manualRouteSelected.push(id);
+  renderManualRouteList();
+}
+function renderManualRouteList(){
+  const list=manualMachinesFiltered();manualSelectedCount.textContent=manualRouteSelected.length;
+  if(!list.length){manualRouteList.innerHTML='<div class="empty">該当する自販機がありません。</div>';return}
+  manualRouteList.innerHTML=list.map(m=>{
+    const i=manualRouteSelected.indexOf(m.id),sel=i>=0;
+    return `<button class="manual-machine ${sel?'selected':''}" style="width:100%;text-align:left" onclick="toggleManualMachine('${m.id}')"><span style="display:flex;align-items:center;gap:8px">${sel?`<span class="manual-order">${i+1}</span>`:'<span class="manual-order" style="background:#e5e7eb;color:#64748b">＋</span>'}<span><b>${escapeHtml(m.name)}</b><span class="sub">${m.site?escapeHtml(m.site)+' ・ ':''}${escapeHtml(m.area||'未設定')}</span></span></span><span class="mini">${Number(m.workMinutes||25)}分</span></button>`;
+  }).join('');
+}
+function createManualRoute(){
+  const chosen=manualRouteSelected.map(id=>machine(id)).filter(Boolean);
+  db.routes[today()]={date:today(),createdAt:Date.now(),areaFilter:'manual',candidateMode:'manual',
+    stops:chosen.map((m,i)=>({id:uid(),machineId:m.id,order:i+1,status:'pending',workTypes:routeWorkTypes(m),plannedMinutes:Number(m.workMinutes||25)}))};
+  save();hideModal('manualRouteModal');renderAll();showToast(`${chosen.length}台の巡回を作成しました`);
+}
+
 function machineTroubles(m){
   return (db.troubles||[]).filter(t=>t.machineId===m.id&&t.status!=='done');
 }
@@ -1365,7 +1477,7 @@ function renderShift(){
 }
 
 function renderHeader(){
-  const titles={home:'ホーム',map:'MAP',route:'今日の巡回',machines:'自販機',register:'自販機登録',report:'日報'};
+  const titles={home:'ホーム',map:'MAP',route:'今日の巡回',calendar:'カレンダー',machines:'自販機',register:'自販機登録',report:'日報'};
   document.getElementById('pageTitle').textContent=titles[page];
   const d=new Date();document.getElementById('todayLabel').textContent=d.toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'short'});
 }
@@ -1651,6 +1763,7 @@ function addMachineToToday(machineId){
 }
 function showMapMachineCard(machineId){
   const m=machine(machineId);if(!m)return;
+  selectedExternalPlace=null;
   selectedMapMachineId=machineId;
   const st=machineStatusInfo(m),stop=routeStopForMachine(machineId),idx=routeIndexForMachine(machineId);
   mapInfoTitle.textContent=m.name;
@@ -1669,6 +1782,8 @@ function showMapMachineCard(machineId){
 }
 function hideMapMachineCard(){
   selectedMapMachineId=null;
+  selectedExternalPlace=null;
+  clearPlaceSearchMarker();
   mapInfoCard.classList.add('hidden');
   document.querySelector('.map-shell')?.classList.remove('card-open');
 }
@@ -1684,33 +1799,102 @@ function focusMachineFromSearch(id){
   map.setView([Number(m.lat),Number(m.lng)],16,{animate:true});
   setTimeout(()=>showMapMachineCard(id),250);
 }
-function renderMapSearch(query){
-  const q=query.trim().toLowerCase();
-  if(!q){closeMapSearch();return}
-  const hits=db.machines.filter(m=>{
-    return [m.name,m.site,m.number,m.area,m.address,m.inventoryMemo,m.memo]
-      .filter(Boolean).some(v=>String(v).toLowerCase().includes(q));
-  }).slice(0,8);
-
-  let items=hits.map(m=>`
-    <button class="map-search-item" style="width:100%;text-align:left;background:transparent" onclick="focusMachineFromSearch('${m.id}')">
-      <b>${escapeHtml(m.name)}</b>
-      <span class="sub">${escapeHtml(m.area||'未設定')} / #${escapeHtml(m.number||'-')}</span>
-    </button>`).join('');
-
-  items += `
-    <button class="map-search-item" style="width:100%;text-align:left;background:transparent" onclick="searchPlaceInAppleMaps()">
-      <b>「${escapeHtml(query)}」をApple Mapsで検索</b>
-      <span class="sub">住所・施設・地名など一般の場所を検索</span>
-    </button>`;
-
-  mapSearchResults.innerHTML=items;
-  mapSearchResults.classList.remove('hidden');
+async function ensureAppleMapKit(){
+  const token=(db.settings?.mapKitToken||'').trim();
+  if(!token) throw new Error('MapKitトークン未設定');
+  if(window.mapkit && window.mapkit.loadedLibraries?.length) return window.mapkit;
+  if(mapKitLoadingPromise) return mapKitLoadingPromise;
+  mapKitLoadingPromise=new Promise((resolve,reject)=>{
+    const callbackName='__routeMapKitReady';
+    window[callbackName]=()=>{
+      delete window[callbackName];
+      window.mapkit?resolve(window.mapkit):reject(new Error('MapKitの読み込みに失敗しました'));
+    };
+    const s=document.createElement('script');
+    s.src='https://cdn.apple-mapkit.com/mk/6/mapkit.core.js';
+    s.crossOrigin='anonymous';s.async=true;
+    s.dataset.callback=callbackName;
+    s.dataset.libraries='services';
+    s.dataset.token=token;
+    s.onerror=()=>reject(new Error('MapKitを読み込めませんでした'));
+    document.head.appendChild(s);
+  });
+  return mapKitLoadingPromise;
+}
+function localMachineSearch(q){
+  return db.machines.filter(m=>
+    [m.name,m.site,m.number,m.area,m.address,m.inventoryMemo,m.memo].filter(Boolean)
+      .some(v=>String(v).toLowerCase().includes(q.toLowerCase()))
+  ).slice(0,6);
+}
+async function renderMapSearch(query){
+  const q=query.trim();if(!q){closeMapSearch();return}
+  const hits=localMachineSearch(q);
+  let items='';
+  if(hits.length){
+    items+='<div class="map-search-hint">登録済み自販機</div>';
+    items+=hits.map(m=>`<button class="map-search-item" style="width:100%;text-align:left;background:transparent" onclick="focusMachineFromSearch('${m.id}')"><b>${escapeHtml(m.name)}</b><span class="sub">${m.site?escapeHtml(m.site)+' ・ ':''}${escapeHtml(m.area||'未設定')} / #${escapeHtml(m.number||'-')}</span></button>`).join('');
+  }
+  const token=(db.settings?.mapKitToken||'').trim();
+  if(token){
+    mapSearchResults.innerHTML=items+'<div class="map-search-hint">店舗・施設を検索中…</div>';
+    mapSearchResults.classList.remove('hidden');
+    try{
+      const mk=await ensureAppleMapKit();
+      const center=map?.getCenter();
+      const search=new mk.Search({language:'ja-JP',includePointsOfInterest:true,includeAddresses:true,limitToCountries:'JP'});
+      const data=await search.search(q,{
+        coordinate:center?{latitude:center.lat,longitude:center.lng}:undefined,
+        includePointsOfInterest:true,includeAddresses:true,limitToCountries:'JP'
+      });
+      applePlaceResults=(data.places||[]).slice(0,8);
+      if(applePlaceResults.length){
+        items+='<div class="map-search-hint">店舗・施設</div>';
+        items+=applePlaceResults.map((place,i)=>`<button class="map-search-item" style="width:100%;text-align:left;background:transparent" onclick="focusApplePlace(${i})"><b>${escapeHtml(place.name||q)}</b><span class="sub">${escapeHtml(place.formattedAddress||'')}</span></button>`).join('');
+      }else items+='<div class="map-search-hint">店舗・施設は見つかりませんでした</div>';
+    }catch(err){
+      console.warn(err);
+      items+='<div class="apple-search-note">店舗・施設検索を利用できませんでした。Apple Maps外部検索は使えます。</div>';
+    }
+  }else{
+    items+='<div class="apple-search-note">設定でMapKit JSトークンを登録すると、お店・病院・施設などをこのMAP内で検索できます。</div>';
+  }
+  items+=`<button class="map-search-item" style="width:100%;text-align:left;background:transparent" onclick="searchPlaceInAppleMaps()"><b>「${escapeHtml(q)}」をApple Mapsで検索</b><span class="sub">外部のApple Mapsで開く</span></button>`;
+  mapSearchResults.innerHTML=items;mapSearchResults.classList.remove('hidden');
+}
+function clearPlaceSearchMarker(){
+  if(placeSearchMarker&&map){try{map.removeLayer(placeSearchMarker)}catch(e){}}
+  placeSearchMarker=null;
+}
+function focusApplePlace(index){
+  const place=applePlaceResults[index];if(!place)return;
+  const lat=Number(place.coordinate?.latitude),lng=Number(place.coordinate?.longitude);
+  if(!Number.isFinite(lat)||!Number.isFinite(lng))return;
+  closeMapSearch();clearPlaceSearchMarker();
+  const icon=L.divIcon({className:'',html:'<div class="place-result-marker"></div>',iconSize:[24,24],iconAnchor:[12,24]});
+  placeSearchMarker=L.marker([lat,lng],{icon,zIndexOffset:3500}).addTo(map);
+  map.setView([lat,lng],17,{animate:true});
+  selectedExternalPlace={name:place.name||mapSearchInput.value.trim(),address:place.formattedAddress||'',lat,lng};
+  selectedMapMachineId=null;
+  mapInfoTitle.textContent=selectedExternalPlace.name;
+  mapInfoMeta.textContent='店舗・施設';mapInfoStatus.textContent='検索結果';mapInfoStatus.className='pill green';
+  mapInfoWork.innerHTML='';mapInfoMemo.textContent=selectedExternalPlace.address;
+  mapInfoAddBtn.textContent='ここに自販機登録';mapInfoAddBtn.disabled=false;mapInfoAddBtn.classList.remove('hidden');
+  mapInfoAdded.classList.add('hidden');mapInfoCard.classList.remove('hidden');
+  document.querySelector('.map-shell')?.classList.add('card-open');
+}
+function registerAtExternalPlace(){
+  if(!selectedExternalPlace)return;
+  const place={...selectedExternalPlace};
+  openRegisterPage('map');
+  setTimeout(()=>{rpName.value=place.name||'';rpSite.value=place.name||'';rpLat.value=place.lat;rpLng.value=place.lng;renderRegisterLocation()},30);
+}
+function navigateExternalPlace(){
+  if(!selectedExternalPlace)return;
+  window.location.href=`https://maps.apple.com/?daddr=${encodeURIComponent(selectedExternalPlace.lat+','+selectedExternalPlace.lng)}&q=${encodeURIComponent(selectedExternalPlace.name||'')}`;
 }
 function searchPlaceInAppleMaps(){
-  const q=mapSearchInput.value.trim();
-  if(!q)return;
-  closeMapSearch();
+  const q=mapSearchInput.value.trim();if(!q)return;closeMapSearch();
   window.location.href=`https://maps.apple.com/?q=${encodeURIComponent(q)}`;
 }
 
@@ -1942,12 +2126,13 @@ function saveRegisterPage(){
 function switchPage(p){
   syncDbFromStorage();
   if(page==='map' && p!=='map') hideMapMachineCard();
-  page=p;['home','map','route','machines','register','report'].forEach(x=>document.getElementById(x+'Page').classList.toggle('hidden',x!==p));
+  page=p;['home','map','route','calendar','machines','register','report'].forEach(x=>document.getElementById(x+'Page').classList.toggle('hidden',x!==p));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));
   fab.classList.toggle('hidden',p!=='machines');
   renderHeader();
 
   if(p==='machines') renderMachines();
+  if(p==='calendar') renderCalendar();
   if(p==='route') renderRoute();
   if(p==='home'){renderHome();renderShift();renderActive();renderWorkDashboard();}
 
@@ -2596,6 +2781,45 @@ function openReportPage(){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
+
+function ymdDate(s){const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d,12)}
+function addDaysYmd(s,n){const d=ymdDate(s);d.setDate(d.getDate()+n);return localYmd(d)}
+function mondayOf(s){const d=ymdDate(s),dow=d.getDay()||7;d.setDate(d.getDate()-(dow-1));return localYmd(d)}
+function regularDueDate(m){return m.lastRegular?addDaysYmd(m.lastRegular,regularInterval(m)):null}
+function supplyDueDate(m){return m.weekly&&m.lastSupply?addDaysYmd(m.lastSupply,supplyInterval(m)):null}
+function collectionDueDate(m){return m.lastCollection?addDaysYmd(m.lastCollection,14):null}
+function calendarEventsForDate(date){
+  const ev=[];
+  (db.tasks||[]).filter(t=>t.due===date&&!t.done).forEach(t=>ev.push({type:'task',label:t.title,machineId:t.machineId}));
+  const r=db.routes?.[date];if(r?.stops?.length)ev.push({type:'route',label:`巡回 ${r.stops.length}台`});
+  let reg=0,sup=0,col=0;db.machines.forEach(m=>{if(regularDueDate(m)===date)reg++;if(supplyDueDate(m)===date)sup++;if(collectionDueDate(m)===date)col++});
+  if(reg)ev.push({type:'due',label:`定期 ${reg}台`});if(sup)ev.push({type:'due',label:`補充 ${sup}台`});if(col)ev.push({type:'due',label:`集金 ${col}台`});
+  return ev;
+}
+function renderCalendarDetail(date){
+  calendarSelectedDate=date;const ev=calendarEventsForDate(date);
+  calendarDetail.innerHTML=`<div class="row"><div><div class="section-title">${date}</div><b>${ev.length?`${ev.length}件`:'予定なし'}</b></div><button class="secondary" onclick="addTaskForDate('${date}')">＋予定</button></div>`;
+  ev.forEach(e=>{const d=document.createElement('div');d.className='calendar-detail-item';d.innerHTML=`<b>${escapeHtml(e.label)}</b><div class="sub">${e.type==='task'?'予定':e.type==='route'?'巡回':'期限'}</div>`;calendarDetail.appendChild(d)});
+}
+function addTaskForDate(date){openTaskModal();taskDue.value=date}
+function renderWeekCalendar(){
+  const start=mondayOf(calendarAnchor),days=Array.from({length:7},(_,i)=>addDaysYmd(start,i)),d0=ymdDate(start),d6=ymdDate(days[6]),names=['月','火','水','木','金','土','日'];
+  calendarTitle.textContent=`${d0.getMonth()+1}/${d0.getDate()} 〜 ${d6.getMonth()+1}/${d6.getDate()}`;
+  calendarContent.innerHTML=`<div class="week-strip">${days.map((date,i)=>{const ev=calendarEventsForDate(date);return `<button class="week-day ${date===today()?'today':''}" onclick="renderCalendarDetail('${date}')"><div class="dow">${names[i]}</div><div class="daynum">${ymdDate(date).getDate()}</div>${ev.slice(0,3).map(e=>`<div class="cal-dot ${e.type}">${escapeHtml(e.label)}</div>`).join('')}${ev.length>3?`<div class="cal-dot">+${ev.length-3}</div>`:''}</button>`}).join('')}</div>`;
+}
+function renderMonthCalendar(){
+  const a=ymdDate(calendarAnchor),first=new Date(a.getFullYear(),a.getMonth(),1,12),last=new Date(a.getFullYear(),a.getMonth()+1,0,12),start=new Date(first),end=new Date(last);
+  start.setDate(first.getDate()-first.getDay());end.setDate(last.getDate()+(6-last.getDay()));
+  const days=[];for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1))days.push(localYmd(d));
+  calendarTitle.textContent=`${first.getFullYear()}年 ${first.getMonth()+1}月`;
+  const heads=['日','月','火','水','木','金','土'].map(x=>`<div class="month-head">${x}</div>`).join('');
+  calendarContent.innerHTML=`<div class="month-grid">${heads}${days.map(date=>{const dd=ymdDate(date),ev=calendarEventsForDate(date),other=dd.getMonth()!==first.getMonth();return `<button class="month-day ${other?'other':''} ${date===today()?'today':''}" onclick="renderCalendarDetail('${date}')"><div class="n">${dd.getDate()}</div>${ev.slice(0,2).map(e=>`<div class="month-event">${escapeHtml(e.label)}</div>`).join('')}${ev.length>2?`<div class="month-event">+${ev.length-2}</div>`:''}</button>`}).join('')}</div>`;
+}
+function renderCalendar(){
+  calendarWeekBtn.classList.toggle('active',calendarMode==='week');calendarMonthBtn.classList.toggle('active',calendarMode==='month');
+  calendarMode==='week'?renderWeekCalendar():renderMonthCalendar();renderCalendarDetail(calendarSelectedDate||today());
+}
+
 function showModal(id){
   document.getElementById(id).classList.remove('hidden');
   document.body.classList.add('modal-open');
@@ -2606,6 +2830,20 @@ function hideModal(id){
   if(map && page==='map') setTimeout(()=>map.invalidateSize(),80);
 }
 function setSettingsFields(){sStart.value=db.settings.start;sReturn.value=db.settings.return;sBreak.value=db.settings.breakGoal;sMax.value=db.settings.maxStops;sWorkBudget.value=db.settings.workBudget}
+
+calendarWeekBtn.addEventListener('click',()=>{calendarMode='week';renderCalendar()});
+calendarMonthBtn.addEventListener('click',()=>{calendarMode='month';renderCalendar()});
+calendarTodayBtn.addEventListener('click',()=>{calendarAnchor=today();calendarSelectedDate=today();renderCalendar()});
+calendarPrevBtn.addEventListener('click',()=>{
+  if(calendarMode==='week')calendarAnchor=addDaysYmd(calendarAnchor,-7);
+  else{const d=ymdDate(calendarAnchor);calendarAnchor=localYmd(new Date(d.getFullYear(),d.getMonth()-1,1,12))}
+  renderCalendar();
+});
+calendarNextBtn.addEventListener('click',()=>{
+  if(calendarMode==='week')calendarAnchor=addDaysYmd(calendarAnchor,7);
+  else{const d=ymdDate(calendarAnchor);calendarAnchor=localYmd(new Date(d.getFullYear(),d.getMonth()+1,1,12))}
+  renderCalendar();
+});
 document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>switchPage(b.dataset.page)));
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>hideModal(b.dataset.close)));
 document.querySelectorAll('[data-close="machineModal"]').forEach(b=>b.addEventListener('click',()=>{
@@ -2619,6 +2857,12 @@ generateRouteBtn.addEventListener('click',openRouteOptions);regenBtn.addEventLis
 breakBtn.addEventListener('click',()=>db.active?.type==='break'?endBreak():startBreak());
 workBtn.addEventListener('click',()=>db.active?.type==='work'?endWork():openWorkPicker(currentStop()?.id));
 confirmWorkStart.addEventListener('click',startWork);
+quickAutoRouteBtn.addEventListener('click',openRouteOptions);
+manualRouteBtn.addEventListener('click',openManualRoute);
+manualRouteArea.addEventListener('change',renderManualRouteList);
+manualRouteSearch.addEventListener('input',renderManualRouteList);
+manualClearBtn.addEventListener('click',()=>{manualRouteSelected=[];renderManualRouteList()});
+manualCreateBtn.addEventListener('click',createManualRoute);
 confirmGenerateRoute.addEventListener('click',generateRoute);
 refreshRoutePreviewBtn.addEventListener('click',renderRoutePreview);
 routeArea.addEventListener('change',renderRoutePreview);
@@ -2680,7 +2924,7 @@ areaAddForm.addEventListener('submit',e=>{
   if(!db.areas.includes(n))db.areas.push(n);newAreaName.value='';save();fillAreaControls();renderAreaSettings();renderAll();showToast(`${n}を追加しました`);
 });
 settingsBtn.addEventListener('click',()=>{setSettingsFields();showModal('settingsModal')});
-saveSettings.addEventListener('click',()=>{db.settings={start:sStart.value,return:sReturn.value,breakGoal:+sBreak.value,maxStops:+sMax.value,workBudget:+sWorkBudget.value};save();hideModal('settingsModal');renderAll()});
+saveSettings.addEventListener('click',()=>{db.settings={...db.settings,start:sStart.value,return:sReturn.value,breakGoal:+sBreak.value,maxStops:+sMax.value,workBudget:+sWorkBudget.value,mapKitToken:sMapKitToken.value.trim()};mapKitLoadingPromise=null;save();hideModal('settingsModal');renderAll();showToast('設定を保存しました')});
 machineForm.addEventListener('submit',e=>{
   e.preventDefault();
 
@@ -2811,8 +3055,8 @@ document.querySelectorAll('#mapAreaSegment button').forEach(b=>b.addEventListene
   mapOptionsBtn.classList.remove('active');
 }));
 mapInfoCloseBtn.addEventListener('click',hideMapMachineCard);
-mapInfoNavBtn.addEventListener('click',()=>selectedMapMachineId&&navigateToMachine(selectedMapMachineId));
-mapInfoAddBtn.addEventListener('click',()=>selectedMapMachineId&&addMachineToToday(selectedMapMachineId));
+mapInfoNavBtn.addEventListener('click',()=>{if(selectedExternalPlace)navigateExternalPlace();else if(selectedMapMachineId)navigateToMachine(selectedMapMachineId)});
+mapInfoAddBtn.addEventListener('click',()=>{if(selectedExternalPlace)registerAtExternalPlace();else if(selectedMapMachineId)addMachineToToday(selectedMapMachineId)});
 
 window.openRegisterPage=openRegisterPage;window.showMapSiteCard=showMapSiteCard;window.renameArea=renameArea;window.deleteArea=deleteArea;window.toggleTask=toggleTask;window.setTroubleStatus=setTroubleStatus;window.addMachineToToday=addMachineToToday;window.addEventListener('storage',e=>{
   if(e.key===DBKEY){
@@ -2827,7 +3071,7 @@ document.addEventListener('visibilitychange',()=>{
   }
 });
 
-window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
+window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 setInterval(()=>{if(db.active || (hasDeparted()&&!hasReturned())){renderShift();renderActive();renderHome()}},1000);
