@@ -298,6 +298,9 @@
 .compact-ui .sheet{padding:18px}
 .compact-ui .machine-table th,.compact-ui .machine-table td{padding:9px 8px}
 .compact-ui .route-item{padding:10px}
+
+.map-register-mode-banner{bottom:86px!important}
+.map-register-mode-banner button{white-space:nowrap}
 </style>
 </head>
 <body>
@@ -487,8 +490,11 @@
 
         <div id="map"></div>
         <div class="map-register-mode-banner hidden" id="mapRegisterBanner">
-          <span>登録したい場所を地図上で1回タップ</span>
-          <button id="cancelMapRegisterBtn">キャンセル</button>
+          <span id="mapRegisterBannerText">登録したい場所を地図上で1回タップ</span>
+          <div style="display:flex;gap:8px">
+            <button id="backToRegisterBtn" class="hidden">登録画面へ戻る</button>
+            <button id="cancelMapRegisterBtn">キャンセル</button>
+          </div>
         </div>
 
 
@@ -2080,14 +2086,31 @@ function useCurrentLocationForRegister(){
     alert(geoErrorMessage(err));
   },{enableHighAccuracy:true,maximumAge:5000,timeout:15000});
 }
+
+function exitRegisterMapPicker(){
+  registerMapPickMode=false;
+  mapRegisterMode=false;
+  clearTempRegisterMarker();
+
+  if(mapRegisterBanner) mapRegisterBanner.classList.add('hidden');
+  if(backToRegisterBtn) backToRegisterBtn.classList.add('hidden');
+  if(mapRegisterBannerText) mapRegisterBannerText.textContent='登録したい場所を地図上で1回タップ';
+
+  switchPage('register');
+  renderRegisterLocation();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
 function chooseLocationOnMapForRegister(){
   registerMapPickMode=true;
   registerReturnPage='register';
+
   switchPage('map');
   setMapRegisterMode(true);
-  if(mapRegisterBanner){
-    mapRegisterBanner.querySelector('span').textContent='登録画面に設定する場所を地図上で1回タップ';
-  }
+
+  if(mapRegisterBannerText) mapRegisterBannerText.textContent='登録画面に設定する場所を地図上で1回タップ';
+  if(backToRegisterBtn) backToRegisterBtn.classList.remove('hidden');
+  if(cancelMapRegisterBtn) cancelMapRegisterBtn.textContent='キャンセル';
 }
 
 function addSameSiteMachineFromEdit(){
@@ -2274,13 +2297,9 @@ function openRegistrationAt(latlng){
   if(!map||!latlng)return;
 
   if(registerMapPickMode){
-    registerMapPickMode=false;
-    mapRegisterMode=false;
-    if(mapRegisterBanner) mapRegisterBanner.classList.add('hidden');
     rpLat.value=latlng.lat;
     rpLng.value=latlng.lng;
-    switchPage('register');
-    renderRegisterLocation();
+    exitRegisterMapPicker();
     return;
   }
 
@@ -2973,7 +2992,16 @@ calendarNextBtn.addEventListener('click',()=>{
   else{const d=ymdDate(calendarAnchor);calendarAnchor=localYmd(new Date(d.getFullYear(),d.getMonth()+1,1,12))}
   renderCalendar();
 });
-document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{haptic();switchPage(b.dataset.page)}));
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{
+  haptic();
+  if(registerMapPickMode){
+    registerMapPickMode=false;
+    mapRegisterMode=false;
+    if(mapRegisterBanner) mapRegisterBanner.classList.add('hidden');
+    if(backToRegisterBtn) backToRegisterBtn.classList.add('hidden');
+  }
+  switchPage(b.dataset.page);
+}));
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>hideModal(b.dataset.close)));
 document.querySelectorAll('[data-close="machineModal"]').forEach(b=>b.addEventListener('click',()=>{
   editingMachineId=null;
@@ -3163,11 +3191,14 @@ machineForm.addEventListener('submit',e=>{
 areaFilter.addEventListener('change',renderMachines);
 mapRegisterMenuBtn.addEventListener('click',()=>openRegisterPage('map'));
 cancelMapRegisterBtn.addEventListener('click',()=>{
-  setMapRegisterMode(false);
   if(registerMapPickMode){
-    registerMapPickMode=false;
-    switchPage('register');
+    exitRegisterMapPicker();
+    return;
   }
+  setMapRegisterMode(false);
+});
+backToRegisterBtn.addEventListener('click',()=>{
+  if(registerMapPickMode) exitRegisterMapPicker();
 });
 addSameSiteBtn.addEventListener('click',addSameSiteMachineFromEdit);
 openDailyReportBtn.addEventListener('click',openReportPage);
