@@ -217,7 +217,7 @@
 .site-machine-list{display:grid;gap:8px;margin-top:10px}
 .site-machine-row{width:100%;border:1px solid #e5e7eb;background:#fff;border-radius:14px;padding:12px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:10px}
 .site-machine-row:active{transform:scale(.985);background:#f8fafc}
-.site-count-marker{display:flex;align-items:center;justify-content:center;min-width:42px;height:42px;border-radius:22px;background:#111827;color:#fff;font-weight:900;border:4px solid #fff;box-shadow:0 4px 14px #0003;padding:0 8px}
+.site-count-marker{display:flex;align-items:center;justify-content:center;min-width:28px;height:28px;border-radius:15px;background:#111827;color:#fff;font-weight:900;font-size:10px;border:3px solid #fff;box-shadow:0 3px 10px #0003;padding:0 5px}
 
 .location-dot{width:18px;height:18px;border-radius:50%;background:#0a84ff;border:4px solid #fff;box-shadow:0 0 0 7px rgba(10,132,255,.20),0 3px 10px rgba(0,0,0,.22)}
 .gps-ring{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center}
@@ -243,6 +243,21 @@
 .report-summary-grid .box b{display:block;font-size:20px;margin-top:3px}
 .report-log-item{border-top:1px solid var(--line);padding:10px 0}
 .report-log-item:first-child{border-top:0}
+
+.report-page{padding-bottom:110px}
+.report-page .report-head{background:#fff;border-radius:20px;padding:16px;margin-bottom:12px}
+.report-page .report-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.report-page .report-box{background:#f8fafc;border-radius:14px;padding:12px}
+.report-page .report-box b{display:block;font-size:21px;margin-top:3px}
+.report-page .report-section{background:#fff;border-radius:18px;padding:16px;margin-top:12px}
+.report-page .report-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.report-page .report-actions button{padding:13px;border-radius:13px}
+.same-location-row{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:11px;margin-top:7px;text-align:left}
+
+.route-preview-item{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid var(--line);padding:9px 0}
+.route-preview-item:first-child{border-top:0}
+.route-reason{font-size:11px;color:#64748b;margin-top:2px}
+.route-reason.urgent{color:#b91c1c;font-weight:800}
 </style>
 </head>
 <body>
@@ -300,6 +315,7 @@
 
         <button class="primary departbtn" id="departureBtn" style="margin-top:14px">出発</button>
         <button class="primary returnbtn hidden" id="returnBtn" style="margin-top:10px">帰社する</button>
+        <button class="secondary hidden" id="shiftReportBtn" style="margin-top:10px;width:100%">今日の日報を見る</button>
       </div>
 
 <div class="card daily-report-card hidden" id="returnedReportCard">
@@ -585,6 +601,44 @@
         </div>
       </form>
     </section>
+
+    <section id="reportPage" class="hidden report-page">
+      <div class="report-head">
+        <div class="row">
+          <div>
+            <div class="section-title">日報</div>
+            <div style="font-size:24px;font-weight:900">今日の巡回日報</div>
+            <div class="sub" id="reportPageDate"></div>
+          </div>
+          <button class="secondary" id="reportBackBtn">戻る</button>
+        </div>
+      </div>
+
+      <div class="report-section">
+        <div class="report-grid">
+          <div class="report-box"><span class="sub">出発</span><b id="rpDeparture">--:--</b></div>
+          <div class="report-box"><span class="sub">帰社</span><b id="rpReturn">--:--</b></div>
+          <div class="report-box"><span class="sub">勤務</span><b id="rpShiftMinutes">0分</b></div>
+          <div class="report-box"><span class="sub">完了</span><b id="rpDoneStops">0台</b></div>
+          <div class="report-box"><span class="sub">移動</span><b id="rpTravelMinutes">0分</b></div>
+          <div class="report-box"><span class="sub">作業</span><b id="rpWorkMinutes">0分</b></div>
+          <div class="report-box"><span class="sub">休憩</span><b id="rpBreakMinutes">0分</b></div>
+          <div class="report-box"><span class="sub">作業件数</span><b id="rpJobCount">0件</b></div>
+        </div>
+      </div>
+
+      <div class="report-section">
+        <div class="section-title">作業内容</div>
+        <div id="reportPageWorkList"></div>
+      </div>
+
+      <div class="report-section">
+        <div class="report-actions">
+          <button class="secondary" id="reportPageCsvBtn">CSVで保存</button>
+          <button class="primary" id="reportPageCopyBtn">日報をコピー</button>
+        </div>
+      </div>
+    </section>
 </main>
 
   <button class="fab" id="fab">＋</button>
@@ -754,9 +808,47 @@
 <div class="modal hidden" id="routeOptionsModal">
   <div class="sheet">
     <div class="row"><h2>今日の巡回を作る</h2><button class="secondary" data-close="routeOptionsModal">閉じる</button></div>
+
     <label>対象エリア</label>
     <select id="routeArea"><option value="all">全エリア</option></select>
-    <div class="urgent-note">期限超過・集金期限・「早めに補充」は優先して候補に入ります。</div>
+
+    <label>候補の出し方</label>
+    <select id="routeCandidateMode">
+      <option value="recommended">おすすめだけ</option>
+      <option value="all">登録済みを全部候補にする</option>
+    </select>
+
+    <div class="grid2">
+      <div>
+        <label>最大台数</label>
+        <input id="routeMaxStops" type="number" min="1" max="100" value="15" />
+      </div>
+      <div>
+        <label>作業時間上限（分）</label>
+        <input id="routeBudget" type="number" min="15" step="15" value="360" />
+      </div>
+    </div>
+
+    <div class="checkrow">
+      <input id="routeIncludeTrouble" type="checkbox" checked>
+      <span>未完了トラブルを優先する</span>
+    </div>
+
+    <div class="notice" style="margin-top:12px">
+      おすすめ：定期・補充・集金・在庫少なめ・トラブルを優先。同じ場所の複数台は続けて並びます。
+    </div>
+
+    <div class="card" style="margin-top:12px;background:#f8fafc">
+      <div class="row">
+        <div>
+          <div class="section-title">候補プレビュー</div>
+          <div><b id="routePreviewCount">0</b>台 ・ 約 <b id="routePreviewMinutes">0</b>分</div>
+        </div>
+        <button class="secondary" id="refreshRoutePreviewBtn">更新</button>
+      </div>
+      <div id="routePreviewList" style="margin-top:10px;max-height:34vh;overflow:auto"></div>
+    </div>
+
     <button class="primary" id="confirmGenerateRoute" style="margin-top:14px">この条件で作成</button>
   </div>
 </div>
@@ -970,41 +1062,197 @@ function hav(a,b){
   const h=Math.sin(dLat/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dLon/2)**2;
   return 2*R*Math.asin(Math.sqrt(h));
 }
-function generateRoute(area='all'){
-  let candidates=db.machines
-    .filter(m=>urgency(m)>0)
-    .filter(m=>area==='all'||(m.area||'未設定')===area)
-    .sort((a,b)=>urgency(b)-urgency(a));
+function machineTroubles(m){
+  return (db.troubles||[]).filter(t=>t.machineId===m.id&&t.status!=='done');
+}
+function routeReason(m,includeTrouble=true){
+  const reasons=[];
+  const rd=dayDiff(m.lastRegular,today()),ri=regularInterval(m);
+  const sd=dayDiff(m.lastSupply||m.lastRegular,today()),si=supplyInterval(m);
+  const cd=dayDiff(m.lastCollection||m.lastRegular,today());
 
-  const max=db.settings.maxStops||15, budget=db.settings.workBudget||360;
+  if(rd>=ri) reasons.push('定期');
+  else if(rd>=ri-2&&rd>=0) reasons.push('定期まもなく');
+
+  if(m.weekly&&sd>=si) reasons.push('補充');
+  else if(m.weekly&&sd===si-1) reasons.push('補充まもなく');
+
+  if(cd>=14) reasons.push('集金');
+  else if(cd>=12) reasons.push('集金まもなく');
+
+  if(m.prioritySupply) reasons.push('在庫少');
+  if(includeTrouble&&machineTroubles(m).length) reasons.push('トラブル');
+
+  return reasons;
+}
+function routeScore(m,includeTrouble=true){
+  let score=urgency(m);
+  if(includeTrouble){
+    const ts=machineTroubles(m);
+    if(ts.length){
+      score+=250;
+      if(ts.some(t=>t.priority==='high')) score+=150;
+    }
+  }
+  return score;
+}
+function routeSiteKey(m){
+  if(m.lat!==null&&m.lng!==null&&m.lat!==''&&m.lng!==''){
+    const lat=Number(m.lat),lng=Number(m.lng);
+    if(Number.isFinite(lat)&&Number.isFinite(lng)) return `gps:${lat.toFixed(4)}:${lng.toFixed(4)}`;
+  }
+  if((m.site||'').trim()) return `site:${m.area||'未設定'}:${m.site.trim()}`;
+  return `machine:${m.id}`;
+}
+function candidateMachinesFromOptions(){
+  const area=routeArea.value||'all';
+  const mode=routeCandidateMode.value||'recommended';
+  const includeTrouble=routeIncludeTrouble.checked;
+
+  let list=db.machines.filter(m=>area==='all'||(m.area||'未設定')===area);
+
+  if(mode==='recommended'){
+    list=list.filter(m=>routeScore(m,includeTrouble)>0);
+  }
+
+  // Higher priority first. Unknown-info machines naturally go later in "all".
+  list.sort((a,b)=>routeScore(b,includeTrouble)-routeScore(a,includeTrouble)
+    || String(a.site||a.name).localeCompare(String(b.site||b.name),'ja'));
+
+  return list;
+}
+function chooseRouteMachines(){
+  const max=Math.max(1,Number(routeMaxStops.value)||15);
+  const budget=Math.max(15,Number(routeBudget.value)||360);
+  const candidates=candidateMachinesFromOptions();
+
   let chosen=[],used=0;
   for(const m of candidates){
-    const minutes=Number(m.workMinutes||25);
-    if(chosen.length<max && used+minutes<=budget){
-      chosen.push(m);used+=minutes;
-    }
+    const minutes=Math.max(1,Number(m.workMinutes||25));
+    if(chosen.length>=max) break;
+    if(chosen.length>0 && used+minutes>budget) continue;
+    chosen.push(m);
+    used+=minutes;
   }
-  if(chosen.length>1){
-    let ordered=[chosen.shift()];
-    while(chosen.length){
-      const last=ordered[ordered.length-1];
-      chosen.sort((a,b)=>hav(last,a)-hav(last,b) || urgency(b)-urgency(a));
-      ordered.push(chosen.shift());
+  return chosen;
+}
+function orderRouteMachines(chosen){
+  if(chosen.length<=1)return chosen.slice();
+
+  // Group machines at the same site so multiple machines are consecutive.
+  const groupMap=new Map();
+  chosen.forEach(m=>{
+    const key=routeSiteKey(m);
+    if(!groupMap.has(key)) groupMap.set(key,[]);
+    groupMap.get(key).push(m);
+  });
+  let groups=[...groupMap.values()];
+
+  // Within each site, higher priority first.
+  groups.forEach(g=>g.sort((a,b)=>routeScore(b,routeIncludeTrouble.checked)-routeScore(a,routeIncludeTrouble.checked)));
+
+  // Prefer GPS groups for geographic ordering; non-GPS groups remain after nearby groups.
+  const center=g=>{
+    const pts=g.filter(m=>Number.isFinite(Number(m.lat))&&Number.isFinite(Number(m.lng)));
+    if(!pts.length)return null;
+    return {
+      lat:pts.reduce((s,m)=>s+Number(m.lat),0)/pts.length,
+      lng:pts.reduce((s,m)=>s+Number(m.lng),0)/pts.length
+    };
+  };
+
+  const ordered=[];
+  let remaining=groups.slice();
+  // Start from highest priority group.
+  remaining.sort((a,b)=>routeScore(b[0],routeIncludeTrouble.checked)-routeScore(a[0],routeIncludeTrouble.checked));
+  let current=remaining.shift();
+  ordered.push(current);
+
+  while(remaining.length){
+    const c=center(current);
+    if(c){
+      remaining.sort((a,b)=>{
+        const ca=center(a),cb=center(b);
+        if(ca&&cb) return hav(c,ca)-hav(c,cb);
+        if(ca) return -1;
+        if(cb) return 1;
+        return routeScore(b[0],routeIncludeTrouble.checked)-routeScore(a[0],routeIncludeTrouble.checked);
+      });
+    }else{
+      remaining.sort((a,b)=>routeScore(b[0],routeIncludeTrouble.checked)-routeScore(a[0],routeIncludeTrouble.checked));
     }
-    chosen=ordered;
+    current=remaining.shift();
+    ordered.push(current);
   }
+  return ordered.flat();
+}
+function routeWorkTypes(m){
+  const work=workFor(m);
+  const troubles=machineTroubles(m);
+  if(troubles.length&&!work.includes('トラブル')) work.push('トラブル');
+  if(!work.length) work.push('原料');
+  return work;
+}
+function renderRoutePreview(){
+  const chosen=orderRouteMachines(chooseRouteMachines());
+  routePreviewCount.textContent=chosen.length;
+  routePreviewMinutes.textContent=chosen.reduce((s,m)=>s+Number(m.workMinutes||25),0);
+
+  if(!chosen.length){
+    routePreviewList.innerHTML='<div class="empty">この条件では候補がありません。<br>「登録済みを全部候補にする」を選ぶと期限前の自販機も出せます。</div>';
+    return;
+  }
+
+  routePreviewList.innerHTML=chosen.map((m,i)=>{
+    const reasons=routeReason(m,routeIncludeTrouble.checked);
+    const reason=reasons.length?reasons.join('・'):'期限前';
+    return `<div class="route-preview-item">
+      <div>
+        <b>${i+1}. ${escapeHtml(m.name)}</b>
+        <div class="sub">${escapeHtml(m.area||'未設定')}${m.site?' ・ '+escapeHtml(m.site):''}</div>
+        <div class="route-reason ${routeScore(m,routeIncludeTrouble.checked)>=100?'urgent':''}">${escapeHtml(reason)}</div>
+      </div>
+      <span class="mini">${Number(m.workMinutes||25)}分</span>
+    </div>`;
+  }).join('');
+}
+function generateRoute(){
+  const area=routeArea.value||'all';
+  const chosen=orderRouteMachines(chooseRouteMachines());
+
   db.routes[today()]={
-    date:today(),createdAt:Date.now(),areaFilter:area,
+    date:today(),
+    createdAt:Date.now(),
+    areaFilter:area,
+    candidateMode:routeCandidateMode.value,
     stops:chosen.map((m,i)=>({
-      id:uid(),machineId:m.id,order:i+1,status:'pending',
-      workTypes:(workFor(m).length?workFor(m):['原料']),plannedMinutes:Number(m.workMinutes||25)
+      id:uid(),
+      machineId:m.id,
+      order:i+1,
+      status:'pending',
+      workTypes:routeWorkTypes(m),
+      plannedMinutes:Number(m.workMinutes||25)
     }))
   };
-  save();hideModal('routeOptionsModal');renderAll();
-  if(!chosen.length) alert('この条件で巡回候補はありませんでした。');
+  save();
+  hideModal('routeOptionsModal');
+  renderAll();
+
+  if(!chosen.length){
+    alert('巡回候補が0台です。「登録済みを全部候補にする」にすると期限前の自販機も選べます。');
+  }else{
+    showToast(`${chosen.length}台の巡回を作成しました`);
+  }
 }
 function openRouteOptions(){
-  routeArea.value=todaysRoute()?.areaFilter||'all';
+  fillAreaControls();
+  const r=todaysRoute();
+  routeArea.value=r?.areaFilter||'all';
+  routeCandidateMode.value=r?.candidateMode||'recommended';
+  routeMaxStops.value=db.settings.maxStops||15;
+  routeBudget.value=db.settings.workBudget||360;
+  routeIncludeTrouble.checked=true;
+  renderRoutePreview();
   showModal('routeOptionsModal');
 }
 function moveStop(stopId,delta){
@@ -1112,11 +1360,12 @@ function renderShift(){
     departureBtn.classList.add('hidden');
     returnBtn.classList.add('hidden');
   }
-  returnedReportCard.classList.toggle('hidden',!returned);
+  shiftReportBtn.classList.toggle('hidden',!returned);
+  returnedReportCard.classList.add('hidden');
 }
 
 function renderHeader(){
-  const titles={home:'ホーム',map:'MAP',route:'今日の巡回',machines:'自販機',register:'自販機登録'};
+  const titles={home:'ホーム',map:'MAP',route:'今日の巡回',machines:'自販機',register:'自販機登録',report:'日報'};
   document.getElementById('pageTitle').textContent=titles[page];
   const d=new Date();document.getElementById('todayLabel').textContent=d.toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'short'});
 }
@@ -1200,7 +1449,7 @@ function renderRoute(){
     const m=machine(s.machineId);if(!m)return;
     const el=document.createElement('div');
     el.className='stop '+(s.status==='current'?'current ':'')+(s.status==='done'?'done':'');
-    const state=s.status==='done'?'完了':s.status==='current'?'作業中':regularDue(m)?'定期巡回':supplyDue(m)||m.prioritySupply?'補充巡回':collectionDue(m)?'集金':'候補';
+    const state=s.status==='done'?'完了':s.status==='current'?'作業中':machineTroubles(m).length?'トラブル':regularDue(m)?'定期巡回':supplyDue(m)||m.prioritySupply?'補充巡回':collectionDue(m)?'集金':'巡回';
     const memo=m.inventoryMemo?`<div class="urgent-note">在庫: ${escapeHtml(m.inventoryMemo)}</div>`:'';
     el.innerHTML=`<div class="stop-head">
       <div>
@@ -1693,7 +1942,7 @@ function saveRegisterPage(){
 function switchPage(p){
   syncDbFromStorage();
   if(page==='map' && p!=='map') hideMapMachineCard();
-  page=p;['home','map','route','machines','register'].forEach(x=>document.getElementById(x+'Page').classList.toggle('hidden',x!==p));
+  page=p;['home','map','route','machines','register','report'].forEach(x=>document.getElementById(x+'Page').classList.toggle('hidden',x!==p));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));
   fab.classList.toggle('hidden',p!=='machines');
   renderHeader();
@@ -1834,6 +2083,14 @@ function initMap(){
 }
 
 function machineSiteKey(m){
+  // GPSがある自販機は、約10m単位で同じ地点としてまとめる。
+  if(m.lat!==null&&m.lng!==null&&m.lat!==''&&m.lng!==''){
+    const lat=Number(m.lat),lng=Number(m.lng);
+    if(Number.isFinite(lat)&&Number.isFinite(lng)){
+      return `gps:${lat.toFixed(4)}:${lng.toFixed(4)}`;
+    }
+  }
+  // GPSなしは設置場所名が同じ場合だけまとめる。
   const site=(m.site||'').trim();
   if(site) return `site:${m.area||'未設定'}:${site}`;
   return `machine:${m.id}`;
@@ -1842,37 +2099,60 @@ function mapMachineGroups(){
   const groups=new Map();
   db.machines.filter(mapMachineVisible).forEach(m=>{
     const key=machineSiteKey(m);
-    if(!groups.has(key)) groups.set(key,{key,site:(m.site||m.name||'未設定'),lat:null,lng:null,machines:[]});
+    if(!groups.has(key)) groups.set(key,{
+      key,
+      site:(m.site||m.name||'未設定'),
+      lat:null,lng:null,machines:[]
+    });
     const g=groups.get(key);
     g.machines.push(m);
   });
+
   groups.forEach(g=>{
-    const pts=g.machines.filter(m=>Number.isFinite(Number(m.lat))&&Number.isFinite(Number(m.lng)));
+    const pts=g.machines.filter(m=>
+      m.lat!==null&&m.lng!==null&&m.lat!==''&&m.lng!==''&&
+      Number.isFinite(Number(m.lat))&&Number.isFinite(Number(m.lng))
+    );
     if(pts.length){
       g.lat=pts.reduce((s,m)=>s+Number(m.lat),0)/pts.length;
       g.lng=pts.reduce((s,m)=>s+Number(m.lng),0)/pts.length;
     }
+    // 複数台なら、共通の設置場所名があれば優先。
+    const sites=[...new Set(g.machines.map(m=>(m.site||'').trim()).filter(Boolean))];
+    if(sites.length===1) g.site=sites[0];
+    else if(g.machines.length>1) g.site='同じ設置場所';
   });
   return [...groups.values()];
 }
 function showMapSiteCard(key){
   const g=mapMachineGroups().find(x=>x.key===key);
   if(!g)return;
-  if(g.machines.length===1){showMapMachineCard(g.machines[0].id);return}
+  if(g.machines.length===1){
+    showMapMachineCard(g.machines[0].id);
+    return;
+  }
+
   selectedMapMachineId=null;
   const todayCount=g.machines.filter(m=>!!routeStopForMachine(m.id)).length;
+
   mapInfoTitle.textContent=g.site;
   mapInfoMeta.textContent=`${g.machines[0].area||'未設定'} ・ ${g.machines.length}台`;
-  mapInfoStatus.textContent=todayCount?`今日 ${todayCount}台`:'設置場所';
+  mapInfoStatus.textContent=todayCount?`今日 ${todayCount}台`:`${g.machines.length}台設置`;
   mapInfoStatus.className='pill '+(todayCount?'orange':'green');
-  mapInfoWork.innerHTML=g.machines.map(m=>{
+
+  mapInfoWork.innerHTML=g.machines.map((m,i)=>{
     const stop=routeStopForMachine(m.id);
-    return `<button class="site-machine-row" onclick="showMapMachineCard('${m.id}')">
-      <span><b>${escapeHtml(m.name||'名称未設定')}</b><span class="sub"> #${escapeHtml(m.number||'-')}</span></span>
+    const status=machineStatusInfo(m);
+    return `<button class="same-location-row" onclick="showMapMachineCard('${m.id}')">
+      <span>
+        <b>${i+1}. ${escapeHtml(m.name||'名称未設定')}</b>
+        <span class="sub"> #${escapeHtml(m.number||'-')} ・ ${escapeHtml(status.label)}</span>
+      </span>
       <span>${stop?'巡回対象':'詳細 ›'}</span>
     </button>`;
   }).join('');
-  mapInfoMemo.textContent='同じ設置場所の自販機をまとめて表示しています。';
+
+  mapInfoMemo.textContent='この地点に登録されている自販機をすべて表示しています。';
   mapInfoAddBtn.classList.add('hidden');
   mapInfoAdded.classList.add('hidden');
   mapInfoCard.classList.remove('hidden');
@@ -1913,7 +2193,7 @@ function renderMapMarkers(){
     const icon=L.divIcon({
       className:'',
       html:`<div class="site-count-marker" style="${dim?'opacity:.42;':''}">${label}</div>`,
-      iconSize:[54,46],iconAnchor:[27,23]
+      iconSize:[36,32],iconAnchor:[18,16]
     });
     const marker=L.marker([Number(g.lat),Number(g.lng)],{icon}).addTo(map);
     marker.on('click',()=>showMapSiteCard(g.key));
@@ -2277,7 +2557,44 @@ function dailyReportText(){
   });
   return lines.join('\n');
 }
-function openDailyReport(){renderDailyReport();showModal('dailyReportModal')}
+function openDailyReport(){openReportPage()}
+
+
+function openReportPage(){
+  const r=dailyReportData();
+  reportPageDate.textContent=today();
+
+  rpDeparture.textContent=r.shift?.departureAt?timeLabel(r.shift.departureAt):'--:--';
+  rpReturn.textContent=r.shift?.returnAt?timeLabel(r.shift.returnAt):'--:--';
+  rpShiftMinutes.textContent=`${reportMinutes(r.shiftSec)}分`;
+  rpDoneStops.textContent=`${r.done}台`;
+  rpTravelMinutes.textContent=`${reportMinutes(r.travelSec)}分`;
+  rpWorkMinutes.textContent=`${reportMinutes(r.workSec)}分`;
+  rpBreakMinutes.textContent=`${reportMinutes(r.breakSec)}分`;
+  rpJobCount.textContent=`${r.works.length}件`;
+
+  if(!r.works.length){
+    reportPageWorkList.innerHTML='<div class="empty">作業記録はありません。</div>';
+  }else{
+    reportPageWorkList.innerHTML=r.works.map((l,i)=>{
+      const m=machine(l.machineId);
+      const min=Math.max(1,Math.round((l.end-l.start)/60000));
+      return `<div class="report-log-item">
+        <div class="row">
+          <div>
+            <b>${i+1}. ${escapeHtml(m?.name||'自販機')}</b>
+            <div class="sub">${m?.site?escapeHtml(m.site)+' ・ ':''}${timeLabel(l.start)}〜${timeLabel(l.end)}</div>
+          </div>
+          <b>${min}分</b>
+        </div>
+        <div class="worktags">${(l.workTypes||[]).map(w=>`<span class="tag">${escapeHtml(w)}</span>`).join('')}</div>
+      </div>`;
+    }).join('');
+  }
+
+  switchPage('report');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
 
 function showModal(id){
   document.getElementById(id).classList.remove('hidden');
@@ -2302,7 +2619,13 @@ generateRouteBtn.addEventListener('click',openRouteOptions);regenBtn.addEventLis
 breakBtn.addEventListener('click',()=>db.active?.type==='break'?endBreak():startBreak());
 workBtn.addEventListener('click',()=>db.active?.type==='work'?endWork():openWorkPicker(currentStop()?.id));
 confirmWorkStart.addEventListener('click',startWork);
-confirmGenerateRoute.addEventListener('click',()=>generateRoute(routeArea.value));
+confirmGenerateRoute.addEventListener('click',generateRoute);
+refreshRoutePreviewBtn.addEventListener('click',renderRoutePreview);
+routeArea.addEventListener('change',renderRoutePreview);
+routeCandidateMode.addEventListener('change',renderRoutePreview);
+routeMaxStops.addEventListener('input',renderRoutePreview);
+routeBudget.addEventListener('input',renderRoutePreview);
+routeIncludeTrouble.addEventListener('change',renderRoutePreview);
 workManagerBtn.addEventListener('click',()=>openWorkManager('today'));
 quickTaskBtn.addEventListener('click',openTaskModal);
 quickTroubleBtn.addEventListener('click',openTroubleModal);
@@ -2447,7 +2770,19 @@ cancelMapRegisterBtn.addEventListener('click',()=>{
   }
 });
 addSameSiteBtn.addEventListener('click',addSameSiteMachineFromEdit);
-openDailyReportBtn.addEventListener('click',openDailyReport);
+openDailyReportBtn.addEventListener('click',openReportPage);
+shiftReportBtn.addEventListener('click',openReportPage);
+reportBackBtn.addEventListener('click',()=>switchPage('home'));
+reportPageCsvBtn.addEventListener('click',()=>exportReportCsv(false));
+reportPageCopyBtn.addEventListener('click',async()=>{
+  const text=dailyReportText();
+  try{
+    await navigator.clipboard.writeText(text);
+    showToast('日報をコピーしました');
+  }catch(e){
+    prompt('日報をコピーしてください',text);
+  }
+});
 dailyReportCsvBtn.addEventListener('click',()=>exportReportCsv(false));
 dailyReportCopyBtn.addEventListener('click',async()=>{
   const text=dailyReportText();
