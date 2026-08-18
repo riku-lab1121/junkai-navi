@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#111111" />
+  <title>巡回ナビ</title>
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="preconnect" href="https://tile.openstreetmap.org">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root{
+      --bg:#f4f4f6;--card:#fff;--text:#111;--muted:#6b7280;--line:#e5e7eb;
+      --accent:#111827;--danger:#dc2626;--warn:#f59e0b;--ok:#16a34a;--blue:#2563eb;
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}
+    button,input,select,textarea{font:inherit}
+    button{border:0;cursor:pointer}
+    button:active{transform:scale(.98);filter:brightness(.94)}
+    .app{max-width:760px;margin:0 auto;min-height:100dvh;padding-bottom:92px}
+    header{position:sticky;top:0;z-index:20;background:rgba(244,244,246,.92);backdrop-filter:blur(18px);padding:16px 16px 8px}
+    .topline{display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .title{font-size:28px;font-weight:800;letter-spacing:-.03em}
+    .date{color:var(--muted);font-size:14px;margin-top:2px}
+    .content{padding:10px 14px 24px}
+    .card{background:var(--card);border-radius:var(--radius);padding:16px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .hero{padding:18px}
+    .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .row.wrap{flex-wrap:wrap}
+    .kpi{font-weight:800;font-size:30px}
+    .sub{color:var(--muted);font-size:13px}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;background:#f3f4f6;font-size:12px;font-weight:700}
+    .pill.red{background:#fee2e2;color:#991b1b}.pill.orange{background:#fef3c7;color:#92400e}
+    .pill.green{background:#dcfce7;color:#166534}.pill.blue{background:#dbeafe;color:#1d4ed8}
+    .primary{width:100%;padding:15px 18px;border-radius:14px;background:var(--accent);color:#fff;font-weight:800;font-size:16px}
+    .secondary{padding:12px 14px;border-radius:12px;background:#eef0f3;color:#111;font-weight:700}
+    .danger{background:#fee2e2;color:#991b1b}
+    .break{background:#dbeafe;color:#1d4ed8}
+    .timer{font-variant-numeric:tabular-nums;font-size:36px;font-weight:850;letter-spacing:.02em}
+    .mini{font-size:12px;color:var(--muted)}
+    .progress{height:10px;background:#eceef1;border-radius:999px;overflow:hidden;margin-top:10px}
+    .progress>div{height:100%;background:#111827;width:0%}
+    .list{display:flex;flex-direction:column;gap:9px}
+    .stop{background:#fff;border:1px solid var(--line);border-radius:16px;padding:13px}
+    .stop.current{border:2px solid #111827}
+    .stop.done{opacity:.62}
+    .stop-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+    .stop-name{font-weight:800}
+    .worktags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+    .tag{font-size:11px;font-weight:700;padding:5px 8px;border-radius:999px;background:#f3f4f6}
+    #map{height:62dvh;min-height:430px;border-radius:18px;overflow:hidden}
+    .map-actions{display:flex;gap:8px;margin:10px 0}
+    .fab{position:fixed;right:max(18px,calc((100vw - 760px)/2 + 18px));bottom:98px;width:54px;height:54px;border-radius:50%;background:#111827;color:#fff;font-size:28px;box-shadow:0 8px 24px rgba(0,0,0,.18);z-index:30}
+    nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(760px,100%);z-index:40;background:rgba(255,255,255,.94);backdrop-filter:blur(18px);border-top:1px solid var(--line);padding:7px 8px max(7px,env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(4,1fr)}
+    nav button{background:transparent;padding:8px 4px;color:#6b7280;font-size:11px;font-weight:700}
+    nav button.active{color:#111}
+    nav .ico{display:block;font-size:20px;margin-bottom:2px}
+    .hidden{display:none!important}
+    .modal{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;justify-content:center}
+    .sheet{width:min(760px,100%);max-height:90dvh;overflow:auto;background:#fff;border-radius:24px 24px 0 0;padding:18px 16px max(24px,env(safe-area-inset-bottom))}
+    .sheet h2{margin:2px 0 14px}
+    label{display:block;font-size:12px;color:#6b7280;font-weight:700;margin:12px 0 5px}
+    input,select,textarea{width:100%;border:1px solid var(--line);background:#fafafa;border-radius:12px;padding:12px}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .checkrow{display:flex;align-items:center;gap:9px;padding:8px 0}
+    .checkrow input{width:auto}
+    .section-title{font-size:13px;color:#6b7280;font-weight:800;text-transform:none;margin:6px 0 10px}
+    .empty{text-align:center;color:#6b7280;padding:30px 10px}
+    .machine{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}
+    .machine:last-child{border-bottom:0}
+    .smallbtn{padding:8px 10px;border-radius:10px;background:#eef0f3;font-size:12px;font-weight:800}
+    .notice{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;padding:11px;border-radius:12px;font-size:13px;margin-bottom:12px}
+    .greenText{color:#15803d}.redText{color:#b91c1c}
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="topline">
+      <div>
+        <div class="title" id="pageTitle">ホーム</div>
+        <div class="date" id="todayLabel"></div>
+      </div>
+      <button class="secondary" id="settingsBtn">設定</button>
+    </div>
+  </header>
+
+  <main class="content">
+    <section id="homePage">
+      <div class="card hero">
+        <div class="row">
+          <div>
+            <div class="sub">今日の巡回</div>
+            <div class="kpi"><span id="homeStops">0</span>台</div>
+          </div>
+          <span class="pill blue" id="routeState">未作成</span>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div><b id="homeDone">0</b><span class="sub"> 完了</span></div>
+          <div><b id="homeRemaining">0</b><span class="sub"> 残り</span></div>
+          <div><b id="homeMinutes">0</b><span class="sub"> 分予定</span></div>
+        </div>
+        <div class="progress"><div id="homeProgress"></div></div>
+        <button class="primary" id="generateRouteBtn" style="margin-top:14px">今日の巡回を作る</button>
+      </div>
+
+      <div class="card" id="activeStatusCard">
+        <div class="section-title">いまの状態</div>
+        <div class="row">
+          <div>
+            <div style="font-weight:850;font-size:20px" id="activeState">待機中</div>
+            <div class="sub" id="activeDetail">作業または休憩を開始できます</div>
+          </div>
+          <div class="timer" id="activeTimer">00:00</div>
+        </div>
+        <div class="grid2" style="margin-top:12px">
+          <button class="secondary break" id="breakBtn">休憩する</button>
+          <button class="secondary" id="workBtn">作業開始</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div>
+            <div class="section-title">今日の休憩</div>
+            <div class="kpi"><span id="breakTotal">0</span><span style="font-size:16px"> / <span id="breakGoal">60</span>分</span></div>
+          </div>
+          <span class="pill" id="breakRemain">残り60分</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">次の自販機</div>
+        <div id="nextStopBox" class="empty">巡回ルートを作成してください</div>
+      </div>
+    </section>
+
+    <section id="mapPage" class="hidden">
+      <div class="notice">地図上のピンをタップすると状態を確認できます。長押しで新規登録位置をセットできます。</div>
+      <div id="map"></div>
+      <div class="map-actions">
+        <button class="secondary" id="locateBtn">現在地</button>
+        <button class="secondary" id="fitBtn">全件表示</button>
+      </div>
+    </section>
+
+    <section id="routePage" class="hidden">
+      <div class="card">
+        <div class="row">
+          <div>
+            <div class="section-title">今日のルート</div>
+            <div><b><span id="routeCount">0</span>台</b>・予定 <span id="routeMinutes">0</span>分</div>
+          </div>
+          <button class="smallbtn" id="regenBtn">再作成</button>
+        </div>
+      </div>
+      <div id="routeList" class="list"></div>
+    </section>
+
+    <section id="machinesPage" class="hidden">
+      <div class="card">
+        <div class="row">
+          <div>
+            <div class="section-title">登録自販機</div>
+            <div class="kpi"><span id="machineCount">0</span>台</div>
+          </div>
+          <button class="secondary" id="addMachineBtn">＋ 登録</button>
+        </div>
+      </div>
+      <div class="card" id="machineList"></div>
+    </section>
+  </main>
+
+  <button class="fab" id="fab">＋</button>
+
+  <nav>
+    <button data-page="home" class="active"><span class="ico">⌂</span>ホーム</button>
+    <button data-page="map"><span class="ico">⌖</span>MAP</button>
+    <button data-page="route"><span class="ico">≡</span>巡回</button>
+    <button data-page="machines"><span class="ico">▣</span>自販機</button>
+  </nav>
+</div>
+
+<div class="modal hidden" id="machineModal">
+  <div class="sheet">
+    <div class="row">
+      <h2>自販機を登録</h2>
+      <button class="secondary" data-close="machineModal">閉じる</button>
+    </div>
+    <form id="machineForm">
+      <label>自販機名</label><input required id="mName" placeholder="例：○○工場" />
+      <label>管理番号</label><input id="mNumber" placeholder="例：042" />
+      <div class="grid2">
+        <div><label>緯度</label><input required id="mLat" type="number" step="any" /></div>
+        <div><label>経度</label><input required id="mLng" type="number" step="any" /></div>
+      </div>
+      <label>最終 定期巡回日</label><input required id="mLastRegular" type="date" />
+      <div class="checkrow"><input id="mWeekly" type="checkbox"><span>7日程度の中間補充が必要</span></div>
+      <label>最終 補充日</label><input id="mLastSupply" type="date" />
+      <label>標準作業時間（分）</label><input id="mWorkMinutes" type="number" min="1" value="25" />
+      <label>メモ</label><textarea id="mMemo" rows="2"></textarea>
+      <button class="primary" type="submit" style="margin-top:16px">登録する</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal hidden" id="workModal">
+  <div class="sheet">
+    <div class="row">
+      <h2 id="workModalTitle">今日の作業</h2>
+      <button class="secondary" data-close="workModal">閉じる</button>
+    </div>
+    <div id="workChoices"></div>
+    <button class="primary" id="confirmWorkStart" style="margin-top:14px">この内容で作業開始</button>
+  </div>
+</div>
+
+<div class="modal hidden" id="settingsModal">
+  <div class="sheet">
+    <div class="row">
+      <h2>勤務設定</h2>
+      <button class="secondary" data-close="settingsModal">閉じる</button>
+    </div>
+    <label>勤務開始</label><input id="sStart" type="time" />
+    <label>帰社目標</label><input id="sReturn" type="time" />
+    <label>休憩目標（分）</label><input id="sBreak" type="number" min="0" />
+    <label>最大巡回台数</label><input id="sMax" type="number" min="1" max="50" />
+    <label>1日の作業上限（分・移動除く）</label><input id="sWorkBudget" type="number" min="30" />
+    <button class="primary" id="saveSettings" style="margin-top:16px">保存</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const DBKEY='vendingRoutePwaV1';
+const today=()=>new Date().toISOString().slice(0,10);
+const isoDaysAgo=(d)=>{const x=new Date();x.setDate(x.getDate()-d);return x.toISOString().slice(0,10)}
+const dayDiff=(a,b)=>Math.floor((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000);
+const fmtTime=(sec)=>{sec=Math.max(0,Math.floor(sec));const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;return h?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`};
+const uid=()=>Math.random().toString(36).slice(2,10);
+
+const defaults={
+  settings:{start:'08:30',return:'17:00',breakGoal:60,maxStops:15,workBudget:360},
+  machines:[
+    {id:uid(),name:'サンプル：市役所前',number:'001',lat:34.3428,lng:134.0466,lastRegular:isoDaysAgo(14),weekly:true,lastSupply:isoDaysAgo(7),workMinutes:25,memo:''},
+    {id:uid(),name:'サンプル：工場A',number:'002',lat:34.3295,lng:134.0205,lastRegular:isoDaysAgo(12),weekly:false,lastSupply:isoDaysAgo(12),workMinutes:30,memo:''},
+    {id:uid(),name:'サンプル：病院前',number:'003',lat:34.3510,lng:134.0620,lastRegular:isoDaysAgo(16),weekly:true,lastSupply:isoDaysAgo(8),workMinutes:25,memo:''},
+    {id:uid(),name:'サンプル：事務所B',number:'004',lat:34.3155,lng:134.0710,lastRegular:isoDaysAgo(9),weekly:true,lastSupply:isoDaysAgo(7),workMinutes:20,memo:''},
+    {id:uid(),name:'サンプル：施設C',number:'005',lat:34.3650,lng:134.0310,lastRegular:isoDaysAgo(13),weekly:false,lastSupply:isoDaysAgo(13),workMinutes:25,memo:''}
+  ],
+  routes:{}, logs:[], active:null
+};
+let db=load();
+let page='home', map=null, markers=[], selectedStopId=null, mapDraft=null, tickHandle=null;
+
+function load(){try{return {...defaults,...JSON.parse(localStorage.getItem(DBKEY)||'{}')}}catch(e){return structuredClone(defaults)}}
+function save(){localStorage.setItem(DBKEY,JSON.stringify(db));}
+function todaysRoute(){return db.routes[today()]||null}
+function ensureRoute(){if(!db.routes[today()]) db.routes[today()]={date:today(),stops:[],createdAt:Date.now()};return db.routes[today()]}
+function machine(id){return db.machines.find(m=>m.id===id)}
+function regularDue(m){return dayDiff(m.lastRegular,today())>=14}
+function weeklyDue(m){return m.weekly && dayDiff(m.lastSupply||m.lastRegular,today())>=7}
+function urgency(m){
+  const rd=dayDiff(m.lastRegular,today()), sd=dayDiff(m.lastSupply||m.lastRegular,today());
+  let score=0;
+  if(rd>=14) score += 100 + (rd-14)*25;
+  else if(rd===13) score+=65; else if(rd===12) score+=45; else if(rd===11) score+=25;
+  if(m.weekly){ if(sd>=7) score+=55+(sd-7)*15; else if(sd===6) score+=25; }
+  return score;
+}
+function workFor(m){
+  if(regularDue(m)) return ['清掃','原料','集金'];
+  if(weeklyDue(m)) return ['原料'];
+  return ['原料'];
+}
+function hav(a,b){
+  const R=6371,toRad=x=>x*Math.PI/180;
+  const dLat=toRad(b.lat-a.lat),dLon=toRad(b.lng-a.lng);
+  const la1=toRad(a.lat),la2=toRad(b.lat);
+  const h=Math.sin(dLat/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function generateRoute(){
+  let candidates=db.machines.filter(m=>urgency(m)>0).sort((a,b)=>urgency(b)-urgency(a));
+  const max=db.settings.maxStops||15, budget=db.settings.workBudget||360;
+  let chosen=[],used=0;
+  for(const m of candidates){
+    const mins=Number(m.workMinutes||25);
+    if(chosen.length<max && used+mins<=budget){chosen.push(m);used+=mins}
+  }
+  // nearest-neighbor order, starting from center/first highest-priority candidate
+  if(chosen.length>1){
+    let ordered=[chosen.shift()];
+    while(chosen.length){
+      const last=ordered[ordered.length-1];
+      chosen.sort((a,b)=>hav(last,a)-hav(last,b) || urgency(b)-urgency(a));
+      ordered.push(chosen.shift());
+    }
+    chosen=ordered;
+  }
+  db.routes[today()]={date:today(),createdAt:Date.now(),stops:chosen.map((m,i)=>({
+    id:uid(),machineId:m.id,order:i+1,status:'pending',workTypes:workFor(m),plannedMinutes:Number(m.workMinutes||25)
+  }))};
+  save(); renderAll();
+}
+function currentStop(){
+  const r=todaysRoute(); if(!r) return null;
+  return r.stops.find(s=>s.status==='current') || r.stops.find(s=>s.status==='pending') || null;
+}
+function getBreakSeconds(){
+  const t=today();
+  return db.logs.filter(l=>l.date===t && l.type==='break' && l.end).reduce((sum,l)=>sum+Math.max(0,(l.end-l.start)/1000),0) +
+    (db.active?.type==='break'?Math.max(0,(Date.now()-db.active.start)/1000):0);
+}
+function activeElapsed(){return db.active?Math.max(0,(Date.now()-db.active.start)/1000):0}
+function startBreak(){
+  if(db.active){alert('先に現在の計測を終了してください。');return}
+  db.active={type:'break',start:Date.now()};save();renderAll();
+}
+function endBreak(){
+  if(db.active?.type!=='break')return;
+  db.logs.push({id:uid(),date:today(),type:'break',start:db.active.start,end:Date.now()});
+  db.active=null;save();renderAll();
+}
+function openWorkPicker(stopId){
+  if(db.active){alert('先に現在の計測を終了してください。');return}
+  const s=(todaysRoute()?.stops||[]).find(x=>x.id===stopId) || currentStop();
+  if(!s){alert('巡回ルートがありません。');return}
+  selectedStopId=s.id; const m=machine(s.machineId);
+  document.getElementById('workModalTitle').textContent=m.name;
+  const opts=['清掃','原料','水汲み','集金','排水'];
+  const box=document.getElementById('workChoices');box.innerHTML='';
+  opts.forEach(o=>{
+    const row=document.createElement('label');row.className='checkrow';
+    row.innerHTML=`<input type="checkbox" value="${o}" ${s.workTypes.includes(o)?'checked':''}><span>${o}</span>`;
+    box.appendChild(row);
+  });
+  showModal('workModal');
+}
+function startWork(){
+  const s=(todaysRoute()?.stops||[]).find(x=>x.id===selectedStopId);
+  if(!s)return;
+  s.workTypes=[...document.querySelectorAll('#workChoices input:checked')].map(x=>x.value);
+  (todaysRoute()?.stops||[]).forEach(x=>{if(x.status==='current')x.status='pending'});
+  s.status='current';
+  db.active={type:'work',start:Date.now(),stopId:s.id,machineId:s.machineId,workTypes:s.workTypes};
+  save();hideModal('workModal');renderAll();
+}
+function endWork(){
+  if(db.active?.type!=='work')return;
+  const act=db.active,r=todaysRoute(),s=r.stops.find(x=>x.id===act.stopId),m=machine(act.machineId);
+  const end=Date.now();
+  db.logs.push({id:uid(),date:today(),type:'work',machineId:m.id,start:act.start,end,workTypes:act.workTypes});
+  s.status='done'; s.actualMinutes=Math.max(1,Math.round((end-act.start)/60000));
+  if(act.workTypes.includes('清掃') && act.workTypes.includes('原料') && act.workTypes.includes('集金')) m.lastRegular=today();
+  if(act.workTypes.includes('原料')) m.lastSupply=today();
+  db.active=null;save();renderAll();
+}
+function renderAll(){renderHeader();renderHome();renderRoute();renderMachines();renderMapMarkers();renderActive()}
+function renderHeader(){
+  const titles={home:'ホーム',map:'MAP',route:'今日の巡回',machines:'自販機'};
+  document.getElementById('pageTitle').textContent=titles[page];
+  const d=new Date();document.getElementById('todayLabel').textContent=d.toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'short'});
+}
+function renderHome(){
+  const r=todaysRoute(),stops=r?.stops||[],done=stops.filter(s=>s.status==='done').length,rem=stops.length-done;
+  const mins=stops.filter(s=>s.status!=='done').reduce((a,s)=>a+(s.plannedMinutes||25),0);
+  homeStops.textContent=stops.length;homeDone.textContent=done;homeRemaining.textContent=rem;homeMinutes.textContent=mins;
+  homeProgress.style.width=stops.length?`${Math.round(done/stops.length*100)}%`:'0%';
+  routeState.textContent=!r?'未作成':rem===0&&stops.length?'完了':'作成済み';
+  routeState.className='pill '+(!r?'blue':rem===0&&stops.length?'green':'orange');
+  generateRouteBtn.textContent=r?'今日の巡回を作り直す':'今日の巡回を作る';
+  const s=currentStop();
+  if(!s){nextStopBox.className='empty';nextStopBox.innerHTML=stops.length&&done===stops.length?'今日の巡回は完了です ✓':'巡回ルートを作成してください'}
+  else{
+    const m=machine(s.machineId);nextStopBox.className='';
+    nextStopBox.innerHTML=`<div class="row"><div><b style="font-size:18px">${m.name}</b><div class="sub">#${m.number||'-'} ・ 約${s.plannedMinutes}分</div><div class="worktags">${s.workTypes.map(w=>`<span class="tag">${w}</span>`).join('')}</div></div><button class="secondary" onclick="openWorkPicker('${s.id}')">作業開始</button></div>`;
+  }
+  const b=Math.round(getBreakSeconds()/60),goal=db.settings.breakGoal||60;
+  breakTotal.textContent=b;breakGoal.textContent=goal;breakRemain.textContent=`残り${Math.max(0,goal-b)}分`;
+}
+function renderActive(){
+  if(!db.active){activeState.textContent='待機中';activeDetail.textContent='作業または休憩を開始できます';activeTimer.textContent='00:00';breakBtn.textContent='休憩する';workBtn.textContent='作業開始';return}
+  const elapsed=fmtTime(activeElapsed());
+  activeTimer.textContent=elapsed;
+  if(db.active.type==='break'){
+    activeState.textContent='休憩中';activeDetail.textContent='休憩時間を記録しています';breakBtn.textContent='休憩を終了';workBtn.textContent='作業中は開始できません';
+  }else{
+    const m=machine(db.active.machineId);activeState.textContent='作業中';activeDetail.textContent=`${m?.name||''} ・ ${db.active.workTypes.join('＋')}`;workBtn.textContent='作業終了';breakBtn.textContent='作業中は休憩できません';
+  }
+}
+function renderRoute(){
+  const r=todaysRoute(),stops=r?.stops||[];
+  routeCount.textContent=stops.length;routeMinutes.textContent=stops.reduce((a,s)=>a+(s.status==='done'?(s.actualMinutes||s.plannedMinutes):s.plannedMinutes),0);
+  routeList.innerHTML='';
+  if(!stops.length){routeList.innerHTML='<div class="empty">今日の巡回はまだありません。</div>';return}
+  stops.forEach((s,i)=>{
+    const m=machine(s.machineId),el=document.createElement('div');el.className='stop '+(s.status==='current'?'current ':'')+(s.status==='done'?'done':'');
+    const state=s.status==='done'?'完了':s.status==='current'?'作業中':regularDue(m)?'定期巡回':weeklyDue(m)?'補充巡回':'候補';
+    el.innerHTML=`<div class="stop-head"><div><div class="sub">${String(i+1).padStart(2,'0')} ・ ${state}</div><div class="stop-name">${m.name}</div><div class="worktags">${s.workTypes.map(w=>`<span class="tag">${w}</span>`).join('')}</div></div><div>${s.status==='done'?'<span class="pill green">✓</span>':`<button class="smallbtn" onclick="openWorkPicker('${s.id}')">開始</button>`}</div></div>`;
+    routeList.appendChild(el);
+  })
+}
+function renderMachines(){
+  machineCount.textContent=db.machines.length;machineList.innerHTML='';
+  if(!db.machines.length){machineList.innerHTML='<div class="empty">自販機を登録してください。</div>';return}
+  db.machines.slice().sort((a,b)=>urgency(b)-urgency(a)).forEach(m=>{
+    const el=document.createElement('div');el.className='machine';
+    const rd=dayDiff(m.lastRegular,today()),label=rd>=14?`定期 ${rd}日経過`:m.weekly&&weeklyDue(m)?'補充時期':`定期まで${14-rd}日`;
+    const cls=rd>=14?'redText':m.weekly&&weeklyDue(m)?'':'greenText';
+    el.innerHTML=`<div><b>${m.name}</b><div class="sub">#${m.number||'-'} ・ <span class="${cls}">${label}</span></div></div><button class="smallbtn danger" onclick="deleteMachine('${m.id}')">削除</button>`;
+    machineList.appendChild(el);
+  })
+}
+function deleteMachine(id){
+  if(!confirm('この自販機を削除しますか？'))return;
+  db.machines=db.machines.filter(m=>m.id!==id);save();renderAll();
+}
+function switchPage(p){
+  page=p;['home','map','route','machines'].forEach(x=>document.getElementById(x+'Page').classList.toggle('hidden',x!==p));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));
+  fab.classList.toggle('hidden',p!=='machines'&&p!=='map');
+  renderHeader();
+  if(p==='map'){initMap();setTimeout(()=>map.invalidateSize(),50)}
+}
+function initMap(){
+  if(map)return;
+  map=L.map('map').setView([34.3428,134.0466],12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
+  map.on('contextmenu',e=>{mapDraft=e.latlng;openMachineModal(e.latlng.lat,e.latlng.lng)});
+  renderMapMarkers();
+}
+function renderMapMarkers(){
+  if(!map)return;markers.forEach(x=>x.remove());markers=[];
+  db.machines.forEach(m=>{
+    const status=regularDue(m)?'🔴':weeklyDue(m)?'🟠':'⚪';
+    const marker=L.marker([m.lat,m.lng]).addTo(map).bindPopup(`<b>${status} ${m.name}</b><br>#${m.number||'-'}<br>最終定期 ${m.lastRegular}<br>${m.weekly?'中間補充あり':'定期巡回のみ'}`);
+    markers.push(marker);
+  })
+}
+function openMachineModal(lat='',lng=''){
+  mName.value='';mNumber.value='';mLat.value=lat||'';mLng.value=lng||'';mLastRegular.value=today();mWeekly.checked=false;mLastSupply.value=today();mWorkMinutes.value=25;mMemo.value='';
+  showModal('machineModal');
+}
+function showModal(id){document.getElementById(id).classList.remove('hidden')}
+function hideModal(id){document.getElementById(id).classList.add('hidden')}
+function setSettingsFields(){sStart.value=db.settings.start;sReturn.value=db.settings.return;sBreak.value=db.settings.breakGoal;sMax.value=db.settings.maxStops;sWorkBudget.value=db.settings.workBudget}
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>switchPage(b.dataset.page)));
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>hideModal(b.dataset.close)));
+generateRouteBtn.addEventListener('click',generateRoute);regenBtn.addEventListener('click',generateRoute);
+breakBtn.addEventListener('click',()=>db.active?.type==='break'?endBreak():startBreak());
+workBtn.addEventListener('click',()=>db.active?.type==='work'?endWork():openWorkPicker(currentStop()?.id));
+confirmWorkStart.addEventListener('click',startWork);
+addMachineBtn.addEventListener('click',()=>openMachineModal());
+fab.addEventListener('click',()=>openMachineModal());
+settingsBtn.addEventListener('click',()=>{setSettingsFields();showModal('settingsModal')});
+saveSettings.addEventListener('click',()=>{db.settings={start:sStart.value,return:sReturn.value,breakGoal:+sBreak.value,maxStops:+sMax.value,workBudget:+sWorkBudget.value};save();hideModal('settingsModal');renderAll()});
+machineForm.addEventListener('submit',e=>{
+  e.preventDefault();
+  db.machines.push({id:uid(),name:mName.value.trim(),number:mNumber.value.trim(),lat:+mLat.value,lng:+mLng.value,lastRegular:mLastRegular.value,weekly:mWeekly.checked,lastSupply:mLastSupply.value||mLastRegular.value,workMinutes:+mWorkMinutes.value||25,memo:mMemo.value.trim()});
+  save();hideModal('machineModal');renderAll();
+});
+locateBtn.addEventListener('click',()=>navigator.geolocation?.getCurrentPosition(p=>map.setView([p.coords.latitude,p.coords.longitude],15),()=>alert('現在地を取得できませんでした。')));
+fitBtn.addEventListener('click',()=>{if(db.machines.length)map.fitBounds(L.latLngBounds(db.machines.map(m=>[m.lat,m.lng])).pad(.2))});
+window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;
+
+if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+setInterval(()=>{if(db.active){renderActive();renderHome()}},1000);
+renderAll();
+</script>
+</body>
+</html>
