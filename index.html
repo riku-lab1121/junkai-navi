@@ -93,7 +93,28 @@
     .status-dot.red{background:#dc2626}.status-dot.orange{background:#f59e0b}.status-dot.green{background:#16a34a}
     .compact-select{width:auto;min-width:150px;padding:9px 10px}
     .editbtn{background:#e0e7ff;color:#3730a3}
-    .marker-pin{width:24px;height:24px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.28)}
+    .marker-pin{width:34px;height:34px;border-radius:50%;border:3px solid #fff;box-shadow:0 3px 12px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:900}
+    .marker-pin.dim{opacity:.38;filter:saturate(.7)}
+    .marker-pin.today{box-shadow:0 0 0 4px rgba(37,99,235,.18),0 3px 12px rgba(0,0,0,.28)}
+    .map-shell{position:relative}
+    #map{height:72dvh;min-height:520px;border-radius:22px;overflow:hidden;background:#e7edf2}
+    .map-overlay-top{position:absolute;top:12px;left:12px;right:12px;z-index:600;display:flex;gap:8px;flex-wrap:wrap;pointer-events:none}
+    .map-overlay-top>*{pointer-events:auto}
+    .map-segment{display:flex;background:rgba(255,255,255,.92);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.55);border-radius:14px;padding:4px;box-shadow:0 5px 18px rgba(0,0,0,.12);overflow:auto}
+    .map-segment button{background:transparent;border-radius:10px;padding:8px 11px;font-size:12px;font-weight:850;white-space:nowrap}
+    .map-segment button.active{background:#111827;color:#fff}
+    .map-floating{position:absolute;right:14px;bottom:110px;z-index:650;display:flex;flex-direction:column;gap:10px}
+    .map-float-btn{width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.95);backdrop-filter:blur(18px);box-shadow:0 5px 18px rgba(0,0,0,.14);font-size:20px;font-weight:900}
+    .map-card{position:absolute;left:12px;right:12px;bottom:12px;z-index:640;background:rgba(255,255,255,.96);backdrop-filter:blur(22px);border-radius:20px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+    .map-card.hidden{display:none!important}
+    .map-card-title{font-size:18px;font-weight:900}
+    .map-card-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+    .map-mode-note{font-size:11px;color:#64748b;margin-top:4px}
+    .location-dot{width:18px;height:18px;border-radius:50%;background:#0a84ff;border:4px solid #fff;box-shadow:0 0 0 6px rgba(10,132,255,.18)}
+    .leaflet-control-attribution{font-size:9px!important}
+    .leaflet-tile{image-rendering:auto}
+    .leaflet-container{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}
+
     .marker-red{background:#dc2626}.marker-orange{background:#f59e0b}.marker-green{background:#16a34a}.marker-gray{background:#94a3b8}
     .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:#475569;margin:8px 0}
     .legend span{display:flex;align-items:center;gap:5px}
@@ -251,19 +272,45 @@
     </section>
 
     <section id="mapPage" class="hidden">
-      <div class="notice" id="mapNotice">ピンをタップすると自販機の状態を確認できます。新規登録は「＋ 地図から登録」を押して、場所を1回タップしてください。</div>
-      <div class="legend">
-        <span><i style="background:#dc2626"></i>期限・集金超過</span>
-        <span><i style="background:#f59e0b"></i>補充/期限間近</span>
-        <span><i style="background:#16a34a"></i>余裕あり</span>
-        <span><i style="background:#94a3b8"></i>未設定</span>
+      <div class="map-shell">
+        <div class="map-overlay-top">
+          <div class="map-segment" id="mapModeSegment">
+            <button data-mapmode="today" class="active">今日</button>
+            <button data-mapmode="all">全体</button>
+          </div>
+          <div class="map-segment" id="mapAreaSegment">
+            <button data-maparea="all" class="active">全エリア</button>
+            <button data-maparea="東">東</button>
+            <button data-maparea="中央">中央</button>
+            <button data-maparea="西">西</button>
+            <button data-maparea="その他">その他</button>
+          </div>
+        </div>
+
+        <div id="map"></div>
+
+        <div class="map-floating">
+          <button class="map-float-btn" id="mapRegisterBtn" title="地図から登録">＋</button>
+          <button class="map-float-btn" id="locateBtn" title="現在地">◎</button>
+          <button class="map-float-btn" id="fitBtn" title="全件表示">⌂</button>
+        </div>
+
+        <div class="map-card hidden" id="mapInfoCard">
+          <div class="row">
+            <div>
+              <div class="sub" id="mapInfoMeta"></div>
+              <div class="map-card-title" id="mapInfoTitle"></div>
+            </div>
+            <span class="pill" id="mapInfoStatus"></span>
+          </div>
+          <div class="worktags" id="mapInfoWork"></div>
+          <div class="map-mode-note" id="mapInfoMemo"></div>
+          <div class="map-card-actions">
+            <button class="secondary navbtn" id="mapInfoNavBtn">ナビ</button>
+            <button class="secondary" id="mapInfoAddBtn">巡回に追加</button>
+          </div>
+        </div>
       </div>
-      <div class="map-actions">
-        <button class="secondary" id="mapRegisterBtn">＋ 地図から登録</button>
-        <button class="secondary" id="locateBtn">現在地</button>
-        <button class="secondary" id="fitBtn">全件表示</button>
-      </div>
-      <div id="map"></div>
     </section>
 
     <section id="routePage" class="hidden">
@@ -508,7 +555,7 @@ db.machines.forEach(m=>{
   if(m.lng!==undefined) m.lng=Number(m.lng);
 });
 save();
-let page='home', map=null, markers=[], selectedStopId=null, mapDraft=null, tickHandle=null, pendingDeleteId=null, editingMachineId=null, mapRegisterMode=false, longPressTimer=null, longPressStart=null, suppressNextMapClick=false;
+let page='home', map=null, markers=[], routeLine=null, userLocationMarker=null, selectedStopId=null, mapDraft=null, tickHandle=null, pendingDeleteId=null, editingMachineId=null, mapRegisterMode=false, longPressTimer=null, longPressStart=null, suppressNextMapClick=false, mapMode='today', mapArea='all', selectedMapMachineId=null;
 
 function load(){try{return {...defaults,...JSON.parse(localStorage.getItem(DBKEY)||'{}')}}catch(e){return structuredClone(defaults)}}
 function save(){localStorage.setItem(DBKEY,JSON.stringify(db));}
@@ -969,6 +1016,58 @@ function confirmDeleteMachine(){
   hideModal('deleteModal');
   renderAll();
 }
+
+function routeStopForMachine(machineId){
+  return (todaysRoute()?.stops||[]).find(s=>s.machineId===machineId)||null;
+}
+function routeIndexForMachine(machineId){
+  const stops=todaysRoute()?.stops||[];
+  const i=stops.findIndex(s=>s.machineId===machineId);
+  return i>=0?i+1:null;
+}
+function mapMachineVisible(m){
+  if(mapArea!=='all' && (m.area||'未設定')!==mapArea) return false;
+  if(mapMode==='today') return !!routeStopForMachine(m.id);
+  return true;
+}
+function setMapMode(mode){
+  mapMode=mode;
+  document.querySelectorAll('#mapModeSegment button').forEach(b=>b.classList.toggle('active',b.dataset.mapmode===mode));
+  renderMapMarkers();
+}
+function setMapArea(area){
+  mapArea=area;
+  document.querySelectorAll('#mapAreaSegment button').forEach(b=>b.classList.toggle('active',b.dataset.maparea===area));
+  renderMapMarkers();
+}
+function addMachineToToday(machineId){
+  const m=machine(machineId);if(!m)return;
+  const r=ensureRoute();
+  if(r.stops.some(s=>s.machineId===machineId)){alert('すでに今日の巡回に入っています。');return}
+  r.stops.push({id:uid(),machineId,order:r.stops.length+1,status:'pending',workTypes:workFor(m),plannedMinutes:Number(m.workMinutes||25)});
+  save();renderAll();showMapMachineCard(machineId);
+}
+function showMapMachineCard(machineId){
+  const m=machine(machineId);if(!m)return;
+  selectedMapMachineId=machineId;
+  const st=machineStatusInfo(m),stop=routeStopForMachine(machineId),idx=routeIndexForMachine(machineId);
+  mapInfoTitle.textContent=m.name;
+  mapInfoMeta.textContent=`${m.area||'未設定'} / #${m.number||'-'}${idx?` / 巡回 ${idx}番`:''}`;
+  mapInfoStatus.textContent=st.label;
+  mapInfoStatus.className='pill '+(st.dot==='red'?'red':st.dot==='orange'?'orange':'green');
+  const works=stop?.workTypes||workFor(m);
+  mapInfoWork.innerHTML=works.map(w=>`<span class="tag">${escapeHtml(w)}</span>`).join('');
+  mapInfoMemo.textContent=m.inventoryMemo||m.memo||'';
+  mapInfoAddBtn.textContent=stop?'巡回に追加済み':'巡回に追加';
+  mapInfoAddBtn.disabled=!!stop;
+  mapInfoAddBtn.style.opacity=stop?'.5':'1';
+  mapInfoCard.classList.remove('hidden');
+}
+function hideMapMachineCard(){
+  selectedMapMachineId=null;
+  mapInfoCard.classList.add('hidden');
+}
+
 function switchPage(p){
   page=p;['home','map','route','machines'].forEach(x=>document.getElementById(x+'Page').classList.toggle('hidden',x!==p));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));
@@ -976,17 +1075,14 @@ function switchPage(p){
   renderHeader();
   if(p==='map'){
     initMap();
-    setTimeout(()=>{map.invalidateSize();renderMapMarkers()},80);
+    setTimeout(()=>{map.invalidateSize();renderMapMarkers();if(mapMode==='today'&&(todaysRoute()?.stops||[]).length)fitMapVisible()},100);
   }
 }
 function setMapRegisterMode(on){
   mapRegisterMode=!!on;
   mapRegisterBtn.classList.toggle('map-register-active',mapRegisterMode);
-  mapRegisterBtn.textContent=mapRegisterMode?'キャンセル':'＋ 地図から登録';
-  mapNotice.classList.toggle('map-register-banner',mapRegisterMode);
-  mapNotice.textContent=mapRegisterMode
-    ? '登録モードです。自販機を置きたい場所を地図上で1回タップしてください。'
-    : 'ピンをタップすると自販機の状態を確認できます。新規登録は「＋ 地図から登録」を押して、場所を1回タップしてください。';
+  mapRegisterBtn.textContent=mapRegisterMode?'×':'+';
+  if(mapRegisterMode) hideMapMachineCard();
 }
 function startLongPressAt(latlng){
   cancelLongPress();
@@ -1004,28 +1100,38 @@ function cancelLongPress(){
 }
 function initMap(){
   if(map)return;
-  map=L.map('map',{tap:true,touchZoom:true}).setView([34.3428,134.0466],12);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+
+  // Retina端末では高密度タイルを優先
+  const retina=L.Browser.retina?'@2x':'';
+  map=L.map('map',{
+    tap:true,
+    touchZoom:true,
+    zoomControl:false,
+    preferCanvas:true
+  }).setView([34.3428,134.0466],12);
+
+  L.tileLayer(`https://tile.openstreetmap.org/{z}/{x}/{y}.png`,{
     maxZoom:19,
+    detectRetina:true,
     attribution:'&copy; OpenStreetMap'
   }).addTo(map);
 
-  // 登録モード: 1タップで緯度経度を取得
   map.on('click',e=>{
     if(suppressNextMapClick){suppressNextMapClick=false;return}
-    if(!mapRegisterMode)return;
-    setMapRegisterMode(false);
-    openMachineModal(e.latlng.lat,e.latlng.lng);
+    if(mapRegisterMode){
+      setMapRegisterMode(false);
+      openMachineModal(e.latlng.lat,e.latlng.lng);
+      return;
+    }
+    hideMapMachineCard();
   });
 
-  // PC/一部ブラウザの長押し・右クリック
   map.on('contextmenu',e=>{
     L.DomEvent.preventDefault(e);
     setMapRegisterMode(false);
     openMachineModal(e.latlng.lat,e.latlng.lng);
   });
 
-  // iPhone Safari/PWA向け長押し
   const container=map.getContainer();
   let touchOrigin=null;
   container.addEventListener('touchstart',ev=>{
@@ -1036,14 +1142,11 @@ function initMap(){
     const point=L.point(t.clientX-rect.left,t.clientY-rect.top);
     startLongPressAt(map.containerPointToLatLng(point));
   },{passive:true});
-
   container.addEventListener('touchmove',ev=>{
     if(!touchOrigin||ev.touches.length!==1){cancelLongPress();return}
-    const t=ev.touches[0];
-    const dx=t.clientX-touchOrigin.x,dy=t.clientY-touchOrigin.y;
+    const t=ev.touches[0],dx=t.clientX-touchOrigin.x,dy=t.clientY-touchOrigin.y;
     if(Math.hypot(dx,dy)>12) cancelLongPress();
   },{passive:true});
-
   container.addEventListener('touchend',()=>{touchOrigin=null;cancelLongPress()},{passive:true});
   container.addEventListener('touchcancel',()=>{touchOrigin=null;cancelLongPress()},{passive:true});
 
@@ -1052,15 +1155,73 @@ function initMap(){
 function renderMapMarkers(){
   if(!map)return;
   markers.forEach(x=>x.remove());markers=[];
+  if(routeLine){routeLine.remove();routeLine=null}
+
+  const routePoints=[];
+  const allRouteStops=todaysRoute()?.stops||[];
+
   db.machines.forEach(m=>{
-    if(!Number.isFinite(Number(m.lat))||!Number.isFinite(Number(m.lng))) return;
-    const st=machineStatusInfo(m);
+    const lat=Number(m.lat),lng=Number(m.lng);
+    if(!Number.isFinite(lat)||!Number.isFinite(lng)) return;
+    if(!mapMachineVisible(m)) return;
+
+    const st=machineStatusInfo(m),idx=routeIndexForMachine(m.id),isToday=!!idx;
     const cls=st.dot==='red'?'marker-red':st.dot==='orange'?'marker-orange':st.dot==='green'?'marker-green':'marker-gray';
-    const icon=L.divIcon({className:'',html:`<div class="marker-pin ${cls}"></div>`,iconSize:[24,24],iconAnchor:[12,12]});
-    const marker=L.marker([Number(m.lat),Number(m.lng)],{icon}).addTo(map)
-      .bindPopup(`<b>${escapeHtml(m.name)}</b><br>${escapeHtml(m.area||'未設定')} / #${escapeHtml(m.number||'-')}<br>${escapeHtml(st.label)}<br>最終定期 ${escapeHtml(m.lastRegular||'-')}<br>最終集金 ${escapeHtml(m.lastCollection||'-')}`);
+    const text=isToday?idx:(m.number||'');
+    const dim=mapMode==='all'&&!isToday?' dim':'';
+    const todayCls=isToday?' today':'';
+    const icon=L.divIcon({
+      className:'',
+      html:`<div class="marker-pin ${cls}${todayCls}${dim}">${escapeHtml(String(text).slice(0,3))}</div>`,
+      iconSize:[34,34],iconAnchor:[17,17]
+    });
+
+    const marker=L.marker([lat,lng],{icon}).addTo(map);
+    marker.on('click',e=>{
+      L.DomEvent.stopPropagation(e);
+      showMapMachineCard(m.id);
+    });
     markers.push(marker);
   });
+
+  // 今日の巡回順を線で結ぶ
+  allRouteStops.forEach(s=>{
+    const m=machine(s.machineId);
+    if(!m)return;
+    if(mapArea!=='all'&&(m.area||'未設定')!==mapArea)return;
+    const lat=Number(m.lat),lng=Number(m.lng);
+    if(Number.isFinite(lat)&&Number.isFinite(lng)) routePoints.push([lat,lng]);
+  });
+
+  if(routePoints.length>=2){
+    routeLine=L.polyline(routePoints,{
+      weight:5,
+      opacity:.78,
+      color:'#2563eb',
+      lineJoin:'round'
+    }).addTo(map);
+    routeLine.bringToBack();
+  }
+}
+function locateUser(){
+  if(!navigator.geolocation){alert('現在地を取得できません。');return}
+  navigator.geolocation.getCurrentPosition(p=>{
+    const lat=p.coords.latitude,lng=p.coords.longitude;
+    if(userLocationMarker) userLocationMarker.remove();
+    const icon=L.divIcon({className:'',html:'<div class="location-dot"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+    userLocationMarker=L.marker([lat,lng],{icon,zIndexOffset:1000}).addTo(map);
+    map.setView([lat,lng],15,{animate:true});
+  },()=>alert('現在地を取得できませんでした。'),{enableHighAccuracy:true,timeout:8000});
+}
+function fitMapVisible(){
+  const points=[];
+  db.machines.forEach(m=>{
+    if(!mapMachineVisible(m))return;
+    const lat=Number(m.lat),lng=Number(m.lng);
+    if(Number.isFinite(lat)&&Number.isFinite(lng)) points.push([lat,lng]);
+  });
+  if(userLocationMarker) points.push(userLocationMarker.getLatLng());
+  if(points.length) map.fitBounds(L.latLngBounds(points).pad(.18),{animate:true});
 }
 function openMachineModal(lat='',lng=''){
   editingMachineId=null;
@@ -1276,8 +1437,14 @@ machineForm.addEventListener('submit',e=>{
 });
 mapRegisterBtn.addEventListener('click',()=>setMapRegisterMode(!mapRegisterMode));
 areaFilter.addEventListener('change',renderMachines);
-locateBtn.addEventListener('click',()=>navigator.geolocation?.getCurrentPosition(p=>map.setView([p.coords.latitude,p.coords.longitude],15),()=>alert('現在地を取得できませんでした。')));
-fitBtn.addEventListener('click',()=>{if(db.machines.length)map.fitBounds(L.latLngBounds(db.machines.map(m=>[m.lat,m.lng])).pad(.2))});
+locateBtn.addEventListener('click',locateUser);
+fitBtn.addEventListener('click',fitMapVisible);
+
+document.querySelectorAll('#mapModeSegment button').forEach(b=>b.addEventListener('click',()=>setMapMode(b.dataset.mapmode)));
+document.querySelectorAll('#mapAreaSegment button').forEach(b=>b.addEventListener('click',()=>setMapArea(b.dataset.maparea)));
+mapInfoNavBtn.addEventListener('click',()=>selectedMapMachineId&&navigateToMachine(selectedMapMachineId));
+mapInfoAddBtn.addEventListener('click',()=>selectedMapMachineId&&addMachineToToday(selectedMapMachineId));
+
 window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
