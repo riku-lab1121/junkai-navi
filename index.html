@@ -1108,6 +1108,60 @@ nav.modal-blocked{
   max-width:220px;
   white-space:normal;
 }
+
+.work-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.work-chip{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:#e8f2ff;color:#0969da;font-size:11px;font-weight:850}
+.work-chip.muted{background:#eef0f3;color:#64748b}
+.inventory-note{font-size:11px;color:#475569;margin-top:6px;line-height:1.4}
+
+.machine-detail-link{
+  display:inline;
+  padding:0;
+  margin:0;
+  border:0;
+  background:transparent;
+  color:#111827;
+  font:inherit;
+  font-weight:900;
+  text-align:left;
+  text-decoration:underline;
+  text-decoration-thickness:1px;
+  text-underline-offset:3px;
+}
+.machine-detail-link.table-link{
+  font-size:18px;
+  line-height:1.3;
+}
+.machine-detail-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin-top:10px;
+}
+.machine-detail-grid>div{
+  background:#f8fafc;
+  border-radius:12px;
+  padding:11px;
+}
+.machine-detail-grid span{
+  display:block;
+  font-size:11px;
+  color:#64748b;
+  font-weight:750;
+  margin-bottom:4px;
+}
+.machine-detail-grid b{
+  display:block;
+  font-size:15px;
+  line-height:1.35;
+}
+.machine-detail-note{
+  margin-top:6px;
+  background:#f8fafc;
+  border-radius:12px;
+  padding:12px;
+  line-height:1.5;
+}
 </style>
 </head>
 <body>
@@ -1717,6 +1771,56 @@ nav.modal-blocked{
 
 
 
+
+<section id="machineDetailPage" class="hidden flow-page">
+  <div class="flow-head">
+    <div>
+      <div class="section-title">自販機</div>
+      <div class="flow-title" id="machineDetailTitle">自販機詳細</div>
+      <div class="sub" id="machineDetailSub"></div>
+    </div>
+    <button class="secondary" type="button" onclick="closeMachineDetailPage()">戻る</button>
+  </div>
+
+  <div class="flow-card">
+    <div class="section-title">基本情報</div>
+    <div class="machine-detail-grid">
+      <div><span>設置先施設</span><b id="machineDetailFacility">-</b></div>
+      <div><span>設置場所</span><b id="machineDetailSite">-</b></div>
+      <div><span>機種</span><b id="machineDetailModel">-</b></div>
+      <div><span>管理No</span><b id="machineDetailNumber">-</b></div>
+      <div><span>エリア</span><b id="machineDetailArea">-</b></div>
+      <div><span>作業目安</span><b id="machineDetailMinutes">-</b></div>
+    </div>
+  </div>
+
+  <div class="flow-card">
+    <div class="section-title">必要作業</div>
+    <div id="machineDetailWorkChips" class="work-chips" style="margin-top:10px"></div>
+    <div id="machineDetailInventoryWrap" class="hidden" style="margin-top:14px">
+      <div class="sub">原料・在庫メモ</div>
+      <div id="machineDetailInventory" class="machine-detail-note"></div>
+    </div>
+  </div>
+
+  <div class="flow-card">
+    <div class="section-title">巡回情報</div>
+    <div class="machine-detail-grid">
+      <div><span>最終定期</span><b id="machineDetailLastRegular">-</b></div>
+      <div><span>次回定期</span><b id="machineDetailNextRegular">-</b></div>
+      <div><span>最終補充</span><b id="machineDetailLastSupply">-</b></div>
+      <div><span>次回補充</span><b id="machineDetailNextSupply">-</b></div>
+      <div><span>最終集金</span><b id="machineDetailLastCollection">-</b></div>
+      <div><span>次回集金</span><b id="machineDetailNextCollection">-</b></div>
+    </div>
+  </div>
+
+  <div class="flow-card">
+    <button class="primary" type="button" onclick="editMachineFromDetail()" style="width:100%">編集する</button>
+    <button class="secondary danger" type="button" onclick="deleteMachineFromDetail()" style="width:100%;margin-top:10px">削除する</button>
+  </div>
+</section>
+
 <section id="monthlyDayDetailPage" class="hidden flow-page">
   <div class="flow-head">
     <div>
@@ -2033,8 +2137,10 @@ nav.modal-blocked{
       <div class="checkrow"><input id="mWeekly" type="checkbox"><span>中間補充を自動候補にする</span></div>
       <label>最終 補充日</label><input id="mLastSupply" type="date" />
       <label>最終 集金日</label><input id="mLastCollection" type="date" />
-      <div class="checkrow"><input id="mPrioritySupply" type="checkbox"><span>原料・在庫が少ない（早めに補充候補へ）</span></div>
-      <label>原料・在庫メモ</label><textarea id="mInventoryMemo" rows="2" placeholder="例：コーヒー少ない、紙コップ次回補充"></textarea>
+      <div class="checkrow"><input id="mPrioritySupply" type="checkbox"><span>原料が必要・在庫が少ない</span></div>
+      <label>原料・在庫メモ</label><textarea id="mInventoryMemo" rows="2" placeholder="例：コーヒー、紙コップ、砂糖"></textarea>
+      <div class="checkrow"><input id="mNeedsDrain" type="checkbox"><span>排水が必要</span></div>
+      <div class="checkrow"><input id="mNeedsWater" type="checkbox"><span>水汲みが必要</span></div>
       <label>標準作業時間（分）</label><input id="mWorkMinutes" type="number" min="1" value="25" />
       <label>その他メモ</label><textarea id="mMemo" rows="2"></textarea>
       <button class="primary" type="submit" style="margin-top:16px">登録する</button>
@@ -2054,6 +2160,26 @@ nav.modal-blocked{
 </div>
 
 
+
+<section id="deleteMachinePage" class="hidden flow-page">
+  <div class="flow-head">
+    <div>
+      <div class="section-title">自販機管理</div>
+      <div class="flow-title">自販機を削除</div>
+      <div class="sub">削除する自販機を確認してください。</div>
+    </div>
+    <button class="secondary" type="button" onclick="cancelDeleteMachinePage()">戻る</button>
+  </div>
+  <div class="flow-card">
+    <div style="font-weight:900;font-size:22px" id="deletePageMachineName"></div>
+    <div class="sub" id="deletePageMachineSub" style="margin-top:8px"></div>
+    <div class="notice" style="margin-top:16px">この自販機の登録、巡回ルート内の参照、作業履歴を削除します。この操作は元に戻せません。</div>
+  </div>
+  <div class="flow-card">
+    <button class="primary danger-solid" type="button" onclick="confirmDeleteMachinePage()" style="width:100%">この自販機を削除する</button>
+    <button class="secondary" type="button" onclick="cancelDeleteMachinePage()" style="width:100%;margin-top:10px">キャンセル</button>
+  </div>
+</section>
 <div class="modal hidden" id="deleteModal">
   <div class="sheet">
     <h2>自販機を削除しますか？</h2>
@@ -2347,6 +2473,8 @@ function urgency(m){
     else if(cd>=12) score+=45;
   }
   if(m.prioritySupply) score+=100;
+  if(m.needsDrain) score+=45;
+  if(m.needsWater) score+=35;
   return score;
 }
 function workFor(m){
@@ -2356,6 +2484,8 @@ function workFor(m){
     if(supplyDue(m)||m.prioritySupply) w.push('原料');
     if(collectionDue(m)) w.push('集金');
   }
+  if(m.needsDrain && !w.includes('排水')) w.push('排水');
+  if(m.needsWater && !w.includes('水汲み')) w.push('水汲み');
   return w;
 }
 function hav(a,b){
@@ -2796,7 +2926,7 @@ function renderShift(){
 }
 
 function renderHeader(){
-  const titles={home:'ホーム',map:'MAP',route:'今日の巡回',calendar:'カレンダー',machines:'自販機',register:'自販機登録',report:'日報',manualRoute:'手動巡回作成',autoRoute:'巡回作成',trouble:'トラブル受付',settings:'設定',monthlyActionPlan:'月間行動計画表',monthlyDayDetail:'巡回詳細'};
+  const titles={home:'ホーム',map:'MAP',route:'今日の巡回',calendar:'カレンダー',machines:'自販機',register:'自販機登録',report:'日報',manualRoute:'手動巡回作成',autoRoute:'巡回作成',trouble:'トラブル受付',settings:'設定',monthlyActionPlan:'月間行動計画表',monthlyDayDetail:'巡回詳細',deleteMachine:'自販機を削除',machineDetail:'自販機詳細'};
   document.getElementById('pageTitle').textContent=titles[page];
   const d=new Date();document.getElementById('todayLabel').textContent=d.toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'short'});
 }
@@ -3058,7 +3188,7 @@ function renderMachines(){
     tr.innerHTML=`
       <td><b>${escapeHtml(m.area||'未設定')}</b></td>
       <td>#${escapeHtml(m.number||'-')}</td>
-      <td class="name-cell" title="${escapeHtml(machineDisplayTitle(m))}">${machineDisplayHtml(m)}</td>
+      <td class="name-cell" title="${escapeHtml(machineDisplayTitle(m))}"><button type="button" class="machine-detail-link table-link" onclick="openMachineDetailPage('${m.id}','machines')">${escapeHtml(machineDisplayTitle(m))}</button><div class="machine-place-sub">${escapeHtml(machineDisplaySub(m)||'設置場所・機種 未設定')}</div></td>
       <td><span class="status-dot ${st.dot}"></span>${escapeHtml(st.label)}</td>
       <td>${escapeHtml(m.lastRegular||'-')}</td>
       <td>${escapeHtml(m.lastSupply||'-')}</td>
@@ -3092,31 +3222,41 @@ function deleteMachine(id){
     return;
   }
   pendingDeleteId=id;
-  deleteMachineName.textContent=m.name;
-  showModal('deleteModal');
+  deletePageMachineName.textContent=machineDisplayTitle(m);
+  deletePageMachineSub.textContent=machineDisplaySub(m)||'詳細情報なし';
+  switchPage('deleteMachine');
+  window.scrollTo(0,0);
 }
-function confirmDeleteMachine(){
+function cancelDeleteMachinePage(){
+  pendingDeleteId=null;
+  switchPage('machines');
+  renderMachines();
+  window.scrollTo(0,0);
+}
+function confirmDeleteMachinePage(){
   if(!pendingDeleteId)return;
   const id=pendingDeleteId;
-
-  // 登録自販機から削除
   db.machines=db.machines.filter(m=>m.id!==id);
-
-  // 保存済みルートからも参照を削除して順番を振り直す
   Object.values(db.routes||{}).forEach(r=>{
     if(!r?.stops)return;
     r.stops=r.stops.filter(s=>s.machineId!==id);
     r.stops.forEach((s,i)=>s.order=i+1);
   });
-
-  // 試作版では該当自販機の作業履歴も削除
   db.logs=(db.logs||[]).filter(l=>l.machineId!==id);
-
+  (db.tasks||[]).forEach(t=>{
+    if(Array.isArray(t.machineIds))t.machineIds=t.machineIds.filter(x=>x!==id);
+    if(t.machineId===id)t.machineId=null;
+  });
+  db.tasks=(db.tasks||[]).filter(t=>!(t.autoMonthlyPlan && Array.isArray(t.machineIds) && t.machineIds.length===0));
   pendingDeleteId=null;
   save();
-  hideModal('deleteModal');
   renderAll();
+  switchPage('machines');
+  window.scrollTo(0,0);
+  showToast('自販機を削除しました');
 }
+// 旧モーダル互換
+function confirmDeleteMachine(){ confirmDeleteMachinePage(); }
 
 function routeStopForMachine(machineId){
   return (todaysRoute()?.stops||[]).find(s=>s.machineId===machineId)||null;
@@ -3556,7 +3696,7 @@ function switchPage(p){
   page=p;
 
   // まず画面そのものを切り替える。MAPの後処理で失敗しても遷移は止めない。
-  ['home','map','route','calendar','machines','register','report','manualRoute','autoRoute','trouble','settings','modelEditor','monthlyActionPlan','monthlyDayDetail'].forEach(x=>{
+  ['home','map','route','calendar','machines','register','report','manualRoute','autoRoute','trouble','settings','modelEditor','monthlyActionPlan','monthlyDayDetail','deleteMachine','machineDetail'].forEach(x=>{
     const el=document.getElementById(x+'Page');
     if(el) el.classList.toggle('hidden',x!==p);
   });
@@ -3908,7 +4048,7 @@ function openMachineModal(lat='',lng=''){
   mWeekly.checked=false;
   mLastSupply.value='';
   mLastCollection.value='';
-  mPrioritySupply.checked=false;
+  mPrioritySupply.checked=false;mNeedsDrain.checked=false;mNeedsWater.checked=false;
   mInventoryMemo.value='';
   mWorkMinutes.value=25;
   mMemo.value='';
@@ -4344,6 +4484,69 @@ function monthlyPlanDistanceLabel(t){
   return Number.isFinite(km)&&km>0?`約${km.toFixed(1)}km`:'-';
 }
 
+
+let machineDetailId=null;
+let machineDetailReturnPage='machines';
+
+function fmtMachineDate(v){
+  if(!v)return '-';
+  return v;
+}
+function nextDateFrom(last,days){
+  if(!last)return '-';
+  const d=ymdDate(last);
+  d.setDate(d.getDate()+Number(days||0));
+  return localYmd(d);
+}
+function openMachineDetailPage(id,returnPage='machines'){
+  const m=machine(id);
+  if(!m)return;
+  machineDetailId=id;
+  machineDetailReturnPage=returnPage||'machines';
+
+  machineDetailTitle.textContent=machineDisplayTitle(m);
+  machineDetailSub.textContent=machineDisplaySub(m)||'詳細情報';
+
+  machineDetailFacility.textContent=m.name||'-';
+  machineDetailSite.textContent=m.site||'-';
+  machineDetailModel.textContent=m.modelName||'-';
+  machineDetailNumber.textContent=m.number?`#${m.number}`:'-';
+  machineDetailArea.textContent=m.area||'未設定';
+  machineDetailMinutes.textContent=`約${Number(m.workMinutes||25)}分`;
+
+  machineDetailWorkChips.innerHTML=machineWorkBadgesHtml(m);
+
+  const memo=(m.inventoryMemo||'').trim();
+  machineDetailInventoryWrap.classList.toggle('hidden',!memo);
+  machineDetailInventory.textContent=memo||'';
+
+  machineDetailLastRegular.textContent=fmtMachineDate(m.lastRegular);
+  machineDetailNextRegular.textContent=nextDateFrom(m.lastRegular,m.regularIntervalDays||14);
+  machineDetailLastSupply.textContent=fmtMachineDate(m.lastSupply);
+  machineDetailNextSupply.textContent=nextDateFrom(m.lastSupply,m.supplyIntervalDays||7);
+  machineDetailLastCollection.textContent=fmtMachineDate(m.lastCollection);
+  machineDetailNextCollection.textContent=nextDateFrom(m.lastCollection,14);
+
+  switchPage('machineDetail');
+  window.scrollTo(0,0);
+}
+function closeMachineDetailPage(){
+  const target=machineDetailReturnPage||'machines';
+  switchPage(target);
+  if(target==='monthlyDayDetail')renderMonthlyDayDetail();
+  if(target==='machines')renderMachines();
+  window.scrollTo(0,0);
+}
+function editMachineFromDetail(){
+  if(!machineDetailId)return;
+  const id=machineDetailId;
+  openRegisterPage('machines',id);
+}
+function deleteMachineFromDetail(){
+  if(!machineDetailId)return;
+  deleteMachine(machineDetailId);
+}
+
 let monthlyDayDetailDate=null;
 
 function monthlyDayGroups(){
@@ -4423,8 +4626,10 @@ function renderMonthlyDayDetail(){
       <div class="monthly-day-machine">
         <div class="monthly-day-order">${order++}</div>
         <div>
-          <b>${escapeHtml(machineDisplayTitle(m))}</b>
+          <button type="button" class="machine-detail-link" onclick="openMachineDetailPage('${m.id}','monthlyDayDetail')">${escapeHtml(machineDisplayTitle(m))}</button>
           <div class="meta">${escapeHtml(machineDisplaySub(m))}</div>
+          <div class="work-chips">${machineWorkBadgesHtml(m)}</div>
+          ${m.inventoryMemo?`<div class="inventory-note">原料メモ：${escapeHtml(m.inventoryMemo)}</div>`:''}
         </div>
         <div class="mins">約${Number(m.workMinutes||25)}分</div>
       </div>`).join('');
@@ -5163,7 +5368,7 @@ machineForm.addEventListener('submit',e=>{
     weekly:mWeekly.checked,
     lastSupply:mLastSupply.value||'',
     lastCollection:mLastCollection.value||'',
-    prioritySupply:mPrioritySupply.checked,
+    prioritySupply:mPrioritySupply.checked,needsDrain:mNeedsDrain.checked,needsWater:mNeedsWater.checked,
     inventoryMemo:mInventoryMemo.value.trim(),
     workMinutes:+mWorkMinutes.value||25,
     memo:mMemo.value.trim()
@@ -5279,7 +5484,7 @@ mapInfoCloseBtn.addEventListener('click',hideMapMachineCard);
 mapInfoNavBtn.addEventListener('click',()=>{if(selectedExternalPlace)navigateExternalPlace();else if(selectedMapMachineId)navigateToMachine(selectedMapMachineId)});
 mapInfoAddBtn.addEventListener('click',()=>{if(selectedExternalPlace)registerAtExternalPlace();else if(selectedMapMachineId)addMachineToToday(selectedMapMachineId)});
 
-window.openRegisterPage=openRegisterPage;window.showMapSiteCard=showMapSiteCard;window.renameArea=renameArea;window.deleteArea=deleteArea;window.toggleTask=toggleTask;window.setTroubleStatus=setTroubleStatus;window.addMachineToToday=addMachineToToday;window.addEventListener('storage',e=>{
+window.cancelDeleteMachinePage=cancelDeleteMachinePage;window.confirmDeleteMachinePage=confirmDeleteMachinePage;window.openRegisterPage=openRegisterPage;window.showMapSiteCard=showMapSiteCard;window.renameArea=renameArea;window.deleteArea=deleteArea;window.toggleTask=toggleTask;window.setTroubleStatus=setTroubleStatus;window.addMachineToToday=addMachineToToday;window.addEventListener('storage',e=>{
   if(e.key===DBKEY){
     syncDbFromStorage();
     renderAll();
@@ -5312,7 +5517,7 @@ if(window.modelPageBackBtn)modelPageBackBtn.addEventListener('click',closeModelE
 if(window.modelPageCancelBtn)modelPageCancelBtn.addEventListener('click',closeModelEditorPage);
 if(window.modelPageSaveBtn)modelPageSaveBtn.addEventListener('click',saveModelEditorPage);
 
-window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
+window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
 window.openModelEditor=openModelEditor;window.deleteModel=deleteModel;window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
@@ -5352,3 +5557,19 @@ renderAll();
 </script>
 </body>
 </html>
+function machineWorkBadges(m){
+  const items=[];
+  const work=workFor(m);
+  if(work.includes('原料')||m.prioritySupply) items.push(['原料','原料補充']);
+  if(m.needsDrain) items.push(['排水','排水']);
+  if(m.needsWater) items.push(['水','水汲み']);
+  if(work.includes('集金')) items.push(['集金','集金']);
+  if(work.includes('清掃')) items.push(['清掃','清掃']);
+  return items;
+}
+function machineWorkBadgesHtml(m){
+  const items=machineWorkBadges(m);
+  if(!items.length)return '<span class="work-chip muted">通常</span>';
+  return items.map(x=>`<span class="work-chip">${escapeHtml(x[0])}</span>`).join('');
+}
+
