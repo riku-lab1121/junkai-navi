@@ -1190,6 +1190,27 @@ nav.modal-blocked{
 }
 .holiday-label{background:#fee2e2;color:#991b1b}
 .dayoff-label{background:#ffedd5;color:#9a3412}
+
+/* Ver.8.6 delete page visibility + weekly detail */
+#deleteMachinePage{
+  min-height:calc(100dvh - 90px);
+  padding-bottom:110px!important;
+}
+#deleteMachinePage .flow-card{
+  display:block!important;
+  margin-bottom:12px;
+}
+#deleteMachinePage .danger-solid{
+  background:#b42318!important;
+  color:#fff!important;
+  border-color:#b42318!important;
+  min-height:58px;
+  font-size:16px;
+  font-weight:900;
+}
+.week-route-day .row>.secondary{
+  flex:0 0 auto;
+}
 </style>
 </head>
 <body>
@@ -2162,6 +2183,27 @@ nav.modal-blocked{
       <div id="calendarContent"></div>
       <div class="calendar-detail" id="calendarDetail"></div>
     </section>
+
+<section id="deleteMachinePage" class="hidden flow-page">
+  <div class="flow-head">
+    <div>
+      <div class="section-title">自販機管理</div>
+      <div class="flow-title">自販機を削除</div>
+      <div class="sub">削除する自販機を確認してください。</div>
+    </div>
+    <button class="secondary" type="button" onclick="cancelDeleteMachinePage()">戻る</button>
+  </div>
+  <div class="flow-card">
+    <div style="font-weight:900;font-size:22px" id="deletePageMachineName"></div>
+    <div class="sub" id="deletePageMachineSub" style="margin-top:8px"></div>
+    <div class="notice" style="margin-top:16px">この自販機の登録、巡回ルート内の参照、作業履歴を削除します。この操作は元に戻せません。</div>
+  </div>
+  <div class="flow-card">
+    <button class="primary danger-solid" type="button" onclick="confirmDeleteMachinePage()" style="width:100%">この自販機を削除する</button>
+    <button class="secondary" type="button" onclick="cancelDeleteMachinePage()" style="width:100%;margin-top:10px">キャンセル</button>
+  </div>
+</section>
+
 </main>
 
   <button class="fab" id="fab">＋</button>
@@ -2225,26 +2267,6 @@ nav.modal-blocked{
 </div>
 
 
-
-<section id="deleteMachinePage" class="hidden flow-page">
-  <div class="flow-head">
-    <div>
-      <div class="section-title">自販機管理</div>
-      <div class="flow-title">自販機を削除</div>
-      <div class="sub">削除する自販機を確認してください。</div>
-    </div>
-    <button class="secondary" type="button" onclick="cancelDeleteMachinePage()">戻る</button>
-  </div>
-  <div class="flow-card">
-    <div style="font-weight:900;font-size:22px" id="deletePageMachineName"></div>
-    <div class="sub" id="deletePageMachineSub" style="margin-top:8px"></div>
-    <div class="notice" style="margin-top:16px">この自販機の登録、巡回ルート内の参照、作業履歴を削除します。この操作は元に戻せません。</div>
-  </div>
-  <div class="flow-card">
-    <button class="primary danger-solid" type="button" onclick="confirmDeleteMachinePage()" style="width:100%">この自販機を削除する</button>
-    <button class="secondary" type="button" onclick="cancelDeleteMachinePage()" style="width:100%;margin-top:10px">キャンセル</button>
-  </div>
-</section>
 <div class="modal hidden" id="deleteModal">
   <div class="sheet">
     <h2>自販機を削除しますか？</h2>
@@ -3111,6 +3133,7 @@ function renderRouteWeek(){
           <div class="week-date">${dd.getMonth()+1}/${dd.getDate()}（${dow[dd.getDay()]}）</div>
           <div class="sub">${stops.length}台 ・ 約${mins}分</div>
         </div>
+        ${stops.length?`<button class="secondary" type="button" onclick="openWeeklyDayDetail('${date}')">確認</button>`:''}
       </div>
       <div class="week-stops">${stopHtml}</div>
     </div>`;
@@ -4758,6 +4781,8 @@ function deleteMachineFromDetail(){
 }
 
 let monthlyDayDetailDate=null;
+let monthlyDayDetailReturnPage='monthlyActionPlan';
+let monthlyDayDetailSource='monthly';
 
 function monthlyDayGroups(){
   const rows=monthlyActionRows();
@@ -4801,26 +4826,45 @@ function monthlyDayDistance(tasks){
 }
 function openMonthlyDayDetail(date){
   monthlyDayDetailDate=date;
+  monthlyDayDetailReturnPage='monthlyActionPlan';
+  monthlyDayDetailSource='monthly';
+  renderMonthlyDayDetail();
+  switchPage('monthlyDayDetail');
+  window.scrollTo(0,0);
+}
+function openWeeklyDayDetail(date){
+  monthlyDayDetailDate=date;
+  monthlyDayDetailReturnPage='route';
+  monthlyDayDetailSource='week';
   renderMonthlyDayDetail();
   switchPage('monthlyDayDetail');
   window.scrollTo(0,0);
 }
 function closeMonthlyDayDetail(){
-  switchPage('monthlyActionPlan');
-  renderMonthlyActionPlan();
+  const target=monthlyDayDetailReturnPage||'monthlyActionPlan';
+  switchPage(target);
+  if(target==='monthlyActionPlan')renderMonthlyActionPlan();
+  if(target==='route'){routePeriodSet('week');renderRouteWeek();}
   window.scrollTo(0,0);
 }
 function renderMonthlyDayDetail(){
   const tasks=(db.tasks||[]).filter(t=>t.due===monthlyDayDetailDate);
-  const machines=monthlyDayMachines(tasks);
+  const weekStops=(db.routes?.[monthlyDayDetailDate]?.stops||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
+  const weeklyMachines=weekStops.map(s=>machine(s.machineId)).filter(Boolean);
+  const machines=monthlyDayDetailSource==='week'?weeklyMachines:monthlyDayMachines(tasks);
   const areas=monthlyDayAreas(tasks,machines);
-  const mins=monthlyDayMinutes(machines,tasks);
-  const dist=monthlyDayDistance(tasks);
+  const mins=monthlyDayDetailSource==='week'
+    ? weekStops.reduce((sum,s)=>sum+Number(s.plannedMinutes||25),0)
+    : monthlyDayMinutes(machines,tasks);
+  const dist=monthlyDayDetailSource==='week'?0:monthlyDayDistance(tasks);
   const d=ymdDate(monthlyDayDetailDate);
   const dow=['日','月','火','水','木','金','土'];
 
   monthlyDayDetailTitle.textContent=`${d.getMonth()+1}月${d.getDate()}日（${dow[d.getDay()]}）`;
   monthlyDayDetailSummary.textContent=`${machines.length}台 ・ 約${mins}分${dist>0?` ・ 約${dist.toFixed(1)}km`:''} ・ ${areas.join(' / ')||'エリア未設定'}`;
+  const detailSectionTitle=monthlyDayDetailSource==='week'?'1週間の巡回':'月間行動計画表';
+  const detailHead=document.querySelector('#monthlyDayDetailPage .section-title');
+  if(detailHead)detailHead.textContent=detailSectionTitle;
   monthlyDayMoveDate.value=monthlyDayDetailDate;
 
   const grouped=new Map();
@@ -4860,6 +4904,7 @@ function renderMonthlyDayDetail(){
 
   monthlyDayEditPanel.classList.add('hidden');
   monthlyDayEditToggle.textContent='編集';
+  monthlyDayEditToggle.classList.toggle('hidden',monthlyDayDetailSource==='week');
 }
 function toggleMonthlyDayEdit(){
   const hidden=monthlyDayEditPanel.classList.toggle('hidden');
@@ -5785,7 +5830,7 @@ if(window.modelPageBackBtn)modelPageBackBtn.addEventListener('click',closeModelE
 if(window.modelPageCancelBtn)modelPageCancelBtn.addEventListener('click',closeModelEditorPage);
 if(window.modelPageSaveBtn)modelPageSaveBtn.addEventListener('click',saveModelEditorPage);
 
-window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
+window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openWeeklyDayDetail=openWeeklyDayDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
 window.openModelEditor=openModelEditor;window.deleteModel=deleteModel;window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
