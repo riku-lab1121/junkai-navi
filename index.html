@@ -1069,6 +1069,45 @@ nav.modal-blocked{
   font-size:9px;
   font-weight:900;
 }
+
+/* Ver.8.1 月間表は1日1行 */
+.monthly-plan-table{min-width:760px!important}
+.monthly-day-detail-card{
+  background:#fff;
+  border-radius:16px;
+  padding:14px;
+  margin-bottom:10px;
+  border:1px solid #e5e7eb;
+}
+.monthly-day-area-title{
+  font-size:15px;
+  font-weight:900;
+  margin-bottom:8px;
+}
+.monthly-day-machine{
+  display:grid;
+  grid-template-columns:34px 1fr auto;
+  gap:10px;
+  align-items:start;
+  padding:10px 0;
+  border-top:1px solid #eef0f3;
+}
+.monthly-day-machine:first-of-type{border-top:0}
+.monthly-day-order{
+  width:28px;height:28px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:#111827;color:#fff;font-weight:900;font-size:12px;
+}
+.monthly-day-machine .meta{
+  font-size:11px;color:#64748b;margin-top:3px;
+}
+.monthly-day-machine .mins{
+  font-size:12px;color:#64748b;white-space:nowrap;
+}
+.monthly-summary-areas{
+  max-width:220px;
+  white-space:normal;
+}
 </style>
 </head>
 <body>
@@ -1677,6 +1716,39 @@ nav.modal-blocked{
 </section>
 
 
+
+<section id="monthlyDayDetailPage" class="hidden flow-page">
+  <div class="flow-head">
+    <div>
+      <div class="section-title">月間行動計画表</div>
+      <div class="flow-title" id="monthlyDayDetailTitle">1日の巡回詳細</div>
+      <div class="sub" id="monthlyDayDetailSummary"></div>
+    </div>
+    <button class="secondary" type="button" onclick="closeMonthlyDayDetail()">戻る</button>
+  </div>
+
+  <div class="flow-card">
+    <div class="row">
+      <div>
+        <div class="section-title">その日の巡回</div>
+        <div class="sub">エリア・自販機・順番を確認できます</div>
+      </div>
+      <button class="secondary" type="button" id="monthlyDayEditToggle" onclick="toggleMonthlyDayEdit()">編集</button>
+    </div>
+  </div>
+
+  <div id="monthlyDayDetailList"></div>
+
+  <div class="flow-card hidden" id="monthlyDayEditPanel">
+    <div class="section-title">この日の予定を編集</div>
+    <label>日付</label>
+    <input id="monthlyDayMoveDate" type="date">
+    <button class="primary" type="button" onclick="moveMonthlyDayPlan()" style="width:100%;margin-top:10px">
+      この日の予定を移動
+    </button>
+  </div>
+</section>
+
 <section id="monthlyActionPlanPage" class="hidden flow-page">
   <div class="flow-head">
     <div>
@@ -1773,15 +1845,12 @@ nav.modal-blocked{
           <tr>
             <th>日付</th>
             <th>曜</th>
-            <th>エリア</th>
-            <th>行動内容</th>
-            <th>対象</th>
+            <th>合計台数</th>
+            <th>予定時間</th>
+            <th>主なエリア</th>
             <th>距離目安</th>
-            <th>種類</th>
-            <th>優先</th>
             <th>状態</th>
-            <th>メモ</th>
-            <th>操作</th>
+            <th>確認</th>
           </tr>
         </thead>
         <tbody id="monthlyActionPlanBody"></tbody>
@@ -2727,7 +2796,7 @@ function renderShift(){
 }
 
 function renderHeader(){
-  const titles={home:'ホーム',map:'MAP',route:'今日の巡回',calendar:'カレンダー',machines:'自販機',register:'自販機登録',report:'日報',manualRoute:'手動巡回作成',autoRoute:'巡回作成',trouble:'トラブル受付',settings:'設定',monthlyActionPlan:'月間行動計画表'};
+  const titles={home:'ホーム',map:'MAP',route:'今日の巡回',calendar:'カレンダー',machines:'自販機',register:'自販機登録',report:'日報',manualRoute:'手動巡回作成',autoRoute:'巡回作成',trouble:'トラブル受付',settings:'設定',monthlyActionPlan:'月間行動計画表',monthlyDayDetail:'巡回詳細'};
   document.getElementById('pageTitle').textContent=titles[page];
   const d=new Date();document.getElementById('todayLabel').textContent=d.toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'short'});
 }
@@ -3487,7 +3556,7 @@ function switchPage(p){
   page=p;
 
   // まず画面そのものを切り替える。MAPの後処理で失敗しても遷移は止めない。
-  ['home','map','route','calendar','machines','register','report','manualRoute','autoRoute','trouble','settings','modelEditor','monthlyActionPlan'].forEach(x=>{
+  ['home','map','route','calendar','machines','register','report','manualRoute','autoRoute','trouble','settings','modelEditor','monthlyActionPlan','monthlyDayDetail'].forEach(x=>{
     const el=document.getElementById(x+'Page');
     if(el) el.classList.toggle('hidden',x!==p);
   });
@@ -4274,34 +4343,149 @@ function monthlyPlanDistanceLabel(t){
   const km=Number(t.distanceKm);
   return Number.isFinite(km)&&km>0?`約${km.toFixed(1)}km`:'-';
 }
+
+let monthlyDayDetailDate=null;
+
+function monthlyDayGroups(){
+  const rows=monthlyActionRows();
+  const map=new Map();
+  for(const t of rows){
+    if(!map.has(t.due))map.set(t.due,[]);
+    map.get(t.due).push(t);
+  }
+  return [...map.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+}
+function monthlyDayMachines(tasks){
+  const seen=new Set(),out=[];
+  for(const t of tasks){
+    const ids=Array.isArray(t.machineIds)?t.machineIds:(t.machineId?[t.machineId]:[]);
+    for(const id of ids){
+      if(seen.has(id))continue;
+      const m=machine(id);
+      if(m){seen.add(id);out.push(m)}
+    }
+  }
+  return out;
+}
+function monthlyDayAreas(tasks,machines){
+  const areas=[];
+  for(const t of tasks)if(t.area&&!areas.includes(t.area))areas.push(t.area);
+  for(const m of machines){
+    const a=m.area||'未設定';
+    if(a&&!areas.includes(a))areas.push(a);
+  }
+  return areas;
+}
+function monthlyDayMinutes(machines,tasks){
+  if(machines.length)return machines.reduce((s,m)=>s+Math.max(1,Number(m.workMinutes||25)),0);
+  return tasks.reduce((s,t)=>{
+    const m=String(t.memo||'').match(/作業目安\s*(\d+)分/);
+    return s+(m?Number(m[1]):0);
+  },0);
+}
+function monthlyDayDistance(tasks){
+  return tasks.reduce((s,t)=>s+(Number(t.distanceKm)||0),0);
+}
+function openMonthlyDayDetail(date){
+  monthlyDayDetailDate=date;
+  renderMonthlyDayDetail();
+  switchPage('monthlyDayDetail');
+  window.scrollTo(0,0);
+}
+function closeMonthlyDayDetail(){
+  switchPage('monthlyActionPlan');
+  renderMonthlyActionPlan();
+  window.scrollTo(0,0);
+}
+function renderMonthlyDayDetail(){
+  const tasks=(db.tasks||[]).filter(t=>t.due===monthlyDayDetailDate);
+  const machines=monthlyDayMachines(tasks);
+  const areas=monthlyDayAreas(tasks,machines);
+  const mins=monthlyDayMinutes(machines,tasks);
+  const dist=monthlyDayDistance(tasks);
+  const d=ymdDate(monthlyDayDetailDate);
+  const dow=['日','月','火','水','木','金','土'];
+
+  monthlyDayDetailTitle.textContent=`${d.getMonth()+1}月${d.getDate()}日（${dow[d.getDay()]}）`;
+  monthlyDayDetailSummary.textContent=`${machines.length}台 ・ 約${mins}分${dist>0?` ・ 約${dist.toFixed(1)}km`:''} ・ ${areas.join(' / ')||'エリア未設定'}`;
+  monthlyDayMoveDate.value=monthlyDayDetailDate;
+
+  const grouped=new Map();
+  for(const m of machines){
+    const a=m.area||'未設定';
+    if(!grouped.has(a))grouped.set(a,[]);
+    grouped.get(a).push(m);
+  }
+
+  let order=1;
+  monthlyDayDetailList.innerHTML=[...grouped.entries()].map(([area,list])=>{
+    const html=list.map(m=>`
+      <div class="monthly-day-machine">
+        <div class="monthly-day-order">${order++}</div>
+        <div>
+          <b>${escapeHtml(machineDisplayTitle(m))}</b>
+          <div class="meta">${escapeHtml(machineDisplaySub(m))}</div>
+        </div>
+        <div class="mins">約${Number(m.workMinutes||25)}分</div>
+      </div>`).join('');
+    return `<div class="monthly-day-detail-card">
+      <div class="monthly-day-area-title">${escapeHtml(area)}エリア ・ ${list.length}台</div>
+      ${html}
+    </div>`;
+  }).join('') || '<div class="flow-card"><div class="empty">この日の自販機情報はありません。</div></div>';
+
+  monthlyDayEditPanel.classList.add('hidden');
+  monthlyDayEditToggle.textContent='編集';
+}
+function toggleMonthlyDayEdit(){
+  const hidden=monthlyDayEditPanel.classList.toggle('hidden');
+  monthlyDayEditToggle.textContent=hidden?'編集':'閉じる';
+}
+function moveMonthlyDayPlan(){
+  const newDate=monthlyDayMoveDate.value;
+  if(!newDate||!monthlyDayDetailDate)return;
+  const oldDate=monthlyDayDetailDate;
+  const moved=(db.tasks||[]).filter(t=>t.due===oldDate);
+  if(!moved.length)return;
+  moved.forEach(t=>t.due=newDate);
+  save();
+  monthlyDayDetailDate=newDate;
+  renderMonthlyDayDetail();
+  renderMonthlyActionPlan();
+  showToast('この日の予定を移動しました');
+}
+
 function renderMonthlyActionPlan(){
   const d=ymdDate(monthlyActionPlanAnchor);
   monthlyActionPlanTitle.textContent=`${d.getFullYear()}年 ${d.getMonth()+1}月`;
+
   const rows=monthlyActionRows();
   monthlyActionPlanEmpty.classList.toggle('hidden',rows.length>0);
+
   const autoRows=rows.filter(t=>t.autoMonthlyPlan);
   monthlyAutoSummary.textContent=autoRows.length
-    ? `自動作成 ${autoRows.length}日分・対象 ${autoRows.reduce((s,t)=>s+(t.machineIds?.length||0),0)}台`
+    ? `自動作成 ${new Set(autoRows.map(t=>t.due)).size}日分・対象 ${autoRows.reduce((s,t)=>s+(t.machineIds?.length||0),0)}台`
     : '自動作成分はまだありません';
+
+  const groups=monthlyDayGroups();
   const dow=['日','月','火','水','木','金','土'];
-  monthlyActionPlanBody.innerHTML=rows.map(t=>{
-    const dd=ymdDate(t.due);
-    return `<tr class="${t.done?'done-row':''}">
-      <td>${dd.getMonth()+1}/${dd.getDate()}</td>
+
+  monthlyActionPlanBody.innerHTML=groups.map(([date,tasks])=>{
+    const dd=ymdDate(date);
+    const machines=monthlyDayMachines(tasks);
+    const areas=monthlyDayAreas(tasks,machines);
+    const mins=monthlyDayMinutes(machines,tasks);
+    const dist=monthlyDayDistance(tasks);
+    const done=tasks.length>0&&tasks.every(t=>t.done);
+    return `<tr class="${done?'done-row':''}">
+      <td><b>${dd.getMonth()+1}/${dd.getDate()}</b></td>
       <td>${dow[dd.getDay()]}</td>
-      <td>${escapeHtml(t.area||'-')}</td>
-      <td><b>${escapeHtml(t.title||'')}</b>${t.autoMonthlyPlan?'<span class="auto-plan-tag">自動</span>':''}</td>
-      <td>${escapeHtml(monthlyPlanMachineNames(t))}</td>
-      <td>${escapeHtml(monthlyPlanDistanceLabel(t))}</td>
-      <td>${escapeHtml(monthlyActionTypeLabel(t.category||'other'))}</td>
-      <td class="${t.priority==='high'?'high-plan':''}">${t.priority==='high'?'高':'通常'}</td>
-      <td>${t.done?'完了':'予定'}</td>
-      <td>${escapeHtml(t.memo||'-')}</td>
-      <td><div class="plan-actions">
-        <button class="secondary" type="button" onclick="editMonthlyAction('${t.id}')">編集</button>
-        <button class="secondary" type="button" onclick="toggleMonthlyActionDone('${t.id}')">${t.done?'戻す':'完了'}</button>
-        <button class="secondary danger" type="button" onclick="deleteMonthlyAction('${t.id}')">削除</button>
-      </div></td>
+      <td><b>${machines.length}台</b></td>
+      <td>約${mins}分</td>
+      <td class="monthly-summary-areas">${escapeHtml(areas.join('・')||'-')}</td>
+      <td>${dist>0?`約${dist.toFixed(1)}km`:'-'}</td>
+      <td>${done?'完了':'予定'}</td>
+      <td><button class="primary" type="button" onclick="openMonthlyDayDetail('${date}')" style="padding:8px 12px">確認</button></td>
     </tr>`;
   }).join('');
 }
@@ -5128,7 +5312,7 @@ if(window.modelPageBackBtn)modelPageBackBtn.addEventListener('click',closeModelE
 if(window.modelPageCancelBtn)modelPageCancelBtn.addEventListener('click',closeModelEditorPage);
 if(window.modelPageSaveBtn)modelPageSaveBtn.addEventListener('click',saveModelEditorPage);
 
-window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
+window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
 window.openModelEditor=openModelEditor;window.deleteModel=deleteModel;window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
