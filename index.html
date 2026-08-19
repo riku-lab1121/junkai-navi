@@ -1136,6 +1136,8 @@ nav.modal-blocked{
   padding:2px 3px;
   margin-top:3px;
 }
+
+/* Ver.7.6.2: core navigation must not depend on optional calendar controls */
 </style>
 </head>
 <body>
@@ -4591,21 +4593,20 @@ function setSettingsFields(){
 }
 
 
-monthAddPlanBtn.addEventListener('click',()=>openPlanEditor(calendarSelectedDate||today()));
-planEditorBackBtn.addEventListener('click',closePlanEditor);
-planCancelBtn.addEventListener('click',closePlanEditor);
-planSaveBtn.addEventListener('click',savePlanEditor);
+if(window.planEditorBackBtn)planEditorBackBtn.addEventListener('click',closePlanEditor);
+if(window.planCancelBtn)planCancelBtn.addEventListener('click',closePlanEditor);
+if(window.planSaveBtn)planSaveBtn.addEventListener('click',savePlanEditor);
 
 
-openMonthlyPlanBtn.addEventListener('click',openMonthlyPlan);
-monthlyPlanViewTabBtn.addEventListener('click',openMonthlyPlan);
-calendarViewTabBtn.addEventListener('click',()=>{calendarMode='month';renderCalendar()});
-monthlyCalendarTabBtn.addEventListener('click',()=>{switchPage('calendar');calendarMode='month';renderCalendar();window.scrollTo(0,0)});
+if(window.openMonthlyPlanBtn)openMonthlyPlanBtn.addEventListener('click',openMonthlyPlan);
+if(window.monthlyPlanViewTabBtn)monthlyPlanViewTabBtn.addEventListener('click',openMonthlyPlan);
+if(window.calendarViewTabBtn)calendarViewTabBtn.addEventListener('click',()=>{calendarMode='month';renderCalendar()});
+if(window.monthlyCalendarTabBtn)monthlyCalendarTabBtn.addEventListener('click',()=>{switchPage('calendar');calendarMode='month';renderCalendar();window.scrollTo(0,0)});
 
-monthlyPlanBackBtn.addEventListener('click',()=>{switchPage('calendar');renderCalendar()});
-monthlyPlanPrevBtn.addEventListener('click',()=>moveMonthlyPlanMonth(-1));
-monthlyPlanNextBtn.addEventListener('click',()=>moveMonthlyPlanMonth(1));
-monthlyPlanAddBtn.addEventListener('click',()=>{
+if(window.monthlyPlanBackBtn)monthlyPlanBackBtn.addEventListener('click',()=>{switchPage('calendar');renderCalendar()});
+if(window.monthlyPlanPrevBtn)monthlyPlanPrevBtn.addEventListener('click',()=>moveMonthlyPlanMonth(-1));
+if(window.monthlyPlanNextBtn)monthlyPlanNextBtn.addEventListener('click',()=>moveMonthlyPlanMonth(1));
+if(window.monthlyPlanAddBtn)monthlyPlanAddBtn.addEventListener('click',()=>{
   const d=ymdDate(monthlyPlanAnchor);
   const date=localYmd(new Date(d.getFullYear(),d.getMonth(),1,12));
   planEditorReturnPage='monthlyPlan';
@@ -4613,15 +4614,15 @@ monthlyPlanAddBtn.addEventListener('click',()=>{
   planEditorReturnPage='monthlyPlan';
 });
 
-calendarWeekBtn.addEventListener('click',()=>{calendarMode='week';renderCalendar()});
-calendarMonthBtn.addEventListener('click',()=>{calendarMode='month';renderCalendar()});
-calendarTodayBtn.addEventListener('click',()=>{calendarAnchor=today();calendarSelectedDate=today();renderCalendar()});
-calendarPrevBtn.addEventListener('click',()=>{
+if(window.calendarWeekBtn)calendarWeekBtn.addEventListener('click',()=>{calendarMode='week';renderCalendar()});
+if(window.calendarMonthBtn)calendarMonthBtn.addEventListener('click',()=>{calendarMode='month';renderCalendar()});
+if(window.calendarTodayBtn)calendarTodayBtn.addEventListener('click',()=>{calendarAnchor=today();calendarSelectedDate=today();renderCalendar()});
+if(window.calendarPrevBtn)calendarPrevBtn.addEventListener('click',()=>{
   if(calendarMode==='week')calendarAnchor=addDaysYmd(calendarAnchor,-7);
   else{const d=ymdDate(calendarAnchor);calendarAnchor=localYmd(new Date(d.getFullYear(),d.getMonth()-1,1,12))}
   renderCalendar();
 });
-calendarNextBtn.addEventListener('click',()=>{
+if(window.calendarNextBtn)calendarNextBtn.addEventListener('click',()=>{
   if(calendarMode==='week')calendarAnchor=addDaysYmd(calendarAnchor,7);
   else{const d=ymdDate(calendarAnchor);calendarAnchor=localYmd(new Date(d.getFullYear(),d.getMonth()+1,1,12))}
   renderCalendar();
