@@ -1162,6 +1162,34 @@ nav.modal-blocked{
   padding:12px;
   line-height:1.5;
 }
+
+/* Ver.8.4 現場運用改善 */
+.route-facility-head{
+  display:flex;align-items:center;justify-content:space-between;
+  margin:16px 2px 7px;padding:8px 11px;border-radius:10px;
+  background:#eef2f7;color:#334155;
+}
+.route-facility-head b{font-size:14px}
+.route-facility-head span{font-size:11px;font-weight:850}
+.monthly-facility-group{
+  margin-top:10px;border:1px solid #eef0f3;border-radius:12px;overflow:hidden;
+}
+.monthly-facility-head{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:9px 11px;background:#f8fafc;font-size:13px;
+}
+.monthly-facility-head span{font-size:11px;color:#64748b;font-weight:850}
+
+/* Ver.8.5 休み・祝日 */
+.holiday-day .n{color:#dc2626}
+.custom-off-day{background:#fff7ed!important}
+.month-event.holiday-event{background:#fee2e2;color:#991b1b;font-weight:850}
+.month-event.dayoff-event{background:#ffedd5;color:#9a3412;font-weight:850}
+.holiday-label,.dayoff-label{
+  display:inline-block;margin-top:6px;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:850
+}
+.holiday-label{background:#fee2e2;color:#991b1b}
+.dayoff-label{background:#ffedd5;color:#9a3412}
 </style>
 </head>
 <body>
@@ -1772,6 +1800,43 @@ nav.modal-blocked{
 
 
 
+
+<section id="dayOffPage" class="hidden flow-page">
+  <div class="flow-head">
+    <div>
+      <div class="section-title">カレンダー</div>
+      <div class="flow-title">休み設定</div>
+      <div class="sub">有給・会社休み・半休を月間行動計画表に反映します。</div>
+    </div>
+    <button class="secondary" type="button" onclick="closeDayOffPage()">戻る</button>
+  </div>
+
+  <div class="flow-card">
+    <label>日付 *</label>
+    <input id="dayOffDate" type="date">
+
+    <label>区分 *</label>
+    <select id="dayOffType">
+      <option value="paid">有給</option>
+      <option value="company">会社休み</option>
+      <option value="half-am">午前休</option>
+      <option value="half-pm">午後休</option>
+      <option value="other">その他の休み</option>
+    </select>
+
+    <label>メモ</label>
+    <input id="dayOffMemo" placeholder="任意">
+
+    <button class="primary" type="button" onclick="saveDayOff()" style="width:100%;margin-top:12px">保存する</button>
+    <button class="secondary danger hidden" id="dayOffDeleteBtn" type="button" onclick="deleteDayOff()" style="width:100%;margin-top:10px">この休み設定を削除</button>
+  </div>
+
+  <div class="flow-card">
+    <div class="section-title">この日の扱い</div>
+    <div id="dayOffStatusText" class="sub" style="margin-top:8px"></div>
+  </div>
+</section>
+
 <section id="machineDetailPage" class="hidden flow-page">
   <div class="flow-head">
     <div>
@@ -2325,7 +2390,7 @@ const defaults={
     {id:uid(),name:'サンプル：事務所B',number:'004',lat:34.3155,lng:134.0710,lastRegular:isoDaysAgo(9),weekly:true,lastSupply:isoDaysAgo(7),workMinutes:20,memo:''},
     {id:uid(),name:'サンプル：施設C',number:'005',lat:34.3650,lng:134.0310,lastRegular:isoDaysAgo(13),weekly:false,lastSupply:isoDaysAgo(13),workMinutes:25,memo:''}
   ],
-  routes:{}, logs:[], active:null, shifts:{}
+  routes:{}, logs:[], active:null, shifts:{}, daysOff:[]
 };
 let db=load();
 if(!db.machines) db.machines=[];
@@ -2334,6 +2399,7 @@ if(!db.logs) db.logs=[];
 if(!db.shifts) db.shifts={};
 if(!db.tasks) db.tasks=[];
 if(!db.troubles) db.troubles=[];
+if(!Array.isArray(db.daysOff)) db.daysOff=[];
 db.machines.forEach(m=>{
   if(!m.area) m.area='未設定';
   if(!m.regularIntervalDays) m.regularIntervalDays=14;
@@ -2889,9 +2955,12 @@ function endWork(){
   const end=Date.now();
   db.logs.push({id:uid(),date:today(),type:'work',machineId:m.id,start:act.start,end,workTypes:act.workTypes});
   s.status='done'; s.actualMinutes=Math.max(1,Math.round((end-act.start)/60000));
-  if(act.workTypes.includes('清掃') && act.workTypes.includes('原料') && act.workTypes.includes('集金')) m.lastRegular=today();
+  if(act.workTypes.includes('清掃') && act.workTypes.includes('原料')) m.lastRegular=today();
   if(act.workTypes.includes('原料')){m.lastSupply=today();m.prioritySupply=false;}
   if(act.workTypes.includes('集金')) m.lastCollection=today();
+  if(act.workTypes.includes('排水')) m.needsDrain=false;
+  if(act.workTypes.includes('水汲み')) m.needsWater=false;
+  s.workTypes=workFor(m);
   db.active=null;save();renderAll();
 }
 function renderAll(){applyAppSettings();renderHeader();renderShift();renderHome();renderRoute();renderMachines();renderMapMarkers();renderActive();renderWorkDashboard()}
@@ -2926,7 +2995,7 @@ function renderShift(){
 }
 
 function renderHeader(){
-  const titles={home:'ホーム',map:'MAP',route:'今日の巡回',calendar:'カレンダー',machines:'自販機',register:'自販機登録',report:'日報',manualRoute:'手動巡回作成',autoRoute:'巡回作成',trouble:'トラブル受付',settings:'設定',monthlyActionPlan:'月間行動計画表',monthlyDayDetail:'巡回詳細',deleteMachine:'自販機を削除',machineDetail:'自販機詳細'};
+  const titles={home:'ホーム',map:'MAP',route:'今日の巡回',calendar:'カレンダー',machines:'自販機',register:'自販機登録',report:'日報',manualRoute:'手動巡回作成',autoRoute:'巡回作成',trouble:'トラブル受付',settings:'設定',monthlyActionPlan:'月間行動計画表',monthlyDayDetail:'巡回詳細',deleteMachine:'自販機を削除',machineDetail:'自販機詳細',dayOff:'休み設定'};
   document.getElementById('pageTitle').textContent=titles[page];
   const d=new Date();document.getElementById('todayLabel').textContent=d.toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'short'});
 }
@@ -2942,7 +3011,9 @@ function renderHome(){
   if(!s){nextStopBox.className='empty';nextStopBox.innerHTML=stops.length&&done===stops.length?'今日の巡回は完了です ✓':'巡回ルートを作成してください'}
   else{
     const m=machine(s.machineId);nextStopBox.className='';
-    nextStopBox.innerHTML=`<div class="row"><div><b style="font-size:18px">${m.name}</b><div class="sub">#${m.number||'-'} ・ 約${s.plannedMinutes}分</div><div class="worktags">${s.workTypes.map(w=>`<span class="tag">${w}</span>`).join('')}</div></div><button class="secondary" onclick="openWorkPicker('${s.id}')">作業開始</button></div>`;
+    const sameFacilityRemaining=stops.filter(x=>x.status!=='done'&&machine(x.machineId)&&machineDisplayTitle(machine(x.machineId))===machineDisplayTitle(m)).length;
+    const currentWork=[...new Set([...(s.workTypes||[]),...workFor(m)])];
+    nextStopBox.innerHTML=`<div class="row"><div><b style="font-size:18px">${escapeHtml(machineDisplayTitle(m))}</b><div class="sub">${escapeHtml(m.site||'')} ・ この施設 残り${sameFacilityRemaining}台 ・ 約${s.plannedMinutes}分</div><div class="worktags">${currentWork.map(w=>`<span class="tag">${w}</span>`).join('')}</div>${m.inventoryMemo?`<div class="urgent-note">在庫: ${escapeHtml(m.inventoryMemo)}</div>`:''}</div><button class="secondary" onclick="openWorkPicker('${s.id}')">作業開始</button></div>`;
   }
   const b=Math.round(getBreakSeconds()/60),goal=db.settings.breakGoal||60;
   breakTotal.textContent=b;breakGoal.textContent=goal;breakRemain.textContent=`残り${Math.max(0,goal-b)}分`;
@@ -3053,8 +3124,18 @@ function renderRoute(){
   routeAreaLabel.textContent=r?.areaFilter&&r.areaFilter!=='all'?`${r.areaFilter}エリア`:'全エリア';
   routeList.innerHTML='';
   if(!stops.length){routeList.innerHTML='<div class="empty">今日の巡回はまだありません。</div>';return}
+  let lastFacility=null;
   stops.forEach((s,i)=>{
     const m=machine(s.machineId);if(!m)return;
+    const facility=machineDisplayTitle(m);
+    if(facility!==lastFacility){
+      const fh=document.createElement('div');
+      const sameCount=stops.filter(x=>{const mm=machine(x.machineId);return mm&&machineDisplayTitle(mm)===facility}).length;
+      fh.className='route-facility-head';
+      fh.innerHTML=`<b>${escapeHtml(facility)}</b><span>${sameCount}台</span>`;
+      routeList.appendChild(fh);
+      lastFacility=facility;
+    }
     const el=document.createElement('div');
     el.className='stop '+(s.status==='current'?'current ':'')+(s.status==='done'?'done':'');
     const state=s.status==='done'?'完了':s.status==='current'?'作業中':machineTroubles(m).length?'トラブル':regularDue(m)?'定期巡回':supplyDue(m)||m.prioritySupply?'補充巡回':collectionDue(m)?'集金':'巡回';
@@ -3063,7 +3144,7 @@ function renderRoute(){
       <div>
         <div class="sub">${String(i+1).padStart(2,'0')} ・ ${escapeHtml(m.area||'未設定')} ・ ${state}</div>
         <div class="stop-name">${m.site?`<div class="sub">${escapeHtml(m.site)}</div>`:''}${escapeHtml(m.name)}</div>
-        <div class="worktags">${s.workTypes.map(w=>`<span class="tag">${w}</span>`).join('')}</div>
+        <div class="worktags">${[...new Set([...(s.workTypes||[]),...workFor(m)])].map(w=>`<span class="tag">${w}</span>`).join('')}</div>
         ${memo}
       </div>
       <div>${s.status==='done'?'<span class="pill green">✓</span>':`<button class="smallbtn" onclick="openWorkPicker('${s.id}')">開始</button>`}</div>
@@ -3696,7 +3777,7 @@ function switchPage(p){
   page=p;
 
   // まず画面そのものを切り替える。MAPの後処理で失敗しても遷移は止めない。
-  ['home','map','route','calendar','machines','register','report','manualRoute','autoRoute','trouble','settings','modelEditor','monthlyActionPlan','monthlyDayDetail','deleteMachine','machineDetail'].forEach(x=>{
+  ['home','map','route','calendar','machines','register','report','manualRoute','autoRoute','trouble','settings','modelEditor','monthlyActionPlan','monthlyDayDetail','deleteMachine','machineDetail','dayOff'].forEach(x=>{
     const el=document.getElementById(x+'Page');
     if(el) el.classList.toggle('hidden',x!==p);
   });
@@ -4216,6 +4297,7 @@ function fillMachineSelect(sel,optional){
 }
 function renderWorkDashboard(){
   if(!Array.isArray(db.troubles)) db.troubles=[];
+if(!Array.isArray(db.daysOff)) db.daysOff=[];
       if(!Array.isArray(db.models)) db.models=[];
       if(!db.settings)db.settings={};
       if(db.settings.routeDefaultMode===undefined)db.settings.routeDefaultMode='recommended';
@@ -4403,12 +4485,140 @@ function monthlyActionMonthBounds(){
     end:localYmd(new Date(d.getFullYear(),d.getMonth()+1,0,12))
   };
 }
+
+function nthWeekdayOfMonth(year,month,weekday,n){
+  const d=new Date(year,month-1,1,12);
+  const offset=(weekday-d.getDay()+7)%7;
+  d.setDate(1+offset+(n-1)*7);
+  return localYmd(d);
+}
+function jpEquinoxDay(year,spring=true){
+  // 2000-2099 Japanese equinox approximation
+  const day=spring
+    ? Math.floor(20.69115 + 0.242194*(year-2000) - Math.floor((year-2000)/4))
+    : Math.floor(23.09 + 0.242194*(year-2000) - Math.floor((year-2000)/4));
+  return `${year}-${spring?'03':'09'}-${String(day).padStart(2,'0')}`;
+}
+function japaneseHolidayMap(year){
+  const H=new Map();
+  const add=(date,name)=>H.set(date,name);
+  add(`${year}-01-01`,'元日');
+  add(nthWeekdayOfMonth(year,1,1,2),'成人の日');
+  add(`${year}-02-11`,'建国記念の日');
+  if(year>=2020)add(`${year}-02-23`,'天皇誕生日');
+  add(jpEquinoxDay(year,true),'春分の日');
+  add(`${year}-04-29`,'昭和の日');
+  add(`${year}-05-03`,'憲法記念日');
+  add(`${year}-05-04`,'みどりの日');
+  add(`${year}-05-05`,'こどもの日');
+  add(nthWeekdayOfMonth(year,7,1,3),'海の日');
+  if(year>=2016)add(`${year}-08-11`,'山の日');
+  add(nthWeekdayOfMonth(year,9,1,3),'敬老の日');
+  add(jpEquinoxDay(year,false),'秋分の日');
+  add(nthWeekdayOfMonth(year,10,1,2),'スポーツの日');
+  add(`${year}-11-03`,'文化の日');
+  add(`${year}-11-23`,'勤労感謝の日');
+
+  // 国民の休日（祝日に挟まれた平日）
+  const start=new Date(year,0,2,12),end=new Date(year,11,30,12);
+  for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
+    const date=localYmd(d);
+    if(H.has(date) || d.getDay()===0)continue;
+    const prev=localYmd(new Date(d.getFullYear(),d.getMonth(),d.getDate()-1,12));
+    const next=localYmd(new Date(d.getFullYear(),d.getMonth(),d.getDate()+1,12));
+    if(!H.has(date)&&H.has(prev)&&H.has(next))H.set(date,'国民の休日');
+  }
+
+  // 振替休日：日曜祝日の次の非祝日
+  const originals=[...H.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+  for(const [date] of originals){
+    const d=ymdDate(date);
+    if(d.getDay()!==0)continue;
+    let s=new Date(d); s.setDate(s.getDate()+1);
+    while(H.has(localYmd(s)))s.setDate(s.getDate()+1);
+    const sub=localYmd(s);
+    if(ymdDate(sub).getFullYear()===year)H.set(sub,'振替休日');
+  }
+  return H;
+}
+const jpHolidayCache=new Map();
+function japaneseHolidayName(date){
+  const year=ymdDate(date).getFullYear();
+  if(!jpHolidayCache.has(year))jpHolidayCache.set(year,japaneseHolidayMap(year));
+  return jpHolidayCache.get(year).get(date)||'';
+}
+function customDayOff(date){
+  return (db.daysOff||[]).find(x=>x.date===date)||null;
+}
+function dayOffTypeLabel(type){
+  return type==='paid'?'有給':
+    type==='company'?'会社休み':
+    type==='half-am'?'午前休':
+    type==='half-pm'?'午後休':'その他の休み';
+}
+function dayWorkCapacity(date){
+  const d=ymdDate(date);
+  if(d.getDay()===0||d.getDay()===6)return 0;
+  if(japaneseHolidayName(date))return 0;
+  const off=customDayOff(date);
+  if(!off)return 1;
+  if(off.type==='half-am'||off.type==='half-pm')return .5;
+  return 0;
+}
+function dayOffLabel(date){
+  const holiday=japaneseHolidayName(date);
+  if(holiday)return holiday;
+  const off=customDayOff(date);
+  return off?dayOffTypeLabel(off.type):'';
+}
+function openDayOffPage(date){
+  const target=date||calendarSelectedDate||today();
+  const off=customDayOff(target);
+  dayOffDate.value=target;
+  dayOffType.value=off?.type||'paid';
+  dayOffMemo.value=off?.memo||'';
+  dayOffDeleteBtn.classList.toggle('hidden',!off);
+  const holiday=japaneseHolidayName(target);
+  const capacity=dayWorkCapacity(target);
+  dayOffStatusText.textContent=holiday
+    ? `${holiday}のため月間計画の自動作成対象外です。`
+    : off
+      ? `${dayOffTypeLabel(off.type)}：作業可能量 ${Math.round(capacity*100)}%として計算します。`
+      : '通常の勤務日として計算します。';
+  switchPage('dayOff');
+  window.scrollTo(0,0);
+}
+function closeDayOffPage(){
+  switchPage('calendar');
+  calendarSelectedDate=dayOffDate.value||calendarSelectedDate||today();
+  renderCalendar();
+  window.scrollTo(0,0);
+}
+function saveDayOff(){
+  const date=dayOffDate.value;
+  if(!date){alert('日付を選んでください');return}
+  if(!Array.isArray(db.daysOff))db.daysOff=[];
+  const item={date,type:dayOffType.value,memo:(dayOffMemo.value||'').trim()};
+  const idx=db.daysOff.findIndex(x=>x.date===date);
+  if(idx>=0)db.daysOff[idx]=item;else db.daysOff.push(item);
+  save();
+  showToast(`${dayOffTypeLabel(item.type)}を保存しました`);
+  openDayOffPage(date);
+}
+function deleteDayOff(){
+  const date=dayOffDate.value;
+  db.daysOff=(db.daysOff||[]).filter(x=>x.date!==date);
+  save();
+  showToast('休み設定を削除しました');
+  openDayOffPage(date);
+}
+
 function monthlyWorkdays(){
   const {start,end}=monthlyActionMonthBounds();
   const out=[];
   for(let d=ymdDate(start),e=ymdDate(end);d<=e;d.setDate(d.getDate()+1)){
-    const day=d.getDay();
-    if(day!==0&&day!==6)out.push(localYmd(d));
+    const date=localYmd(d);
+    if(dayWorkCapacity(date)>0)out.push(date);
   }
   return out;
 }
@@ -4616,26 +4826,35 @@ function renderMonthlyDayDetail(){
   const grouped=new Map();
   for(const m of machines){
     const a=m.area||'未設定';
-    if(!grouped.has(a))grouped.set(a,[]);
-    grouped.get(a).push(m);
+    if(!grouped.has(a))grouped.set(a,new Map());
+    const facility=machineDisplayTitle(m);
+    if(!grouped.get(a).has(facility))grouped.get(a).set(facility,[]);
+    grouped.get(a).get(facility).push(m);
   }
 
   let order=1;
-  monthlyDayDetailList.innerHTML=[...grouped.entries()].map(([area,list])=>{
-    const html=list.map(m=>`
-      <div class="monthly-day-machine">
-        <div class="monthly-day-order">${order++}</div>
-        <div>
-          <button type="button" class="machine-detail-link" onclick="openMachineDetailPage('${m.id}','monthlyDayDetail')">${escapeHtml(machineDisplayTitle(m))}</button>
-          <div class="meta">${escapeHtml(machineDisplaySub(m))}</div>
-          <div class="work-chips">${machineWorkBadgesHtml(m)}</div>
-          ${m.inventoryMemo?`<div class="inventory-note">原料メモ：${escapeHtml(m.inventoryMemo)}</div>`:''}
-        </div>
-        <div class="mins">約${Number(m.workMinutes||25)}分</div>
-      </div>`).join('');
+  monthlyDayDetailList.innerHTML=[...grouped.entries()].map(([area,facilities])=>{
+    const areaCount=[...facilities.values()].reduce((s,x)=>s+x.length,0);
+    const facilityHtml=[...facilities.entries()].map(([facility,list])=>{
+      const machineHtml=list.map(m=>`
+        <div class="monthly-day-machine">
+          <div class="monthly-day-order">${order++}</div>
+          <div>
+            <button type="button" class="machine-detail-link" onclick="openMachineDetailPage('${m.id}','monthlyDayDetail')">${escapeHtml(machineDisplayTitle(m))}</button>
+            <div class="meta">${escapeHtml(machineDisplaySub(m))}</div>
+            <div class="work-chips">${machineWorkBadgesHtml(m)}</div>
+            ${m.inventoryMemo?`<div class="inventory-note">原料メモ：${escapeHtml(m.inventoryMemo)}</div>`:''}
+          </div>
+          <div class="mins">約${Number(m.workMinutes||25)}分</div>
+        </div>`).join('');
+      return `<div class="monthly-facility-group">
+        <div class="monthly-facility-head"><b>${escapeHtml(facility)}</b><span>${list.length}台</span></div>
+        ${machineHtml}
+      </div>`;
+    }).join('');
     return `<div class="monthly-day-detail-card">
-      <div class="monthly-day-area-title">${escapeHtml(area)}エリア ・ ${list.length}台</div>
-      ${html}
+      <div class="monthly-day-area-title">${escapeHtml(area)}エリア ・ ${areaCount}台</div>
+      ${facilityHtml}
     </div>`;
   }).join('') || '<div class="flow-card"><div class="empty">この日の自販機情報はありません。</div></div>';
 
@@ -4669,7 +4888,7 @@ function renderMonthlyActionPlan(){
 
   const autoRows=rows.filter(t=>t.autoMonthlyPlan);
   monthlyAutoSummary.textContent=autoRows.length
-    ? `自動作成 ${new Set(autoRows.map(t=>t.due)).size}日分・対象 ${autoRows.reduce((s,t)=>s+(t.machineIds?.length||0),0)}台`
+    ? `自動作成 ${new Set(autoRows.map(t=>t.due)).size}日分・対象 ${autoRows.reduce((s,t)=>s+(t.machineIds?.length||0),0)}台（休業日を除外）`
     : '自動作成分はまだありません';
 
   const groups=monthlyDayGroups();
@@ -4841,7 +5060,7 @@ function autoCreateMonthlyPlan(){
   }
 
   // Day buckets. We prefer same area, close GPS, near due date and capacity.
-  const buckets=new Map(workdays.map(d=>[d,{date:d,machines:[],minutes:0,areaCounts:new Map()}]));
+  const buckets=new Map(workdays.map(d=>[d,{date:d,machines:[],minutes:0,areaCounts:new Map(),capacity:dayWorkCapacity(d)}]));
 
   for(const item of candidates){
     const m=item.m;
@@ -4852,8 +5071,10 @@ function autoCreateMonthlyPlan(){
 
     let choices=workdays.map(date=>{
       const b=buckets.get(date);
-      if(b.machines.length>=maxStops)return null;
-      if(b.machines.length>0 && b.minutes+minutes>budget)return null;
+      const dayMaxStops=Math.max(1,Math.floor(maxStops*b.capacity));
+      const dayBudget=Math.max(30,Math.floor(budget*b.capacity));
+      if(b.machines.length>=dayMaxStops)return null;
+      if(b.machines.length>0 && b.minutes+minutes>dayBudget)return null;
 
       const dayGap=Math.abs(dayDiff(date,target));
       const sameArea=b.areaCounts.get(area)||0;
@@ -4901,6 +5122,28 @@ function autoCreateMonthlyPlan(){
         const ad=machineAutoDueDate(a,end),bd=machineAutoDueDate(b,end);
         return String(ad).localeCompare(String(bd));
       });
+      // 同じ施設を連続させ、その中ではGPSが近い順に寄せる
+      const facilityGroups=new Map();
+      machines.forEach(m=>{
+        const key=machineDisplayTitle(m);
+        if(!facilityGroups.has(key))facilityGroups.set(key,[]);
+        facilityGroups.get(key).push(m);
+      });
+      const groupedMachines=[...facilityGroups.values()];
+      const ordered=[];
+      let current=null;
+      while(groupedMachines.length){
+        let best=0,bestD=Infinity;
+        groupedMachines.forEach((g,i)=>{
+          if(!current){ if(i===0)best=0; return; }
+          const d=machinePairDistance(current,g[0]);
+          if(d<bestD){bestD=d;best=i}
+        });
+        const g=groupedMachines.splice(best,1)[0];
+        ordered.push(...g);
+        current=g[g.length-1];
+      }
+      machines.splice(0,machines.length,...ordered);
       const distanceKm=autoPlanDistanceKm(machines);
       const totalMinutes=machines.reduce((s,m)=>s+Math.max(1,Number(m.workMinutes||25)),0);
       const overdue=machines.some(m=>machineAutoDueDate(m,end)<start);
@@ -4931,6 +5174,10 @@ function autoCreateMonthlyPlan(){
 
 function calendarEventsForDate(date){
   const ev=[];
+  const holiday=japaneseHolidayName(date);
+  const off=customDayOff(date);
+  if(holiday)ev.push({type:'holiday',label:holiday});
+  if(off)ev.push({type:'dayoff',label:dayOffTypeLabel(off.type)});
   (db.tasks||[]).filter(t=>t.due===date&&!t.done).forEach(t=>ev.push({type:'task',label:t.title,machineId:t.machineId}));
   const r=db.routes?.[date];if(r?.stops?.length)ev.push({type:'route',label:`巡回 ${r.stops.length}台`});
   let reg=0,sup=0,col=0;db.machines.forEach(m=>{if(regularDueDate(m)===date)reg++;if(supplyDueDate(m)===date)sup++;if(collectionDueDate(m)===date)col++});
@@ -4938,15 +5185,36 @@ function calendarEventsForDate(date){
   return ev;
 }
 function renderCalendarDetail(date){
-  calendarSelectedDate=date;const ev=calendarEventsForDate(date);
-  calendarDetail.innerHTML=`<div class="row"><div><div class="section-title">${date}</div><b>${ev.length?`${ev.length}件`:'予定なし'}</b></div><button class="secondary" onclick="addTaskForDate('${date}')">＋予定</button></div>`;
-  ev.forEach(e=>{const d=document.createElement('div');d.className='calendar-detail-item';d.innerHTML=`<b>${escapeHtml(e.label)}</b><div class="sub">${e.type==='task'?'予定':e.type==='route'?'巡回':'期限'}</div>`;calendarDetail.appendChild(d)});
+  calendarSelectedDate=date;
+  const ev=calendarEventsForDate(date);
+  const holiday=japaneseHolidayName(date);
+  const off=customDayOff(date);
+  const d=ymdDate(date);
+  calendarDetail.innerHTML=`<div class="row">
+    <div>
+      <div class="section-title">${d.getMonth()+1}月${d.getDate()}日</div>
+      <b>${ev.length?`${ev.length}件`:'予定なし'}</b>
+      ${holiday?`<div class="holiday-label">${escapeHtml(holiday)}</div>`:''}
+      ${off?`<div class="dayoff-label">${escapeHtml(dayOffTypeLabel(off.type))}${off.memo?' ・ '+escapeHtml(off.memo):''}</div>`:''}
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="secondary" onclick="openDayOffPage('${date}')">休み設定</button>
+      <button class="secondary" onclick="addTaskForDate('${date}')">＋予定</button>
+    </div>
+  </div>`;
+  ev.forEach(e=>{
+    const item=document.createElement('div');
+    item.className='calendar-detail-item';
+    const type=e.type==='task'?'予定':e.type==='route'?'巡回':e.type==='holiday'?'祝日':e.type==='dayoff'?'休み':'期限';
+    item.innerHTML=`<b>${escapeHtml(e.label)}</b><div class="sub">${type}</div>`;
+    calendarDetail.appendChild(item);
+  });
 }
 function addTaskForDate(date){openTaskModal();taskDue.value=date}
 function renderWeekCalendar(){
   const start=mondayOf(calendarAnchor),days=Array.from({length:7},(_,i)=>addDaysYmd(start,i)),d0=ymdDate(start),d6=ymdDate(days[6]),names=['月','火','水','木','金','土','日'];
   calendarTitle.textContent=`${d0.getMonth()+1}/${d0.getDate()} 〜 ${d6.getMonth()+1}/${d6.getDate()}`;
-  calendarContent.innerHTML=`<div class="week-strip">${days.map((date,i)=>{const ev=calendarEventsForDate(date);return `<button class="week-day ${date===today()?'today':''}" onclick="renderCalendarDetail('${date}')"><div class="dow">${names[i]}</div><div class="daynum">${ymdDate(date).getDate()}</div>${ev.slice(0,3).map(e=>`<div class="cal-dot ${e.type}">${escapeHtml(e.label)}</div>`).join('')}${ev.length>3?`<div class="cal-dot">+${ev.length-3}</div>`:''}</button>`}).join('')}</div>`;
+  calendarContent.innerHTML=`<div class="week-strip">${days.map((date,i)=>{const ev=calendarEventsForDate(date);return `<button class="week-day ${date===today()?'today':''} ${japaneseHolidayName(date)?'holiday-day':''} ${customDayOff(date)?'custom-off-day':''}" onclick="renderCalendarDetail('${date}')"><div class="dow">${names[i]}</div><div class="daynum">${ymdDate(date).getDate()}</div>${ev.slice(0,3).map(e=>`<div class="cal-dot ${e.type}">${escapeHtml(e.label)}</div>`).join('')}${ev.length>3?`<div class="cal-dot">+${ev.length-3}</div>`:''}</button>`}).join('')}</div>`;
 }
 function renderMonthCalendar(){
   const a=ymdDate(calendarAnchor),first=new Date(a.getFullYear(),a.getMonth(),1,12),last=new Date(a.getFullYear(),a.getMonth()+1,0,12),start=new Date(first),end=new Date(last);
@@ -4954,7 +5222,7 @@ function renderMonthCalendar(){
   const days=[];for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1))days.push(localYmd(d));
   calendarTitle.textContent=`${first.getFullYear()}年 ${first.getMonth()+1}月`;
   const heads=['日','月','火','水','木','金','土'].map(x=>`<div class="month-head">${x}</div>`).join('');
-  calendarContent.innerHTML=`<div class="month-grid">${heads}${days.map(date=>{const dd=ymdDate(date),ev=calendarEventsForDate(date),other=dd.getMonth()!==first.getMonth();return `<button class="month-day ${other?'other':''} ${date===today()?'today':''}" onclick="renderCalendarDetail('${date}')"><div class="n">${dd.getDate()}</div>${ev.slice(0,2).map(e=>`<div class="month-event">${escapeHtml(e.label)}</div>`).join('')}${ev.length>2?`<div class="month-event">+${ev.length-2}</div>`:''}</button>`}).join('')}</div>`;
+  calendarContent.innerHTML=`<div class="month-grid">${heads}${days.map(date=>{const dd=ymdDate(date),ev=calendarEventsForDate(date),other=dd.getMonth()!==first.getMonth();const holiday=!!japaneseHolidayName(date),off=customDayOff(date);return `<button class="month-day ${other?'other':''} ${date===today()?'today':''} ${holiday?'holiday-day':''} ${off?'custom-off-day':''}" onclick="renderCalendarDetail('${date}')"><div class="n">${dd.getDate()}</div>${ev.slice(0,2).map(e=>`<div class="month-event ${e.type==='holiday'?'holiday-event':''} ${e.type==='dayoff'?'dayoff-event':''}">${escapeHtml(e.label)}</div>`).join('')}${ev.length>2?`<div class="month-event">+${ev.length-2}</div>`:''}</button>`}).join('')}</div>`;
 }
 function renderCalendar(){
   calendarWeekBtn.classList.toggle('active',calendarMode==='week');calendarMonthBtn.classList.toggle('active',calendarMode==='month');
@@ -5517,7 +5785,7 @@ if(window.modelPageBackBtn)modelPageBackBtn.addEventListener('click',closeModelE
 if(window.modelPageCancelBtn)modelPageCancelBtn.addEventListener('click',closeModelEditorPage);
 if(window.modelPageSaveBtn)modelPageSaveBtn.addEventListener('click',saveModelEditorPage);
 
-window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
+window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
 window.openModelEditor=openModelEditor;window.deleteModel=deleteModel;window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
