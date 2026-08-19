@@ -809,6 +809,22 @@ nav.modal-blocked{
   background:#f4f4f6;
   padding:8px 0;
 }
+
+.model-master-row{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:11px 0;border-bottom:1px solid var(--line);
+}
+.model-master-row:last-child{border-bottom:0}
+.model-master-actions{display:flex;gap:6px}
+.model-chip{
+  display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;
+  background:#eef2ff;color:#3730a3;font-size:11px;font-weight:850;
+}
+.action-success{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:96px;z-index:50000;
+  background:#111827;color:#fff;padding:10px 14px;border-radius:999px;font-weight:800;
+  box-shadow:0 8px 22px #0003;
+}
 </style>
 </head>
 <body>
@@ -1241,6 +1257,7 @@ nav.modal-blocked{
         <button data-settings-tab="map">MAP</button>
         <button data-settings-tab="display">表示</button>
         <button data-settings-tab="area">エリア</button>
+        <button data-settings-tab="model">機種</button>
         <button data-settings-tab="data">データ</button>
       </div>
 
@@ -1314,7 +1331,21 @@ nav.modal-blocked{
         </div>
       </div>
 
-      <div class="settings-panel hidden" data-settings-panel="data">
+      
+      <div class="settings-panel hidden" data-settings-panel="model">
+        <div class="settings-group">
+          <div class="row">
+            <div>
+              <div class="section-title">機種マスター</div>
+              <div class="sub">機種名・標準作業時間・メモを登録</div>
+            </div>
+            <button class="secondary" type="button" id="addModelBtn">＋追加</button>
+          </div>
+          <div id="modelMasterList" style="margin-top:12px"></div>
+        </div>
+      </div>
+
+<div class="settings-panel hidden" data-settings-panel="data">
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
           <div class="backup-actions">
@@ -1340,7 +1371,7 @@ nav.modal-blocked{
           <div>
             <div class="section-title">新規登録</div>
             <div style="font-size:24px;font-weight:900">自販機を登録</div>
-            <div class="sub">名前だけでも登録できます。場所や巡回情報は後から追加できます。</div>
+            <div class="sub">表示名だけでも登録できます。機種・場所・巡回情報は後から追加できます。</div>
           </div>
           <button class="secondary" id="registerCancelBtn">戻る</button>
         </div>
@@ -1349,7 +1380,9 @@ nav.modal-blocked{
       <form id="registerPageForm" novalidate onsubmit="return false;">
         <div class="reg-section">
           <div class="reg-title">基本情報</div>
-          <label>自販機名 *</label>
+          <label>機種</label>
+          <select id="rpModel"><option value="">未設定</option></select>
+<label>表示名 *</label>
           <input id="rpName" required placeholder="例：丸亀市役所3F ①" />
 
           <label>設置場所</label>
@@ -1614,6 +1647,24 @@ nav.modal-blocked{
 </div>
 
 
+
+<div class="modal hidden" id="modelModal">
+  <div class="sheet">
+    <div class="row">
+      <h2 id="modelModalTitle">機種を追加</h2>
+      <button class="secondary" data-close="modelModal">閉じる</button>
+    </div>
+    <input type="hidden" id="modelEditId">
+    <label>機種名 *</label>
+    <input id="modelName" placeholder="例：85QV" />
+    <label>標準作業時間（分）</label>
+    <input id="modelMinutes" type="number" min="1" value="25" />
+    <label>機種メモ</label>
+    <textarea id="modelMemo" rows="4" placeholder="注意点・タンク種類など"></textarea>
+    <button class="primary" id="saveModelBtn" style="margin-top:14px">保存する</button>
+  </div>
+</div>
+
 <div class="modal hidden" id="historyModal">
   <div class="sheet">
     <div class="row"><h2>日報・履歴</h2><button class="secondary" data-close="historyModal">閉じる</button></div>
@@ -1687,6 +1738,7 @@ function syncDbFromStorage(){
       if(!db.shifts) db.shifts={};
       if(!Array.isArray(db.tasks)) db.tasks=[];
       if(!Array.isArray(db.troubles)) db.troubles=[];
+if(!Array.isArray(db.models)) db.models=[];
 if(!db.settings)db.settings={};
 if(db.settings.routeDefaultMode===undefined)db.settings.routeDefaultMode='recommended';
 if(db.settings.mapZoom===undefined)db.settings.mapZoom=14;
@@ -1825,14 +1877,34 @@ function renderManualRouteList(){
   if(!list.length){manualRouteList.innerHTML='<div class="empty">該当する自販機がありません。</div>';return}
   manualRouteList.innerHTML=list.map(m=>{
     const i=manualRouteSelected.indexOf(m.id),sel=i>=0;
-    return `<button class="manual-machine ${sel?'selected':''}" style="width:100%;text-align:left" onclick="toggleManualMachine('${m.id}')"><span style="display:flex;align-items:center;gap:8px">${sel?`<span class="manual-order">${i+1}</span>`:'<span class="manual-order" style="background:#e5e7eb;color:#64748b">＋</span>'}<span><b>${escapeHtml(m.name)}</b><span class="sub">${m.site?escapeHtml(m.site)+' ・ ':''}${escapeHtml(m.area||'未設定')}</span></span></span><span class="mini">${Number(m.workMinutes||25)}分</span></button>`;
+    return `<button class="manual-machine ${sel?'selected':''}" style="width:100%;text-align:left" onclick="toggleManualMachine('${m.id}')"><span style="display:flex;align-items:center;gap:8px">${sel?`<span class="manual-order">${i+1}</span>`:'<span class="manual-order" style="background:#e5e7eb;color:#64748b">＋</span>'}<span><b>${escapeHtml(m.name)}</b>${m.modelName?`<div class="sub">${escapeHtml(m.modelName)}</div>`:''}<span class="sub">${m.site?escapeHtml(m.site)+' ・ ':''}${escapeHtml(m.area||'未設定')}</span></span></span><span class="mini">${Number(m.workMinutes||25)}分</span></button>`;
   }).join('');
 }
 function createManualRoute(){
+  if(manualCreateBtn.disabled)return;
   const chosen=manualRouteSelected.map(id=>machine(id)).filter(Boolean);
-  db.routes[today()]={date:today(),createdAt:Date.now(),areaFilter:'manual',candidateMode:'manual',
-    stops:chosen.map((m,i)=>({id:uid(),machineId:m.id,order:i+1,status:'pending',workTypes:routeWorkTypes(m),plannedMinutes:Number(m.workMinutes||25)}))};
-  save();renderAll();switchPage('route');showToast(`${chosen.length}台の巡回を作成しました`);
+  if(!chosen.length){alert('自販機を1台以上選んでください');return}
+  manualCreateBtn.disabled=true;
+  manualCreateBtn.textContent='作成中…';
+  try{
+    db.routes[today()]={
+      date:today(),createdAt:Date.now(),areaFilter:'manual',candidateMode:'manual',
+      stops:chosen.map((m,i)=>({
+        id:uid(),machineId:m.id,order:i+1,status:'pending',
+        workTypes:routeWorkTypes(m),plannedMinutes:Number(m.workMinutes||25)
+      }))
+    };
+    save();
+    renderAll();
+    switchPage('route');
+    showToast(`${chosen.length}台の巡回を作成しました`);
+  }catch(e){
+    console.error(e);
+    alert('巡回の保存に失敗しました');
+  }finally{
+    manualCreateBtn.disabled=false;
+    manualCreateBtn.textContent='この内容で巡回を作成';
+  }
 }
 
 function machineTroubles(m){
@@ -2636,6 +2708,8 @@ function openRegisterPage(returnPage='machines',machineId=null){
     if(!m){alert('編集対象が見つかりません。');return}
     registerEditingId=machineId;
     rpName.value=m.name||'';
+    fillModelSelect();
+    rpModel.value=m.modelId||'';
     rpSite.value=m.site||'';
     rpNumber.value=m.number||'';
     if([...rpArea.options].some(o=>o.value===(m.area||'未設定'))) rpArea.value=m.area||'未設定';
@@ -2656,6 +2730,7 @@ function openRegisterPage(returnPage='machines',machineId=null){
   }else{
     document.querySelector('#registerPage .section-title').textContent='新規登録';
     document.querySelector('#registerPage [style*="font-size:24px"]').textContent='自販機を登録';
+    fillModelSelect();
     registerSaveBtn.textContent='この内容で登録する';
     addSameSiteBtn.classList.add('hidden');
   }
@@ -2666,7 +2741,7 @@ function openRegisterPage(returnPage='machines',machineId=null){
 }
 function closeRegisterPage(){
   registerEditingId=null;
-  switchPage(registerReturnPage||'machines');
+  switchPage('machines');
 }
 function useCurrentLocationForRegister(){
   if(!navigator.geolocation){alert('この端末では位置情報を使えません。');return}
@@ -2718,6 +2793,8 @@ function addSameSiteMachineFromEdit(){
 
   registerEditingId=null;
   rpName.value='';
+  fillModelSelect();
+  rpModel.value=m.modelId||'';
   rpNumber.value='';
   rpSite.value=m.site||'';
   if([...rpArea.options].some(o=>o.value===(m.area||'未設定'))) rpArea.value=m.area||'未設定';
@@ -2771,6 +2848,8 @@ function saveRegisterPage(){
     const data={
       id,
       name,
+      modelId:rpModel?.value||'',
+      modelName:rpModel?.value?(modelById(rpModel.value)?.name||''):'',
       site:(rpSite.value||'').trim(),
       number:(rpNumber.value||'').trim(),
       area:rpArea.value||'未設定',
@@ -3357,6 +3436,7 @@ function fillMachineSelect(sel,optional){
 }
 function renderWorkDashboard(){
   if(!Array.isArray(db.troubles)) db.troubles=[];
+      if(!Array.isArray(db.models)) db.models=[];
       if(!db.settings)db.settings={};
       if(db.settings.routeDefaultMode===undefined)db.settings.routeDefaultMode='recommended';
       if(db.settings.mapZoom===undefined)db.settings.mapZoom=14;
@@ -3592,13 +3672,74 @@ function hideModal(id){
   const anyOpen=[...document.querySelectorAll('.modal')].some(m=>!m.classList.contains('hidden'));
   if(!anyOpen)unlockPageFromModal();
 }
+
+function modelById(id){return (db.models||[]).find(m=>m.id===id)}
+function fillModelSelect(){
+  if(!window.rpModel)return;
+  const current=rpModel.value;
+  rpModel.innerHTML='<option value="">未設定</option>'+(db.models||[])
+    .slice().sort((a,b)=>String(a.name).localeCompare(String(b.name),'ja'))
+    .map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
+  if([...rpModel.options].some(o=>o.value===current))rpModel.value=current;
+}
+function renderModelMaster(){
+  if(!window.modelMasterList)return;
+  const list=(db.models||[]).slice().sort((a,b)=>String(a.name).localeCompare(String(b.name),'ja'));
+  if(!list.length){
+    modelMasterList.innerHTML='<div class="empty">機種はまだ登録されていません。</div>';
+    return;
+  }
+  modelMasterList.innerHTML=list.map(m=>`
+    <div class="model-master-row">
+      <div>
+        <b>${escapeHtml(m.name)}</b>
+        <div class="sub">標準 ${Number(m.minutes||25)}分${m.memo?' ・ '+escapeHtml(m.memo):''}</div>
+      </div>
+      <div class="model-master-actions">
+        <button class="secondary" onclick="openModelEditor('${m.id}')">編集</button>
+        <button class="secondary" onclick="deleteModel('${m.id}')">削除</button>
+      </div>
+    </div>`).join('');
+}
+function openModelEditor(id=null){
+  const m=id?modelById(id):null;
+  modelEditId.value=m?.id||'';
+  modelName.value=m?.name||'';
+  modelMinutes.value=m?.minutes||25;
+  modelMemo.value=m?.memo||'';
+  modelModalTitle.textContent=m?'機種を編集':'機種を追加';
+  showModal('modelModal');
+}
+function deleteModel(id){
+  if(!confirm('この機種を削除しますか？\\n登録済み自販機の機種名表示はそのまま保持します。'))return;
+  db.models=(db.models||[]).filter(m=>m.id!==id);
+  save();
+  renderModelMaster();
+  fillModelSelect();
+}
+function saveModelMaster(){
+  const name=modelName.value.trim();
+  if(!name){alert('機種名を入力してください');return}
+  const id=modelEditId.value||uid();
+  const data={id,name,minutes:Math.max(1,Number(modelMinutes.value)||25),memo:modelMemo.value.trim()};
+  const idx=(db.models||[]).findIndex(m=>m.id===id);
+  if(idx>=0)db.models[idx]=data;else db.models.push(data);
+  save();
+  hideModal('modelModal');
+  renderModelMaster();
+  fillModelSelect();
+  showToast(`${name} を保存しました`);
+}
+
 function renderSettingsAreaSummary(){
   settingsAreaSummary.innerHTML=areaNames().length
     ? areaNames().map(a=>`<span class="settings-area-chip">${escapeHtml(a)}</span>`).join('')
     : '<span class="sub">エリアはまだありません</span>';
 }
 function setSettingsTab(name){
-  document.querySelectorAll('#settingsTabs button').forEach(b=>b.classList.toggle('active',b.dataset.settingsTab===name));
+  addModelBtn.addEventListener('click',()=>openModelEditor());
+saveModelBtn.addEventListener('click',saveModelMaster);
+document.querySelectorAll('#settingsTabs button').forEach(b=>b.classList.toggle('active',b.dataset.settingsTab===name));
   document.querySelectorAll('[data-settings-panel]').forEach(p=>p.classList.toggle('hidden',p.dataset.settingsPanel!==name));
 }
 function applyAppSettings(){
@@ -3623,6 +3764,7 @@ function setSettingsFields(){
   sHaptics.checked=db.settings.haptics!==false;
   mapKitTokenStatus.textContent=db.settings.mapKitToken?'店舗・施設検索：設定済み':'未設定の場合は登録済み自販機検索＋Apple Maps外部検索を使います。';
   renderSettingsAreaSummary();
+  renderModelMaster();
   setSettingsTab('work');
 }
 
@@ -3720,14 +3862,32 @@ taskForm.addEventListener('submit',e=>{
 });
 troubleForm.addEventListener('submit',e=>{
   e.preventDefault();
-  const mid=troubleMachine.value;
-  const tr={id:uid(),machineId:mid,type:troubleType.value,priority:troublePriority.value,memo:troubleMemo.value.trim(),status:'open',receivedAt:Date.now()};
-  db.troubles.push(tr);
-  if(troubleAddRoute.checked&&mid){
-    const m=machine(mid),r=ensureRoute();
-    if(m&&!r.stops.some(s=>s.machineId===mid)) r.stops.push({id:uid(),machineId:mid,order:r.stops.length+1,status:'pending',workTypes:['トラブル'],plannedMinutes:Number(m.workMinutes||25)});
+  if(troubleSaveBtn.disabled)return;
+  troubleSaveBtn.disabled=true;
+  troubleSaveBtn.textContent='保存中…';
+  try{
+    const machineId=troubleMachine.value;
+    if(!machineId){alert('自販機を選んでください');return}
+    const item={
+      id:uid(),machineId,
+      type:troubleType.value,
+      priority:troublePriority.value,
+      memo:troubleMemo.value.trim(),
+      status:'open',createdAt:Date.now(),date:today()
+    };
+    db.troubles.push(item);
+    if(troubleAddRoute.checked)addMachineToToday(machineId,true);
+    save();
+    renderAll();
+    switchPage('home');
+    showToast('トラブルを受付しました');
+  }catch(err){
+    console.error(err);
+    alert('トラブルの保存に失敗しました');
+  }finally{
+    troubleSaveBtn.disabled=false;
+    troubleSaveBtn.textContent='受付する';
   }
-  save();renderAll();switchPage(troubleReturnPage||'home');showToast('トラブルを受け付けました');
 });
 historyBtn.addEventListener('click',()=>{renderHistory();showModal('historyModal')});
 exportTodayReportBtn.addEventListener('click',()=>exportReportCsv(false));
@@ -3892,6 +4052,11 @@ dailyReportCopyBtn.addEventListener('click',async()=>{
   try{await navigator.clipboard.writeText(text);showToast('日報をコピーしました')}
   catch(e){prompt('日報をコピーしてください',text)}
 });
+if(window.rpModel)rpModel.addEventListener('change',()=>{
+  const m=modelById(rpModel.value);
+  if(!m)return;
+  if(window.rpWorkMinutes && (!rpWorkMinutes.value || Number(rpWorkMinutes.value)===25))rpWorkMinutes.value=m.minutes||25;
+});
 registerCancelBtn.addEventListener('click',closeRegisterPage);
 rpUseCurrentLocation.addEventListener('click',useCurrentLocationForRegister);
 rpChooseOnMap.addEventListener('click',chooseLocationOnMapForRegister);
@@ -3934,7 +4099,7 @@ document.addEventListener('visibilitychange',()=>{
   }
 });
 
-window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
+window.openModelEditor=openModelEditor;window.deleteModel=deleteModel;window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 setInterval(()=>{if(db.active || (hasDeparted()&&!hasReturned())){renderShift();renderActive();renderHome()}},1000);
