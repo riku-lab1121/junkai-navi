@@ -1246,6 +1246,17 @@ nav.modal-blocked{
 
 /* Ver.8.8 外回り終了と業務終了を分離 */
 #returnConfirmPage{min-height:calc(100dvh - 90px);padding-bottom:110px!important}
+
+.route-edit-notice{
+  margin:0 0 12px;
+  padding:10px 12px;
+  border-radius:12px;
+  background:#eef6ff;
+  color:#36536f;
+  font-size:11px;
+  line-height:1.45;
+  font-weight:750;
+}
 </style>
 </head>
 <body>
@@ -1562,6 +1573,8 @@ nav.modal-blocked{
   
     
     <section id="manualRoutePage" class="hidden flow-page">
+<div class="route-edit-notice">外回り終了後でも、巡回の作成・編集・並べ替えはできます。作業開始だけできません。</div>
+
       <div class="flow-head">
         <div>
           <div class="section-title">巡回作成</div>
@@ -2760,27 +2773,49 @@ function createManualRoute(){
   if(manualCreateBtn.disabled)return;
   const chosen=manualRouteSelected.map(id=>machine(id)).filter(Boolean);
   if(!chosen.length){alert('自販機を1台以上選んでください');return}
+
   manualCreateBtn.disabled=true;
-  manualCreateBtn.textContent='作成中…';
+  manualCreateBtn.textContent='保存中…';
+
+  const route={
+    date:today(),
+    createdAt:Date.now(),
+    areaFilter:'manual',
+    candidateMode:'manual',
+    stops:chosen.map((m,i)=>({
+      id:uid(),
+      machineId:m.id,
+      order:i+1,
+      status:'pending',
+      workTypes:routeWorkTypes(m),
+      plannedMinutes:Number(m.workMinutes||25)
+    }))
+  };
+
   try{
-    db.routes[today()]={
-      date:today(),createdAt:Date.now(),areaFilter:'manual',candidateMode:'manual',
-      stops:chosen.map((m,i)=>({
-        id:uid(),machineId:m.id,order:i+1,status:'pending',
-        workTypes:routeWorkTypes(m),plannedMinutes:Number(m.workMinutes||25)
-      }))
-    };
-    save();
-    renderAll();
-    switchPage('route');
-    showToast(`${chosen.length}台の巡回を作成しました`);
+    if(!db.routes)db.routes={};
+    db.routes[today()]=route;
+
+    // 巡回データの保存を最優先。外回り終了済みでも作成・編集は可能。
+    localStorage.setItem(DBKEY,JSON.stringify(db));
   }catch(e){
-    console.error(e);
-    alert('巡回の保存に失敗しました');
-  }finally{
+    console.error('route storage save failed',e);
+    alert('巡回データを保存できませんでした。端末の保存容量などを確認してください。');
     manualCreateBtn.disabled=false;
     manualCreateBtn.textContent='この内容で巡回を作成';
+    return;
   }
+
+  // 保存後の表示更新は失敗しても「保存失敗」扱いにしない。
+  try{switchPage('route')}catch(e){console.warn('route page switch',e)}
+  try{renderRoute()}catch(e){console.warn('route render',e)}
+  try{renderHome()}catch(e){console.warn('home render',e)}
+  try{renderWorkDashboard()}catch(e){console.warn('dashboard render',e)}
+
+  manualCreateBtn.disabled=false;
+  manualCreateBtn.textContent='この内容で巡回を作成';
+  showToast(`${chosen.length}台の巡回を保存しました`);
+  window.scrollTo(0,0);
 }
 
 function machineTroubles(m){
