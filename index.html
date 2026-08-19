@@ -950,6 +950,8 @@ nav.modal-blocked{
   color:#fff;
   border-color:#111827;
 }
+
+/* Ver.7.4.1: 機種と設置先施設は完全に独立 */
 </style>
 </head>
 <body>
@@ -4368,8 +4370,11 @@ dailyReportCopyBtn.addEventListener('click',async()=>{
 if(window.rpModel)rpModel.addEventListener('change',()=>{
   const m=modelById(rpModel.value);
   if(!m)return;
-  if(window.rpWorkMinutes && (!rpWorkMinutes.value || Number(rpWorkMinutes.value)===25))rpWorkMinutes.value=m.minutes||25;
-  if(!rpName.value.trim())rpName.value=m.name||'';
+  // 機種選択では標準作業時間だけ反映する。
+  // 設置先施設(rpName)・設置場所(rpSite)は絶対に変更しない。
+  if(window.rpWorkMinutes && (!rpWorkMinutes.value || Number(rpWorkMinutes.value)===25)){
+    rpWorkMinutes.value=m.minutes||25;
+  }
 });
 registerCancelBtn.addEventListener('click',closeRegisterPage);
 rpUseCurrentLocation.addEventListener('click',useCurrentLocationForRegister);
