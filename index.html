@@ -1384,6 +1384,50 @@ nav.modal-blocked{
   width:40px;height:40px;border:0;border-radius:10px;background:#eef2f7;font-weight:900;font-size:16px
 }
 .manual-order-arrows button:disabled{opacity:.3}
+
+/* Ver.9.0 施設マスター */
+.facility-master-list{display:flex;flex-direction:column;gap:8px}
+.facility-master-item{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:13px;border:1px solid #e5e7eb;border-radius:14px;background:#fff;text-align:left
+}
+.facility-master-item b{display:block;font-size:16px;color:#111827}
+.facility-master-meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.facility-master-meta span{
+  display:inline-flex;padding:4px 7px;border-radius:999px;background:#eef2f7;
+  color:#475569;font-size:10px;font-weight:850
+}
+.facility-chevron{font-size:24px;color:#94a3b8}
+.facility-weekdays{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:8px}
+.facility-weekdays label{
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding:8px 2px;border-radius:10px;background:#f8fafc;font-size:11px;font-weight:850
+}
+.facility-weekdays input{width:20px;height:20px}
+#facilityEditorPage{padding-bottom:110px!important}
+
+/* Ver.9.1 施設時間を自動巡回へ反映 */
+.route-preview-time{
+  margin-top:6px;
+  font-size:11px;
+  color:#475569;
+  line-height:1.4;
+}
+.route-preview-time b{color:#111827}
+.route-window-warning{
+  margin-top:7px;
+  padding:7px 9px;
+  border-radius:9px;
+  background:#fff7dd;
+  color:#8a5a00;
+  font-size:10px;
+  font-weight:850;
+  line-height:1.4;
+}
+.route-time-warning{
+  border-color:#f5c451!important;
+  background:#fffdf5!important;
+}
 </style>
 </head>
 <body>
@@ -1930,6 +1974,7 @@ nav.modal-blocked{
         <button data-settings-tab="map">MAP</button>
         <button data-settings-tab="display">表示</button>
         <button data-settings-tab="area">エリア</button>
+        <button data-settings-tab="facility">施設</button>
         <button data-settings-tab="model">機種</button>
         <button data-settings-tab="data">データ</button>
       </div>
@@ -2005,6 +2050,19 @@ nav.modal-blocked{
       </div>
 
       
+      <div class="settings-panel hidden" data-settings-panel="facility">
+        <div class="settings-group">
+          <div class="row">
+            <div>
+              <div class="section-title">施設マスター</div>
+              <div class="sub">訪問時間・休業日・駐車・搬入口などを施設単位で管理</div>
+            </div>
+            <button class="secondary" type="button" id="addFacilityBtn">＋追加</button>
+          </div>
+          <div id="facilityMasterList" class="facility-master-list" style="margin-top:12px"></div>
+        </div>
+      </div>
+
       <div class="settings-panel hidden" data-settings-panel="model">
         <div class="settings-group">
           <div class="row">
@@ -2038,6 +2096,62 @@ nav.modal-blocked{
       </div>
     </section>
 
+
+
+<section id="facilityEditorPage" class="hidden flow-page">
+  <div class="flow-head">
+    <div>
+      <div class="section-title">施設マスター</div>
+      <div class="flow-title" id="facilityPageTitle">施設を追加</div>
+      <div class="sub">同じ施設にある自販機で共通利用します。</div>
+    </div>
+    <button class="secondary" type="button" id="facilityPageBackBtn">戻る</button>
+  </div>
+
+  <div class="flow-card">
+    <input type="hidden" id="facilityPageEditId">
+    <label>施設名 *</label>
+    <input id="facilityPageName" placeholder="例：丸亀市役所">
+    <label>エリア</label>
+    <select id="facilityPageArea"></select>
+
+    <div class="section-title" style="margin-top:18px">訪問可能時間</div>
+    <div class="grid2">
+      <div><label>開始</label><input id="facilityVisitStart" type="time"></div>
+      <div><label>終了</label><input id="facilityVisitEnd" type="time"></div>
+    </div>
+
+    <div class="section-title" style="margin-top:18px">避けたい時間</div>
+    <div class="grid2">
+      <div><label>開始</label><input id="facilityAvoidStart" type="time"></div>
+      <div><label>終了</label><input id="facilityAvoidEnd" type="time"></div>
+    </div>
+
+    <div class="section-title" style="margin-top:18px">入れない曜日</div>
+    <div class="facility-weekdays" id="facilityClosedWeekdays">
+      <label><input type="checkbox" value="1"><span>月</span></label>
+      <label><input type="checkbox" value="2"><span>火</span></label>
+      <label><input type="checkbox" value="3"><span>水</span></label>
+      <label><input type="checkbox" value="4"><span>木</span></label>
+      <label><input type="checkbox" value="5"><span>金</span></label>
+      <label><input type="checkbox" value="6"><span>土</span></label>
+      <label><input type="checkbox" value="0"><span>日</span></label>
+    </div>
+
+    <label style="margin-top:18px">駐車場所</label>
+    <input id="facilityParking" placeholder="例：地下駐車場、裏口横">
+    <label>搬入口・入り方</label>
+    <input id="facilityEntrance" placeholder="例：東側搬入口、受付で声かけ">
+    <label>注意事項</label>
+    <textarea id="facilityNote" rows="4" placeholder="例：12:00〜13:00は食堂混雑、受付に一声"></textarea>
+  </div>
+
+  <div class="simple-page-actions">
+    <button class="primary" type="button" id="facilityPageSaveBtn">保存する</button>
+    <button class="secondary danger hidden" type="button" id="facilityPageDeleteBtn">この施設を削除</button>
+    <button class="secondary" type="button" id="facilityPageCancelBtn">キャンセル</button>
+  </div>
+</section>
 
 <section id="modelEditorPage" class="hidden flow-page">
   <div class="flow-head">
@@ -2126,6 +2240,24 @@ nav.modal-blocked{
       <div><span>管理No</span><b id="machineDetailNumber">-</b></div>
       <div><span>エリア</span><b id="machineDetailArea">-</b></div>
       <div><span>作業目安</span><b id="machineDetailMinutes">-</b></div>
+    </div>
+  </div>
+
+  <div class="flow-card" id="machineFacilityInfoCard">
+    <div class="section-title">施設情報</div>
+    <div class="machine-detail-grid">
+      <div><span>訪問可能</span><b id="machineFacilityVisit">未設定</b></div>
+      <div><span>避けたい時間</span><b id="machineFacilityAvoid">なし</b></div>
+      <div><span>入れない曜日</span><b id="machineFacilityClosed">なし</b></div>
+      <div><span>駐車</span><b id="machineFacilityParking">未設定</b></div>
+    </div>
+    <div id="machineFacilityEntranceWrap" class="hidden" style="margin-top:12px">
+      <div class="sub">搬入口・入り方</div>
+      <div id="machineFacilityEntrance" class="machine-detail-note"></div>
+    </div>
+    <div id="machineFacilityNoteWrap" class="hidden" style="margin-top:12px">
+      <div class="sub">注意事項</div>
+      <div id="machineFacilityNote" class="machine-detail-note"></div>
     </div>
   </div>
 
@@ -2323,6 +2455,10 @@ nav.modal-blocked{
           <div class="reg-title">基本情報</div>
           <label>機種</label>
           <select id="rpModel"><option value="">未設定</option></select>
+
+          <label>登録済み施設から選ぶ</label>
+          <select id="rpFacility"><option value="">新しい施設を入力</option></select>
+          <div class="sub" style="margin-top:-6px;margin-bottom:8px">選ぶと施設名・エリアを自動入力します。</div>
 <label>設置先施設 *</label>
           <div class="sub" style="margin-top:-6px;margin-bottom:8px">自販機を設置している建物・施設・店舗などの名前です。機種とは別に管理します。</div>
           <input id="rpName" required placeholder="例：丸亀市役所、中部市場" />
@@ -2731,7 +2867,7 @@ const defaults={
     {id:uid(),name:'サンプル：事務所B',number:'004',lat:34.3155,lng:134.0710,lastRegular:isoDaysAgo(9),weekly:true,lastSupply:isoDaysAgo(7),workMinutes:20,memo:''},
     {id:uid(),name:'サンプル：施設C',number:'005',lat:34.3650,lng:134.0310,lastRegular:isoDaysAgo(13),weekly:false,lastSupply:isoDaysAgo(13),workMinutes:25,memo:''}
   ],
-  routes:{}, logs:[], active:null, shifts:{}, daysOff:[]
+  routes:{}, logs:[], active:null, shifts:{}, daysOff:[], facilities:[]
 };
 let db=load();
 if(!db.machines) db.machines=[];
@@ -2741,6 +2877,29 @@ if(!db.shifts) db.shifts={};
 if(!db.tasks) db.tasks=[];
 if(!db.troubles) db.troubles=[];
 if(!Array.isArray(db.daysOff)) db.daysOff=[];
+
+if(!Array.isArray(db.facilities)) db.facilities=[];
+function ensureFacilityMaster(){
+  if(!Array.isArray(db.facilities))db.facilities=[];
+  const keyOf=(name,area)=>`${String(area||'未設定').trim()}|${String(name||'').trim()}`;
+  const byId=new Map(db.facilities.map(f=>[f.id,f]));
+  const byKey=new Map(db.facilities.map(f=>[keyOf(f.name,f.area),f]));
+  (db.machines||[]).forEach(m=>{
+    let f=m.facilityId?byId.get(m.facilityId):null;
+    if(!f){
+      const key=keyOf(m.name,m.area);
+      f=byKey.get(key);
+      if(!f && (m.name||'').trim()){
+        f={id:uid(),name:(m.name||'').trim(),area:m.area||'未設定',
+          visitStart:'',visitEnd:'',avoidStart:'',avoidEnd:'',closedWeekdays:[],
+          parking:'',entrance:'',note:'',createdAt:Date.now()};
+        db.facilities.push(f);byId.set(f.id,f);byKey.set(key,f);
+      }
+      if(f)m.facilityId=f.id;
+    }
+  });
+}
+ensureFacilityMaster();
 db.machines.forEach(m=>{
   if(!m.area) m.area='未設定';
   if(!m.regularIntervalDays) m.regularIntervalDays=14;
@@ -2886,6 +3045,36 @@ function machineDisplaySub(m){
 function machineDisplayHtml(m){
   return `<div class="machine-place-main">${escapeHtml(machineDisplayTitle(m))}</div>
           <div class="machine-place-sub">${escapeHtml(machineDisplaySub(m)||'設置場所・機種 未設定')}</div>`;
+}
+
+
+function facility(id){return (db.facilities||[]).find(f=>f.id===id)||null}
+function facilityForMachine(m){
+  if(!m)return null;
+  if(m.facilityId){
+    const f=facility(m.facilityId);
+    if(f)return f;
+  }
+  return (db.facilities||[]).find(f=>f.name===m.name&&(f.area||'未設定')===(m.area||'未設定'))||null;
+}
+function facilityMachineCount(f){
+  return (db.machines||[]).filter(m=>facilityForMachine(m)?.id===f.id).length;
+}
+function facilityClosedLabel(f){
+  const labels=['日','月','火','水','木','金','土'];
+  const days=(f?.closedWeekdays||[]).map(Number);
+  return days.length?days.map(d=>labels[d]).join('・'):'なし';
+}
+function facilityVisitLabel(f){
+  if(!f)return '未設定';
+  if(f.visitStart&&f.visitEnd)return `${f.visitStart}〜${f.visitEnd}`;
+  if(f.visitStart)return `${f.visitStart}以降`;
+  if(f.visitEnd)return `${f.visitEnd}まで`;
+  return '未設定';
+}
+function facilityAvoidLabel(f){
+  if(f?.avoidStart&&f?.avoidEnd)return `${f.avoidStart}〜${f.avoidEnd}`;
+  return 'なし';
 }
 
 function machine(id){return db.machines.find(m=>m.id===id)}
@@ -3282,14 +3471,171 @@ function renderRouteAreaMulti(){
   });
 }
 
+
+function timeToMinutes(value){
+  if(!value||!String(value).includes(':'))return null;
+  const [hh,mm]=String(value).split(':').map(Number);
+  if(!Number.isFinite(hh)||!Number.isFinite(mm))return null;
+  return hh*60+mm;
+}
+function minutesToTime(value){
+  let min=Math.max(0,Math.round(value));
+  const hh=Math.floor(min/60)%24;
+  const mm=min%60;
+  return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+}
+function routePlanningStartMinutes(){
+  const now=new Date();
+  const start=timeToMinutes(db.settings?.start||'08:30')??510;
+  // 出発済みでまだ外回り中なら、現在時刻以降で計画する。
+  if(hasDeparted()&&!hasReturned()){
+    return Math.max(start,now.getHours()*60+now.getMinutes());
+  }
+  return start;
+}
+function facilityAvailableToday(f,date=today()){
+  if(!f)return true;
+  const weekday=ymdDate(date).getDay();
+  return !(f.closedWeekdays||[]).map(Number).includes(weekday);
+}
+function estimatedRoadMinutesBetween(a,b){
+  if(!a||!b)return 10;
+  const alat=Number(a.lat),alng=Number(a.lng),blat=Number(b.lat),blng=Number(b.lng);
+  if(![alat,alng,blat,blng].every(Number.isFinite))return 10;
+  const straight=hav({lat:alat,lng:alng},{lat:blat,lng:blng});
+  // 実道路APIを使わない段階の概算：直線距離×1.3、平均30km/h。
+  const roadKm=straight*1.3;
+  return Math.max(3,Math.round((roadKm/30)*60));
+}
+function groupFacilityForRoute(group){
+  const first=group?.[0];
+  return facilityForMachine(first);
+}
+function routeGroupCenterMachine(group){
+  const gps=group.find(m=>Number.isFinite(Number(m.lat))&&Number.isFinite(Number(m.lng)));
+  return gps||group[0]||null;
+}
+function routeGroupServiceMinutes(group){
+  return group.reduce((s,m)=>s+Math.max(1,Number(m.workMinutes||25)),0);
+}
+function adjustArrivalForFacility(f,arrival,serviceMinutes){
+  let start=arrival;
+  let wait=0;
+  let warning='';
+
+  if(!f)return {start,wait,warning,late:false};
+
+  const visitStart=timeToMinutes(f.visitStart);
+  const visitEnd=timeToMinutes(f.visitEnd);
+  const avoidStart=timeToMinutes(f.avoidStart);
+  const avoidEnd=timeToMinutes(f.avoidEnd);
+
+  if(visitStart!==null && start<visitStart){
+    wait+=visitStart-start;
+    start=visitStart;
+  }
+
+  // 避けたい時間帯に到着、または作業がまたぐ場合は終了後まで待つ。
+  if(avoidStart!==null&&avoidEnd!==null){
+    const serviceEnd=start+serviceMinutes;
+    const overlaps=start<avoidEnd && serviceEnd>avoidStart;
+    if(overlaps){
+      if(start<avoidEnd){
+        wait+=avoidEnd-start;
+        start=avoidEnd;
+      }
+    }
+  }
+
+  const late=visitEnd!==null && start+serviceMinutes>visitEnd;
+  if(late)warning=`訪問可能 ${facilityVisitLabel(f)} に収まらない可能性`;
+
+  return {start,wait,warning,late};
+}
+function buildTimedRoutePlan(chosen){
+  if(!chosen.length)return [];
+
+  // 施設単位でまとめる。同一施設は必ず連続。
+  const groupMap=new Map();
+  chosen.forEach(m=>{
+    const f=facilityForMachine(m);
+    const key=f?`facility:${f.id}`:routeSiteKey(m);
+    if(!groupMap.has(key))groupMap.set(key,[]);
+    groupMap.get(key).push(m);
+  });
+
+  let remaining=[...groupMap.values()];
+  remaining.forEach(g=>g.sort((a,b)=>
+    routeScore(b,routeIncludeTrouble.checked)-routeScore(a,routeIncludeTrouble.checked)
+  ));
+
+  let clock=routePlanningStartMinutes();
+  let currentMachine=null;
+  const result=[];
+
+  while(remaining.length){
+    let bestIndex=0;
+    let bestScore=Infinity;
+    let bestMeta=null;
+
+    remaining.forEach((group,index)=>{
+      const first=routeGroupCenterMachine(group);
+      const travel=currentMachine?estimatedRoadMinutesBetween(currentMachine,first):0;
+      const arrival=clock+travel;
+      const facility=groupFacilityForRoute(group);
+      const service=routeGroupServiceMinutes(group);
+      const timing=adjustArrivalForFacility(facility,arrival,service);
+
+      // 待ち時間、移動時間、時間超過を重く評価。
+      // 優先度が高い施設は少し前に出す。
+      const priority=Math.max(...group.map(m=>routeScore(m,routeIncludeTrouble.checked)),0);
+      const latePenalty=timing.late?10000:0;
+      const score=travel + timing.wait*2 + latePenalty - Math.min(priority,500)*0.08;
+
+      if(score<bestScore){
+        bestScore=score;
+        bestIndex=index;
+        bestMeta={travel,arrival,timing,service,facility,first};
+      }
+    });
+
+    const group=remaining.splice(bestIndex,1)[0];
+    const meta=bestMeta;
+    const facility=meta.facility;
+    const visitStart=meta.timing.start;
+    let itemClock=visitStart;
+
+    group.forEach((m,i)=>{
+      const work=Math.max(1,Number(m.workMinutes||25));
+      result.push({
+        machine:m,
+        facility,
+        arrivalMinutes:itemClock,
+        travelMinutes:i===0?meta.travel:0,
+        waitingMinutes:i===0?meta.timing.wait:0,
+        warning:i===0?meta.timing.warning:'',
+        late:i===0?meta.timing.late:false
+      });
+      itemClock+=work;
+    });
+
+    clock=visitStart+meta.service;
+    currentMachine=routeGroupCenterMachine(group);
+  }
+
+  return result;
+}
+
 function candidateMachinesFromOptions(){
   const areas=routeSelectedAreas();
   const mode=routeCandidateMode.value||'recommended';
   const includeTrouble=routeIncludeTrouble.checked;
 
   let list=db.machines.filter(m=>{
-    if(areas.includes('all'))return true;
-    return areas.includes(m.area||'未設定');
+    const areaOk=areas.includes('all')||areas.includes(m.area||'未設定');
+    if(!areaOk)return false;
+    const f=facilityForMachine(m);
+    return facilityAvailableToday(f,today());
   });
 
   if(mode==='recommended'){
@@ -3317,55 +3663,9 @@ function chooseRouteMachines(){
   return chosen;
 }
 function orderRouteMachines(chosen){
-  if(chosen.length<=1)return chosen.slice();
-
-  // Group machines at the same site so multiple machines are consecutive.
-  const groupMap=new Map();
-  chosen.forEach(m=>{
-    const key=routeSiteKey(m);
-    if(!groupMap.has(key)) groupMap.set(key,[]);
-    groupMap.get(key).push(m);
-  });
-  let groups=[...groupMap.values()];
-
-  // Within each site, higher priority first.
-  groups.forEach(g=>g.sort((a,b)=>routeScore(b,routeIncludeTrouble.checked)-routeScore(a,routeIncludeTrouble.checked)));
-
-  // Prefer GPS groups for geographic ordering; non-GPS groups remain after nearby groups.
-  const center=g=>{
-    const pts=g.filter(m=>Number.isFinite(Number(m.lat))&&Number.isFinite(Number(m.lng)));
-    if(!pts.length)return null;
-    return {
-      lat:pts.reduce((s,m)=>s+Number(m.lat),0)/pts.length,
-      lng:pts.reduce((s,m)=>s+Number(m.lng),0)/pts.length
-    };
-  };
-
-  const ordered=[];
-  let remaining=groups.slice();
-  // Start from highest priority group.
-  remaining.sort((a,b)=>routeScore(b[0],routeIncludeTrouble.checked)-routeScore(a[0],routeIncludeTrouble.checked));
-  let current=remaining.shift();
-  ordered.push(current);
-
-  while(remaining.length){
-    const c=center(current);
-    if(c){
-      remaining.sort((a,b)=>{
-        const ca=center(a),cb=center(b);
-        if(ca&&cb) return hav(c,ca)-hav(c,cb);
-        if(ca) return -1;
-        if(cb) return 1;
-        return routeScore(b[0],routeIncludeTrouble.checked)-routeScore(a[0],routeIncludeTrouble.checked);
-      });
-    }else{
-      remaining.sort((a,b)=>routeScore(b[0],routeIncludeTrouble.checked)-routeScore(a[0],routeIncludeTrouble.checked));
-    }
-    current=remaining.shift();
-    ordered.push(current);
-  }
-  return ordered.flat();
+  return buildTimedRoutePlan(chosen).map(x=>x.machine);
 }
+
 function routeWorkTypes(m){
   const work=workFor(m);
   const troubles=machineTroubles(m);
@@ -3374,23 +3674,37 @@ function routeWorkTypes(m){
   return work;
 }
 function renderRoutePreview(){
-  const chosen=orderRouteMachines(chooseRouteMachines());
-  routePreviewCount.textContent=chosen.length;if(window.autoRouteActionCount)autoRouteActionCount.textContent=chosen.length;
+  const base=chooseRouteMachines();
+  const plan=buildTimedRoutePlan(base);
+  const chosen=plan.map(x=>x.machine);
+
+  routePreviewCount.textContent=chosen.length;
+  if(window.autoRouteActionCount)autoRouteActionCount.textContent=chosen.length;
   routePreviewMinutes.textContent=chosen.reduce((s,m)=>s+Number(m.workMinutes||25),0);
 
   if(!chosen.length){
-    routePreviewList.innerHTML='<div class="empty">この条件では候補がありません。<br>「登録済みを全部候補にする」を選ぶと期限前の自販機も出せます。</div>';
+    routePreviewList.innerHTML='<div class="empty">この条件では候補がありません。<br>施設の休業曜日・対象エリア・候補条件も確認してください。</div>';
     return;
   }
 
-  routePreviewList.innerHTML=chosen.map((m,i)=>{
+  routePreviewList.innerHTML=plan.map((item,i)=>{
+    const m=item.machine;
+    const f=item.facility;
     const reasons=routeReason(m,routeIncludeTrouble.checked);
     const reason=reasons.length?reasons.join('・'):'期限前';
-    return `<div class="route-preview-item">
+    const timeText=minutesToTime(item.arrivalMinutes);
+    const facilityInfo=f&&facilityVisitLabel(f)!=='未設定'
+      ? `訪問 ${escapeHtml(facilityVisitLabel(f))}`
+      : '訪問時間 未設定';
+    const wait=item.waitingMinutes?` ・ 待ち約${item.waitingMinutes}分`:'';
+    const travel=item.travelMinutes?` ・ 移動約${item.travelMinutes}分`:'';
+    return `<div class="route-preview-item ${item.late?'route-time-warning':''}">
       <div>
         <b>${i+1}. ${escapeHtml(machineDisplayTitle(m))}</b>
         <div class="sub">${escapeHtml(machineDisplaySub(m))}</div>
+        <div class="route-preview-time"><b>${timeText}頃</b> ・ ${facilityInfo}${travel}${wait}</div>
         <div class="route-reason ${routeScore(m,routeIncludeTrouble.checked)>=100?'urgent':''}">${escapeHtml(reason)}</div>
+        ${item.warning?`<div class="route-window-warning">${escapeHtml(item.warning)}</div>`:''}
       </div>
       <span class="mini">${Number(m.workMinutes||25)}分</span>
     </div>`;
@@ -3403,9 +3717,10 @@ function generateRoute(){
   confirmGenerateRoute.textContent='作成中…';
 
   try{
-    const chosen=orderRouteMachines(chooseRouteMachines());
+    const timedPlan=buildTimedRoutePlan(chooseRouteMachines());
+    const chosen=timedPlan.map(x=>x.machine);
     if(!chosen.length){
-      alert('巡回候補が0台です。候補の出し方を「登録済みを全部候補にする」にするか、対象エリアを追加してください。');
+      alert('巡回候補が0台です。対象エリア・施設の休業曜日・候補条件を確認してください。');
       return;
     }
 
@@ -3416,13 +3731,17 @@ function generateRoute(){
       areaFilter:selectedAreas.includes('all')?'all':selectedAreas.join('|'),
       areas:selectedAreas,
       candidateMode:routeCandidateMode.value,
-      stops:chosen.map((m,i)=>({
+      stops:timedPlan.map((item,i)=>({
         id:uid(),
-        machineId:m.id,
+        machineId:item.machine.id,
         order:i+1,
         status:'pending',
-        workTypes:routeWorkTypes(m),
-        plannedMinutes:Number(m.workMinutes||25)
+        workTypes:routeWorkTypes(item.machine),
+        plannedMinutes:Number(item.machine.workMinutes||25),
+        plannedArrival:minutesToTime(item.arrivalMinutes),
+        plannedTravelMinutes:item.travelMinutes||0,
+        plannedWaitMinutes:item.waitingMinutes||0,
+        facilityWarning:item.warning||''
       }))
     };
 
@@ -3907,11 +4226,12 @@ function renderRoute(){
       : '';
     el.innerHTML=`<div class="stop-head">
       <div>
-        <div class="sub">${String(i+1).padStart(2,'0')} ・ ${escapeHtml(m.area||'未設定')} ・ ${state}</div>
+        <div class="sub">${String(i+1).padStart(2,'0')} ・ ${escapeHtml(m.area||'未設定')} ・ ${state}${s.plannedArrival?` ・ ${escapeHtml(s.plannedArrival)}頃`:''}</div>
         <div class="stop-name">${m.site?`<div class="sub">${escapeHtml(m.site)}</div>`:''}${escapeHtml(m.name)}</div>
         <div class="worktags">${[...new Set([...(s.workTypes||[]),...workFor(m)])].map(w=>`<span class="tag">${w}</span>`).join('')}</div>
         ${memo}
         ${troubleMemo}
+        ${s.facilityWarning?`<div class="route-window-warning">${escapeHtml(s.facilityWarning)}</div>`:''}
       </div>
       <div>${s.status==='done'?'<span class="pill green">✓</span>':`<button class="smallbtn" onclick="openWorkPicker('${s.id}')">開始</button>`}</div>
     </div>
@@ -4324,6 +4644,7 @@ function openRegisterPage(returnPage='machines',machineId=null){
   registerReturnPage=returnPage;
   resetRegisterPage();
   fillRegisterArea();
+  fillRegisterFacilitySelect(machineId?machine(machineId)?.facilityId||'':'');
 
   if(machineId){
     const m=machine(machineId);
@@ -4414,7 +4735,8 @@ function addSameSiteMachineFromEdit(){
   if(!m){alert('元の自販機が見つかりません。');return}
 
   registerEditingId=null;
-  rpName.value='';
+  rpName.value=m.name||'';
+  fillRegisterFacilitySelect(m.facilityId||'');
   fillModelSelect();
   rpModel.value=m.modelId||'';
   rpNumber.value='';
@@ -4472,10 +4794,25 @@ function saveRegisterPage(){
     // 保存直前にストレージと同期して、他画面の最新データを消さない。
     syncDbFromStorage();
 
+    let facilityId=rpFacility?.value||'';
+    let selectedFacility=facilityId?facility(facilityId):null;
+    if(!selectedFacility){
+      selectedFacility=(db.facilities||[]).find(f=>f.name===name&&(f.area||'未設定')===(rpArea.value||'未設定'))||null;
+    }
+    if(!selectedFacility){
+      selectedFacility={id:uid(),name,area:rpArea.value||'未設定',
+        visitStart:'',visitEnd:'',avoidStart:'',avoidEnd:'',closedWeekdays:[],
+        parking:'',entrance:'',note:'',createdAt:Date.now()};
+      if(!Array.isArray(db.facilities))db.facilities=[];
+      db.facilities.push(selectedFacility);
+    }
+    facilityId=selectedFacility.id;
+
     const id=registerEditingId||uid();
     const data={
       id,
       name,
+      facilityId,
       modelId:rpModel?.value||'',
       modelName:rpModel?.value?(modelById(rpModel.value)?.name||''):'',
       site,
@@ -4542,12 +4879,13 @@ function saveRegisterPage(){
 
 function switchPage(p){
   syncDbFromStorage();
+  ensureFacilityMaster();
 
   const previousPage=page;
   page=p;
 
   // まず画面そのものを切り替える。MAPの後処理で失敗しても遷移は止めない。
-  ['home','map','route','calendar','machines','register','report','manualRoute','autoRoute','trouble','settings','modelEditor','monthlyActionPlan','monthlyDayDetail','deleteMachine','machineDetail','dayOff','monthlyManualBuilder','returnConfirm','routeWorkEdit'].forEach(x=>{
+  ['home','map','route','calendar','machines','register','report','manualRoute','autoRoute','trouble','settings','modelEditor','facilityEditor','monthlyActionPlan','monthlyDayDetail','deleteMachine','machineDetail','dayOff','monthlyManualBuilder','returnConfirm','routeWorkEdit'].forEach(x=>{
     const el=document.getElementById(x+'Page');
     if(el) el.classList.toggle('hidden',x!==p);
   });
@@ -5068,6 +5406,7 @@ function fillMachineSelect(sel,optional){
 function renderWorkDashboard(){
   if(!Array.isArray(db.troubles)) db.troubles=[];
 if(!Array.isArray(db.daysOff)) db.daysOff=[];
+      if(!Array.isArray(db.facilities)) db.facilities=[];
       if(!Array.isArray(db.models)) db.models=[];
       if(!db.settings)db.settings={};
       if(db.settings.routeDefaultMode===undefined)db.settings.routeDefaultMode='recommended';
@@ -5650,6 +5989,16 @@ function openMachineDetailPage(id,returnPage='machines'){
   machineDetailNumber.textContent=m.number?`#${m.number}`:'-';
   machineDetailArea.textContent=m.area||'未設定';
   machineDetailMinutes.textContent=`約${Number(m.workMinutes||25)}分`;
+
+  const f=facilityForMachine(m);
+  machineFacilityVisit.textContent=facilityVisitLabel(f);
+  machineFacilityAvoid.textContent=facilityAvoidLabel(f);
+  machineFacilityClosed.textContent=facilityClosedLabel(f);
+  machineFacilityParking.textContent=f?.parking||'未設定';
+  machineFacilityEntranceWrap.classList.toggle('hidden',!f?.entrance);
+  machineFacilityEntrance.textContent=f?.entrance||'';
+  machineFacilityNoteWrap.classList.toggle('hidden',!f?.note);
+  machineFacilityNote.textContent=f?.note||'';
 
   machineDetailWorkChips.innerHTML=machineWorkBadgesHtml(m);
 
@@ -6331,6 +6680,165 @@ function renderSettingsAreaSummary(){
     ? areaNames().map(a=>`<span class="settings-area-chip">${escapeHtml(a)}</span>`).join('')
     : '<span class="sub">エリアはまだありません</span>';
 }
+
+let facilityEditorReturnPage='settings';
+
+function fillFacilityAreaSelect(){
+  if(!window.facilityPageArea)return;
+  const current=facilityPageArea.value||'未設定';
+  facilityPageArea.innerHTML='<option value="未設定">未設定</option>'+areaNames()
+    .map(a=>`<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
+  facilityPageArea.value=[...facilityPageArea.options].some(o=>o.value===current)?current:'未設定';
+}
+
+function renderFacilityMaster(){
+  const host=document.getElementById('facilityMasterList');
+  if(!host)return;
+  ensureFacilityMaster();
+  const list=(db.facilities||[]).slice().sort((a,b)=>
+    String(a.area||'').localeCompare(String(b.area||''),'ja')||
+    String(a.name||'').localeCompare(String(b.name||''),'ja')
+  );
+  if(!list.length){
+    host.innerHTML='<div class="empty">施設はまだありません。</div>';
+    return;
+  }
+  host.innerHTML=list.map(f=>`
+    <button type="button" class="facility-master-item" onclick="openFacilityEditorPage('${f.id}')">
+      <div>
+        <b>${escapeHtml(f.name||'施設名未設定')}</b>
+        <div class="sub">${escapeHtml(f.area||'未設定')} ・ ${facilityMachineCount(f)}台</div>
+        <div class="facility-master-meta">
+          <span>訪問 ${escapeHtml(facilityVisitLabel(f))}</span>
+          ${f.avoidStart&&f.avoidEnd?`<span>避ける ${escapeHtml(facilityAvoidLabel(f))}</span>`:''}
+          ${(f.closedWeekdays||[]).length?`<span>休 ${escapeHtml(facilityClosedLabel(f))}</span>`:''}
+        </div>
+      </div>
+      <span class="facility-chevron">›</span>
+    </button>`).join('');
+}
+
+function openFacilityEditorPage(id=null){
+  facilityEditorReturnPage='settings';
+  fillFacilityAreaSelect();
+  facilityPageEditId.value=id||'';
+  facilityPageDeleteBtn.classList.toggle('hidden',!id);
+  document.querySelectorAll('#facilityClosedWeekdays input').forEach(x=>x.checked=false);
+
+  if(id){
+    const f=facility(id); if(!f)return;
+    facilityPageTitle.textContent='施設を編集';
+    facilityPageName.value=f.name||'';
+    facilityPageArea.value=f.area||'未設定';
+    facilityVisitStart.value=f.visitStart||'';
+    facilityVisitEnd.value=f.visitEnd||'';
+    facilityAvoidStart.value=f.avoidStart||'';
+    facilityAvoidEnd.value=f.avoidEnd||'';
+    facilityParking.value=f.parking||'';
+    facilityEntrance.value=f.entrance||'';
+    facilityNote.value=f.note||'';
+    const closed=new Set((f.closedWeekdays||[]).map(String));
+    document.querySelectorAll('#facilityClosedWeekdays input').forEach(x=>x.checked=closed.has(x.value));
+  }else{
+    facilityPageTitle.textContent='施設を追加';
+    facilityPageName.value='';
+    facilityPageArea.value='未設定';
+    facilityVisitStart.value='';
+    facilityVisitEnd.value='';
+    facilityAvoidStart.value='';
+    facilityAvoidEnd.value='';
+    facilityParking.value='';
+    facilityEntrance.value='';
+    facilityNote.value='';
+  }
+
+  switchPage('facilityEditor');
+  window.scrollTo(0,0);
+}
+
+function closeFacilityEditorPage(){
+  switchPage('settings');
+  renderFacilityMaster();
+  setSettingsTab('facility');
+  window.scrollTo(0,0);
+}
+
+function saveFacilityEditorPage(){
+  const name=(facilityPageName.value||'').trim();
+  if(!name){alert('施設名を入力してください');facilityPageName.focus();return}
+  const area=facilityPageArea.value||'未設定';
+  const id=facilityPageEditId.value||uid();
+  const existing=(db.facilities||[]).find(f=>f.id===id);
+  const duplicate=(db.facilities||[]).find(f=>f.id!==id&&f.name===name&&(f.area||'未設定')===area);
+  if(duplicate){alert('同じエリアに同じ施設名が登録されています。');return}
+
+  const closedWeekdays=[...document.querySelectorAll('#facilityClosedWeekdays input:checked')].map(x=>Number(x.value));
+  const data={
+    id,name,area,
+    visitStart:facilityVisitStart.value||'',
+    visitEnd:facilityVisitEnd.value||'',
+    avoidStart:facilityAvoidStart.value||'',
+    avoidEnd:facilityAvoidEnd.value||'',
+    closedWeekdays,
+    parking:(facilityParking.value||'').trim(),
+    entrance:(facilityEntrance.value||'').trim(),
+    note:(facilityNote.value||'').trim(),
+    createdAt:existing?.createdAt||Date.now(),
+    updatedAt:Date.now()
+  };
+
+  if(!Array.isArray(db.facilities))db.facilities=[];
+  if(existing){
+    Object.assign(existing,data);
+    (db.machines||[]).forEach(m=>{
+      if(m.facilityId===id){m.name=name;m.area=area}
+    });
+  }else{
+    db.facilities.push(data);
+  }
+
+  save();
+  closeFacilityEditorPage();
+  showToast('施設情報を保存しました');
+}
+
+function deleteFacilityEditorPage(){
+  const id=facilityPageEditId.value;
+  const f=facility(id); if(!f)return;
+  const count=facilityMachineCount(f);
+  if(count){
+    alert(`この施設には自販機が${count}台あります。先に自販機の施設を変更してください。`);
+    return;
+  }
+  if(!confirm(`「${f.name}」を削除しますか？`))return;
+  db.facilities=db.facilities.filter(x=>x.id!==id);
+  save();
+  closeFacilityEditorPage();
+  showToast('施設を削除しました');
+}
+
+function fillRegisterFacilitySelect(selectedId=''){
+  if(!window.rpFacility)return;
+  ensureFacilityMaster();
+  rpFacility.innerHTML='<option value="">新しい施設を入力</option>'+
+    (db.facilities||[]).slice().sort((a,b)=>
+      String(a.area||'').localeCompare(String(b.area||''),'ja')||
+      String(a.name||'').localeCompare(String(b.name||''),'ja')
+    ).map(f=>`<option value="${f.id}">${escapeHtml(f.name)}（${escapeHtml(f.area||'未設定')}）</option>`).join('');
+  rpFacility.value=[...rpFacility.options].some(o=>o.value===selectedId)?selectedId:'';
+}
+
+function applySelectedFacilityToRegister(){
+  const f=facility(rpFacility.value);
+  if(!f)return;
+  rpName.value=f.name||'';
+  if([...rpArea.options].some(o=>o.value===(f.area||'未設定')))rpArea.value=f.area||'未設定';
+  const sample=(db.machines||[]).find(m=>m.facilityId===f.id&&m.lat!=null&&m.lng!=null);
+  if(sample&&!rpLat.value&&!rpLng.value){
+    rpLat.value=sample.lat;rpLng.value=sample.lng;renderRegisterLocation();
+  }
+}
+
 function setSettingsTab(name){
   addModelBtn.addEventListener('click',()=>openModelEditor());
 saveModelBtn.addEventListener('click',saveModelMaster);
@@ -6359,6 +6867,7 @@ function setSettingsFields(){
   sHaptics.checked=db.settings.haptics!==false;
   mapKitTokenStatus.textContent=db.settings.mapKitToken?'店舗・施設検索：設定済み':'未設定の場合は登録済み自販機検索＋Apple Maps外部検索を使います。';
   renderSettingsAreaSummary();
+  renderFacilityMaster();
   renderModelMaster();
   setSettingsTab('work');
 }
@@ -6770,6 +7279,14 @@ if(window.routeWorkEditBackBtn)routeWorkEditBackBtn.addEventListener('click',clo
 if(window.routeWorkEditCancelBtn)routeWorkEditCancelBtn.addEventListener('click',closeRouteWorkEdit);
 if(window.routeWorkEditSaveBtn)routeWorkEditSaveBtn.addEventListener('click',saveRouteWorkEdit);
 
+
+if(window.addFacilityBtn)addFacilityBtn.addEventListener('click',()=>openFacilityEditorPage());
+if(window.facilityPageBackBtn)facilityPageBackBtn.addEventListener('click',closeFacilityEditorPage);
+if(window.facilityPageCancelBtn)facilityPageCancelBtn.addEventListener('click',closeFacilityEditorPage);
+if(window.facilityPageSaveBtn)facilityPageSaveBtn.addEventListener('click',saveFacilityEditorPage);
+if(window.facilityPageDeleteBtn)facilityPageDeleteBtn.addEventListener('click',deleteFacilityEditorPage);
+if(window.rpFacility)rpFacility.addEventListener('change',applySelectedFacilityToRegister);
+
 // Ver.8.7: 重要操作は inline onclick に依存させない。
 if(window.deletePageConfirmBtn && !deletePageConfirmBtn.dataset.bound){
   deletePageConfirmBtn.dataset.bound='1';
@@ -6812,7 +7329,7 @@ if(window.modelPageBackBtn)modelPageBackBtn.addEventListener('click',closeModelE
 if(window.modelPageCancelBtn)modelPageCancelBtn.addEventListener('click',closeModelEditorPage);
 if(window.modelPageSaveBtn)modelPageSaveBtn.addEventListener('click',saveModelEditorPage);
 
-window.changeTroubleStatus=changeTroubleStatus;window.deleteTroubleRecord=deleteTroubleRecord;window.moveManualOrder=moveManualOrder;window.toggleManualMachine=toggleManualMachine;window.openRouteWorkEdit=openRouteWorkEdit;window.openTroubleForMachine=openTroubleForMachine;window.openMonthlyManualBuilder=openMonthlyManualBuilder;window.closeMonthlyManualBuilder=closeMonthlyManualBuilder;window.toggleMonthlyManualMachine=toggleMonthlyManualMachine;window.toggleMonthlyManualWork=toggleMonthlyManualWork;window.clearMonthlyManualSelection=clearMonthlyManualSelection;window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openWeeklyDayDetail=openWeeklyDayDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
+window.changeTroubleStatus=changeTroubleStatus;window.deleteTroubleRecord=deleteTroubleRecord;window.moveManualOrder=moveManualOrder;window.toggleManualMachine=toggleManualMachine;window.openFacilityEditorPage=openFacilityEditorPage;window.openRouteWorkEdit=openRouteWorkEdit;window.openTroubleForMachine=openTroubleForMachine;window.openMonthlyManualBuilder=openMonthlyManualBuilder;window.closeMonthlyManualBuilder=closeMonthlyManualBuilder;window.toggleMonthlyManualMachine=toggleMonthlyManualMachine;window.toggleMonthlyManualWork=toggleMonthlyManualWork;window.clearMonthlyManualSelection=clearMonthlyManualSelection;window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openWeeklyDayDetail=openWeeklyDayDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
 window.openModelEditor=openModelEditor;window.deleteModel=deleteModel;window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
