@@ -5821,10 +5821,6 @@ document.querySelectorAll('.modal').forEach(modal=>{
   },{passive:false});
 });
 
-renderAll();
-</script>
-</body>
-</html>
 function machineWorkBadges(m){
   const items=[];
   const work=workFor(m);
@@ -5841,3 +5837,7 @@ function machineWorkBadgesHtml(m){
   return items.map(x=>`<span class="work-chip">${escapeHtml(x[0])}</span>`).join('');
 }
 
+renderAll();
+</script>
+</body>
+</html>
