@@ -1450,6 +1450,19 @@ nav.modal-blocked{
 .route-week-toggle{display:flex;align-items:center;gap:7px;margin:0!important}
 .route-week-toggle input{width:22px;height:22px;margin:0}
 .route-week-toggle span{font-size:12px!important;font-weight:900;color:#111827!important}
+
+/* Ver.9.3 カスタム曜日指定 */
+.route-custom-box{display:block;padding:10px 0 14px}
+.route-custom-mode{width:100%!important;margin:0 0 9px!important}
+.weekday-picker{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.weekday-picker button{
+  min-height:42px;border:1px solid #dbe1e8;border-radius:10px;background:#f8fafc;
+  font-weight:900;font-size:14px;color:#334155
+}
+.weekday-picker button.active{background:#111827;color:#fff;border-color:#111827}
+.route-cycle-days{display:flex;align-items:center;justify-content:flex-end;gap:7px}
+.route-cycle-days input{width:90px;margin:0}
+.route-cycle-days span{font-size:12px;color:#64748b}
 </style>
 </head>
 <body>
@@ -2533,12 +2546,20 @@ nav.modal-blocked{
             <select id="rpSupplyInterval">
               <option value="0">なし</option>
               <option value="7">週1</option>
-              <option value="3.5">週2</option>
               <option value="custom">カスタム</option>
             </select>
           </div>
-          <div id="rpSupplyCustomWrap" class="route-cycle-custom hidden">
-            <input id="rpSupplyCustom" type="number" min="1" inputmode="numeric" placeholder="日数"><span>日ごと</span>
+          <div id="rpSupplyCustomWrap" class="route-cycle-custom route-custom-box hidden">
+            <select id="rpSupplyCustomMode" class="route-custom-mode">
+              <option value="weekdays">曜日指定</option>
+              <option value="days">日数指定</option>
+            </select>
+            <div id="rpSupplyWeekdays" class="weekday-picker" aria-label="原料補充の曜日">
+              <button type="button" data-day="1">月</button><button type="button" data-day="2">火</button><button type="button" data-day="3">水</button><button type="button" data-day="4">木</button><button type="button" data-day="5">金</button>
+            </div>
+            <div id="rpSupplyDaysWrap" class="route-cycle-days hidden">
+              <input id="rpSupplyCustom" type="number" min="1" inputmode="numeric" placeholder="日数"><span>日ごと</span>
+            </div>
           </div>
 
           <div class="route-cycle-row">
@@ -2546,12 +2567,20 @@ nav.modal-blocked{
             <select id="rpDrainInterval">
               <option value="0">なし</option>
               <option value="7">週1</option>
-              <option value="3.5">週2</option>
               <option value="custom">カスタム</option>
             </select>
           </div>
-          <div id="rpDrainCustomWrap" class="route-cycle-custom hidden">
-            <input id="rpDrainCustom" type="number" min="1" inputmode="numeric" placeholder="日数"><span>日ごと</span>
+          <div id="rpDrainCustomWrap" class="route-cycle-custom route-custom-box hidden">
+            <select id="rpDrainCustomMode" class="route-custom-mode">
+              <option value="weekdays">曜日指定</option>
+              <option value="days">日数指定</option>
+            </select>
+            <div id="rpDrainWeekdays" class="weekday-picker" aria-label="排水の曜日">
+              <button type="button" data-day="1">月</button><button type="button" data-day="2">火</button><button type="button" data-day="3">水</button><button type="button" data-day="4">木</button><button type="button" data-day="5">金</button>
+            </div>
+            <div id="rpDrainDaysWrap" class="route-cycle-days hidden">
+              <input id="rpDrainCustom" type="number" min="1" inputmode="numeric" placeholder="日数"><span>日ごと</span>
+            </div>
           </div>
 
           <details class="route-other-settings">
@@ -3164,11 +3193,18 @@ function regularInterval(m){return Math.max(1,Number(m.regularIntervalDays||14))
 function supplyInterval(m){return Math.max(0,Number(m.supplyIntervalDays||0))}
 function drainInterval(m){return Math.max(0,Number(m.drainIntervalDays||0))}
 function regularDue(m){return dayDiff(m.lastRegular,today())>=regularInterval(m)}
+function weekdayDue(days){
+  if(!Array.isArray(days)||!days.length)return false;
+  const d=new Date(today()+'T12:00:00').getDay();
+  return days.map(Number).includes(d);
+}
 function supplyDue(m){
+  if(m.supplyScheduleMode==='weekdays')return weekdayDue(m.supplyWeekdays);
   const si=supplyInterval(m);
   return si>0&&dayDiff(m.lastSupply||m.lastRegular,today())>=si;
 }
 function drainDue(m){
+  if(m.drainScheduleMode==='weekdays')return weekdayDue(m.drainWeekdays);
   const di=drainInterval(m);
   return di>0&&dayDiff(m.lastDrain||m.lastRegular,today())>=di;
 }
@@ -3187,9 +3223,11 @@ function urgency(m){
     else if(rd===ri-2)score+=45;
   }
   const sd=dayDiff(m.lastSupply||m.lastRegular,today()),si=supplyInterval(m);
-  if(si>0&&sd>=si)score+=100+(sd-si)*15;
+  if(m.supplyScheduleMode==='weekdays'&&weekdayDue(m.supplyWeekdays))score+=100;
+  else if(si>0&&sd>=si)score+=100+(sd-si)*15;
   const dd=dayDiff(m.lastDrain||m.lastRegular,today()),di=drainInterval(m);
-  if(di>0&&dd>=di)score+=70+(dd-di)*10;
+  if(m.drainScheduleMode==='weekdays'&&weekdayDue(m.drainWeekdays))score+=70;
+  else if(di>0&&dd>=di)score+=70+(dd-di)*10;
   if(waterDue(m))score+=55;
   if(garbageDue(m))score+=50;
   if(m.prioritySupply)score+=120;
@@ -4704,6 +4742,26 @@ function fillRegisterArea(){
     const o=document.createElement('option');o.value=a;o.textContent=a;rpArea.appendChild(o);
   });
 }
+function selectedWeekdays(host){
+  return [...host.querySelectorAll('button.active')].map(b=>Number(b.dataset.day)).filter(Boolean);
+}
+function setSelectedWeekdays(host,days){
+  const set=new Set((days||[]).map(Number));
+  host.querySelectorAll('button[data-day]').forEach(b=>b.classList.toggle('active',set.has(Number(b.dataset.day))));
+}
+function bindWeekdayPicker(host){
+  host.querySelectorAll('button[data-day]').forEach(b=>b.addEventListener('click',()=>{
+    b.classList.toggle('active');
+  }));
+}
+function updateCustomMode(prefix){
+  const mode=window['rp'+prefix+'CustomMode'];
+  const weekdays=window['rp'+prefix+'Weekdays'];
+  const daysWrap=window['rp'+prefix+'DaysWrap'];
+  if(!mode||!weekdays||!daysWrap)return;
+  weekdays.classList.toggle('hidden',mode.value!=='weekdays');
+  daysWrap.classList.toggle('hidden',mode.value!=='days');
+}
 function cycleValue(select,custom,fallback=0){
   if(select.value==='custom')return Math.max(1,Number(custom.value)||fallback||1);
   return Math.max(0,Number(select.value)||0);
@@ -4717,6 +4775,8 @@ function updateRouteCycleVisibility(){
   if(window.rpRegularCustomWrap)rpRegularCustomWrap.classList.toggle('hidden',rpRegularInterval.value!=='custom');
   if(window.rpSupplyCustomWrap)rpSupplyCustomWrap.classList.toggle('hidden',rpSupplyInterval.value!=='custom');
   if(window.rpDrainCustomWrap)rpDrainCustomWrap.classList.toggle('hidden',rpDrainInterval.value!=='custom');
+  updateCustomMode('Supply');
+  updateCustomMode('Drain');
 }
 
 function resetRegisterPage(){
@@ -4731,6 +4791,10 @@ function resetRegisterPage(){
   rpRegularCustom.value='';
   rpSupplyCustom.value='';
   rpDrainCustom.value='';
+  rpSupplyCustomMode.value='weekdays';
+  rpDrainCustomMode.value='weekdays';
+  setSelectedWeekdays(rpSupplyWeekdays,[]);
+  setSelectedWeekdays(rpDrainWeekdays,[]);
   rpWaterWeekly.checked=false;
   rpGarbageWeekly.checked=false;
   updateRouteCycleVisibility();
@@ -4769,8 +4833,20 @@ function openRegisterPage(returnPage='machines',machineId=null){
     rpLat.value=m.lat??'';
     rpLng.value=m.lng??'';
     setCycleSelect(rpRegularInterval,rpRegularCustom,m.regularIntervalDays||14,[14,7]);
-    setCycleSelect(rpSupplyInterval,rpSupplyCustom,m.supplyIntervalDays||0,[0,7,3.5]);
-    setCycleSelect(rpDrainInterval,rpDrainCustom,m.drainIntervalDays||0,[0,7,3.5]);
+    if(m.supplyScheduleMode==='weekdays'){
+      rpSupplyInterval.value='custom'; rpSupplyCustomMode.value='weekdays'; rpSupplyCustom.value='';
+      setSelectedWeekdays(rpSupplyWeekdays,m.supplyWeekdays||[]);
+    }else{
+      setCycleSelect(rpSupplyInterval,rpSupplyCustom,m.supplyIntervalDays||0,[0,7]);
+      rpSupplyCustomMode.value='days'; setSelectedWeekdays(rpSupplyWeekdays,[]);
+    }
+    if(m.drainScheduleMode==='weekdays'){
+      rpDrainInterval.value='custom'; rpDrainCustomMode.value='weekdays'; rpDrainCustom.value='';
+      setSelectedWeekdays(rpDrainWeekdays,m.drainWeekdays||[]);
+    }else{
+      setCycleSelect(rpDrainInterval,rpDrainCustom,m.drainIntervalDays||0,[0,7]);
+      rpDrainCustomMode.value='days'; setSelectedWeekdays(rpDrainWeekdays,[]);
+    }
     rpLastRegular.value=m.lastRegular||'';
     rpLastSupply.value=m.lastSupply||'';
     rpLastDrain.value=m.lastDrain||'';
@@ -4925,6 +5001,13 @@ function saveRegisterPage(){
     }
     facilityId=selectedFacility.id;
 
+    if(rpSupplyInterval.value==='custom'&&rpSupplyCustomMode.value==='weekdays'&&!selectedWeekdays(rpSupplyWeekdays).length){
+      throw new Error('原料補充の曜日を1つ以上選んでください');
+    }
+    if(rpDrainInterval.value==='custom'&&rpDrainCustomMode.value==='weekdays'&&!selectedWeekdays(rpDrainWeekdays).length){
+      throw new Error('排水の曜日を1つ以上選んでください');
+    }
+
     const id=registerEditingId||uid();
     const data={
       id,
@@ -4938,8 +5021,12 @@ function saveRegisterPage(){
       lat,
       lng,
       regularIntervalDays:cycleValue(rpRegularInterval,rpRegularCustom,14),
-      supplyIntervalDays:cycleValue(rpSupplyInterval,rpSupplyCustom,0),
-      drainIntervalDays:cycleValue(rpDrainInterval,rpDrainCustom,0),
+      supplyIntervalDays:(rpSupplyInterval.value==='custom'&&rpSupplyCustomMode.value==='weekdays')?0:cycleValue(rpSupplyInterval,rpSupplyCustom,0),
+      supplyScheduleMode:(rpSupplyInterval.value==='custom'&&rpSupplyCustomMode.value==='weekdays')?'weekdays':'days',
+      supplyWeekdays:(rpSupplyInterval.value==='custom'&&rpSupplyCustomMode.value==='weekdays')?selectedWeekdays(rpSupplyWeekdays):[],
+      drainIntervalDays:(rpDrainInterval.value==='custom'&&rpDrainCustomMode.value==='weekdays')?0:cycleValue(rpDrainInterval,rpDrainCustom,0),
+      drainScheduleMode:(rpDrainInterval.value==='custom'&&rpDrainCustomMode.value==='weekdays')?'weekdays':'days',
+      drainWeekdays:(rpDrainInterval.value==='custom'&&rpDrainCustomMode.value==='weekdays')?selectedWeekdays(rpDrainWeekdays):[],
       lastRegular:rpLastRegular.value||'',
       weekly:false,
       lastSupply:rpLastSupply.value||'',
@@ -7411,6 +7498,9 @@ if(window.facilityPageDeleteBtn)facilityPageDeleteBtn.addEventListener('click',d
 if(window.rpFacility)rpFacility.addEventListener('change',applySelectedFacilityToRegister);
 
 [window.rpRegularInterval,window.rpSupplyInterval,window.rpDrainInterval].filter(Boolean).forEach(el=>el.addEventListener('change',updateRouteCycleVisibility));
+[window.rpSupplyCustomMode,window.rpDrainCustomMode].filter(Boolean).forEach(el=>el.addEventListener('change',updateRouteCycleVisibility));
+if(window.rpSupplyWeekdays)bindWeekdayPicker(rpSupplyWeekdays);
+if(window.rpDrainWeekdays)bindWeekdayPicker(rpDrainWeekdays);
 // Ver.8.7: 重要操作は inline onclick に依存させない。
 if(window.deletePageConfirmBtn && !deletePageConfirmBtn.dataset.bound){
   deletePageConfirmBtn.dataset.bound='1';
