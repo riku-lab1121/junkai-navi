@@ -984,6 +984,55 @@ nav.modal-blocked{
 .monthly-plan-table .high-plan{font-weight:900}
 .monthly-plan-table .plan-actions{display:flex;gap:6px;white-space:nowrap}
 .monthly-plan-table .plan-actions button{padding:7px 9px;border-radius:8px}
+
+/* Ver.7.9 月間行動計画表の表記を簡潔化 */
+.route-period-tabs{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:7px;
+  background:#fff;
+  padding:7px;
+  border-radius:16px;
+  margin-bottom:12px;
+}
+.route-period-tabs button{
+  min-height:48px;
+  padding:8px 5px;
+  border-radius:12px;
+  background:#eef2f7;
+  color:#475569;
+  font-size:12px;
+  font-weight:900;
+}
+.route-period-tabs button.active{
+  background:#111827;
+  color:#fff;
+}
+.week-route-day{
+  background:#fff;
+  border-radius:16px;
+  padding:14px;
+  margin-bottom:10px;
+  border:1px solid #e5e7eb;
+}
+.week-route-day.today{
+  border:2px solid #0a84ff;
+}
+.week-route-day .week-date{
+  font-size:16px;
+  font-weight:900;
+}
+.week-route-day .week-stops{
+  margin-top:8px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.week-route-stop{
+  padding:8px 10px;
+  border-radius:10px;
+  background:#f8fafc;
+}
 </style>
 </head>
 <body>
@@ -1204,6 +1253,13 @@ nav.modal-blocked{
     </section>
 
     <section id="routePage" class="hidden">
+      <div class="route-period-tabs">
+        <button type="button" class="active" data-routeperiod="today">今日の巡回</button>
+        <button type="button" data-routeperiod="week">1週間の巡回</button>
+        <button type="button" data-routeperiod="month">月間行動計画表</button>
+      </div>
+
+      <div id="routeTodayView">
       <div class="card">
         <div class="row">
           <div>
@@ -1218,6 +1274,35 @@ nav.modal-blocked{
         <button class="secondary" id="manualRouteBtn">手動で作る</button>
       </div>
       <div id="routeList" class="list"></div>
+      </div>
+
+      <div id="routeWeekView" class="hidden">
+        <div class="card">
+          <div class="row">
+            <div>
+              <div class="section-title">1週間の巡回</div>
+              <div class="sub" id="routeWeekRange"></div>
+            </div>
+            <button class="secondary" type="button" id="routeWeekTodayBtn">今週</button>
+          </div>
+        </div>
+        <div id="routeWeekList" class="list"></div>
+      </div>
+
+      <div id="routeMonthView" class="hidden">
+        <div class="card">
+          <div class="row">
+            <div>
+              <div class="section-title">月間行動計画表</div>
+              
+            </div>
+            <button class="primary" type="button" id="openMonthlyPlanFromRouteBtn" style="width:auto;padding:10px 14px">表を開く</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="sub">月間行動計画表では、日付・エリア・巡回内容・優先度・メモを一覧で確認できます。</div>
+        </div>
+      </div>
     </section>
 
     <section id="machinesPage" class="hidden">
@@ -1561,9 +1646,9 @@ nav.modal-blocked{
     <div>
       <div class="section-title">仕事管理</div>
       <div class="flow-title">月間行動計画表</div>
-      <div class="sub">カレンダーとは別に、1か月分の行動予定を表で管理します。</div>
+      <div class="sub">カレンダーとは別に、行動予定を表で管理します。</div>
     </div>
-    <button class="secondary" type="button" onclick="closeMonthlyActionPlan()">戻る</button>
+    <button class="secondary" type="button" onclick="closeMonthlyActionPlan()">巡回へ戻る</button>
   </div>
 
   <div class="flow-card">
@@ -1769,9 +1854,6 @@ nav.modal-blocked{
           </div>
           <button class="secondary" id="calendarTodayBtn">今日</button>
         </div>
-        <button class="primary" type="button" onclick="openMonthlyActionPlan()" style="width:100%;margin-top:12px">
-          月間行動計画表
-        </button>
       </div>
       <div id="calendarContent"></div>
       <div class="calendar-detail" id="calendarDetail"></div>
@@ -1786,7 +1868,7 @@ nav.modal-blocked{
     <button data-page="home" class="active"><span class="ico">⌂</span>ホーム</button>
     <button data-page="map"><span class="ico">⌖</span>MAP</button>
     <button data-page="route"><span class="ico">≡</span>巡回</button>
-    <button data-page="calendar"><span class="ico">□</span>予定</button>
+    <button data-page="calendar"><span class="ico">□</span>カレンダー</button>
     <button data-page="machines"><span class="ico">▣</span>自販機</button>
   </nav>
 </div>
@@ -2652,6 +2734,53 @@ function renderActive(){
     const m=machine(db.active.machineId);activeState.textContent='作業中';activeDetail.textContent=`${m?.name||''} ・ ${db.active.workTypes.join('＋')}`;workBtn.textContent='作業終了';breakBtn.textContent='作業中は休憩できません';
   }
 }
+
+let routePeriod='today';
+let routeWeekAnchor=today();
+
+function routePeriodSet(period){
+  routePeriod=period;
+  document.querySelectorAll('[data-routeperiod]').forEach(b=>b.classList.toggle('active',b.dataset.routeperiod===period));
+  if(window.routeTodayView)routeTodayView.classList.toggle('hidden',period!=='today');
+  if(window.routeWeekView)routeWeekView.classList.toggle('hidden',period!=='week');
+  if(window.routeMonthView)routeMonthView.classList.toggle('hidden',period!=='month');
+  if(period==='week')renderRouteWeek();
+}
+function routeWeekStart(date){
+  const d=ymdDate(date),day=d.getDay()||7;
+  d.setDate(d.getDate()-(day-1));
+  return localYmd(d);
+}
+function renderRouteWeek(){
+  if(!window.routeWeekList)return;
+  const start=routeWeekStart(routeWeekAnchor);
+  const dates=Array.from({length:7},(_,i)=>addDaysYmd(start,i));
+  const d0=ymdDate(start),d6=ymdDate(dates[6]);
+  routeWeekRange.textContent=`${d0.getMonth()+1}/${d0.getDate()} 〜 ${d6.getMonth()+1}/${d6.getDate()}`;
+  const dow=['日','月','火','水','木','金','土'];
+  routeWeekList.innerHTML=dates.map(date=>{
+    const r=db.routes?.[date],stops=r?.stops||[];
+    const mins=stops.reduce((s,x)=>s+Number(x.plannedMinutes||25),0);
+    const dd=ymdDate(date);
+    const stopHtml=stops.length?stops.slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(s=>{
+      const m=machine(s.machineId);
+      return `<div class="week-route-stop">
+        <b>${escapeHtml(m?machineDisplayTitle(m):'削除済み自販機')}</b>
+        <div class="sub">${m?escapeHtml(machineDisplaySub(m)):''}</div>
+      </div>`;
+    }).join(''):'<div class="sub" style="padding:8px 0">巡回予定なし</div>';
+    return `<div class="week-route-day ${date===today()?'today':''}">
+      <div class="row">
+        <div>
+          <div class="week-date">${dd.getMonth()+1}/${dd.getDate()}（${dow[dd.getDay()]}）</div>
+          <div class="sub">${stops.length}台 ・ 約${mins}分</div>
+        </div>
+      </div>
+      <div class="week-stops">${stopHtml}</div>
+    </div>`;
+  }).join('');
+}
+
 function renderRoute(){
   const r=todaysRoute(),stops=r?.stops||[];
   routeCount.textContent=stops.length;
@@ -2682,6 +2811,7 @@ function renderRoute(){
     </div>`;
     routeList.appendChild(el);
   })
+  if(routePeriod==='week')renderRouteWeek();
 }
 function navigateToMachine(machineId){
   const m=machine(machineId);if(!m)return;
@@ -3311,8 +3441,8 @@ function switchPage(p){
   renderHeader();
 
   if(p==='machines') renderMachines();
-  if(p==='calendar') renderCalendar();
-  if(p==='route') renderRoute();
+  if(p==='calendar'){renderCalendar();}
+  if(p==='route'){renderRoute();routePeriodSet(routePeriod||'today');}
   if(p==='home'){renderHome();renderShift();renderActive();renderWorkDashboard();}
 
   if(p==='map'){
@@ -3771,6 +3901,9 @@ function exportReportCsv(all=false){
 
 
 let workFilter='today';
+let calendarMode='month';
+let calendarAnchor=today();
+let calendarSelectedDate=today();
 
 function localDateObj(s){const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)}
 function endOfWeek(){
@@ -3995,7 +4128,7 @@ function fillMonthlyActionAreas(){
   monthlyActionArea.value=[...monthlyActionArea.options].some(o=>o.value===cur)?cur:'';
 }
 function openMonthlyActionPlan(){
-  monthlyActionPlanAnchor=calendarAnchor||today();
+  monthlyActionPlanAnchor=today();
   fillMonthlyActionAreas();
   const d=ymdDate(monthlyActionPlanAnchor);
   monthlyActionDate.value=localYmd(new Date(d.getFullYear(),d.getMonth(),1,12));
@@ -4008,8 +4141,8 @@ function openMonthlyActionPlan(){
   window.scrollTo(0,0);
 }
 function closeMonthlyActionPlan(){
-  switchPage('calendar');
-  renderCalendar();
+  switchPage('route');
+  routePeriodSet('month');
   window.scrollTo(0,0);
 }
 function moveMonthlyActionPlan(delta){
@@ -4364,6 +4497,16 @@ document.querySelectorAll('[data-close="machineModal"]').forEach(b=>b.addEventLi
   if(mapRegisterBanner) mapRegisterBanner.classList.add('hidden');
   clearTempRegisterMarker();
 }));
+
+document.querySelectorAll('[data-routeperiod]').forEach(b=>{
+  b.addEventListener('click',()=>routePeriodSet(b.dataset.routeperiod));
+});
+if(window.routeWeekTodayBtn)routeWeekTodayBtn.addEventListener('click',()=>{
+  routeWeekAnchor=today();
+  renderRouteWeek();
+});
+if(window.openMonthlyPlanFromRouteBtn)openMonthlyPlanFromRouteBtn.addEventListener('click',openMonthlyActionPlan);
+
 generateRouteBtn.addEventListener('click',openRouteOptions);regenBtn.addEventListener('click',openRouteOptions);
 breakBtn.addEventListener('click',()=>db.active?.type==='break'?endBreak():startBreak());
 workBtn.addEventListener('click',()=>db.active?.type==='work'?endWork():openWorkPicker(currentStop()?.id));
