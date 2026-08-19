@@ -1313,6 +1313,17 @@ nav.modal-blocked{
 .route-trouble-note>div+div{
   margin-top:3px;
 }
+
+/* Ver.8.9.3 トラブル管理 */
+.existing-trouble-row{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:12px 0;border-bottom:1px solid #e5e7eb;
+}
+.existing-trouble-row:last-child{border-bottom:0}
+.delete-trouble-btn{
+  flex:0 0 auto;border:0;border-radius:12px;padding:10px 14px;
+  background:#fff1f0;color:#b42318;font-weight:900;font-size:15px;
+}
 </style>
 </head>
 <body>
@@ -1766,7 +1777,13 @@ nav.modal-blocked{
         <button class="secondary" id="troubleBackBtn">戻る</button>
       </div>
 
-      <form id="troubleForm">
+      
+<div id="existingTroubleBox" class="flow-card hidden" style="margin-bottom:14px">
+  <div class="section-title">登録済みトラブル</div>
+  <div class="sub" style="margin-bottom:10px">間違えて登録したものはここから削除できます。</div>
+  <div id="existingTroubleList"></div>
+</div>
+<form id="troubleForm">
         <div class="flow-card">
           <label>自販機</label>
           <select id="troubleMachine" required></select>
@@ -2910,7 +2927,7 @@ function machineTroubles(m){
 function uniqueMachineTroubles(m){
   const seen=new Set();
   return machineTroubles(m).filter(t=>{
-    const key=[t.type||'',t.priority||'',(t.memo||'').trim()].join('|');
+    const key=(t.type||'トラブル').trim();
     if(seen.has(key))return false;
     seen.add(key);
     return true;
@@ -3538,6 +3555,34 @@ function saveRouteWorkEdit(){
   closeRouteWorkEdit();
   showToast(stop.status==='done'?'実施内容を修正しました':'作業内容を変更しました');
 }
+
+function renderExistingTroubles(machineId){
+  const box=document.getElementById('existingTroubleBox');
+  const list=document.getElementById('existingTroubleList');
+  if(!box||!list)return;
+  const rows=(db.troubles||[]).filter(t=>t.machineId===machineId&&t.status!=='done');
+  box.classList.toggle('hidden',rows.length===0);
+  list.innerHTML=rows.map(t=>`
+    <div class="existing-trouble-row">
+      <div>
+        <b>${escapeHtml(t.type||'トラブル')}</b>
+        ${t.memo?`<div class="sub">${escapeHtml(t.memo)}</div>`:''}
+      </div>
+      <button type="button" class="delete-trouble-btn" onclick="deleteTroubleRecord('${t.id}','${machineId}')">削除</button>
+    </div>`).join('');
+}
+function deleteTroubleRecord(id,machineId){
+  const t=(db.troubles||[]).find(x=>x.id===id);
+  if(!t)return;
+  if(!confirm(`「${t.type||'トラブル'}」を削除しますか？`))return;
+  db.troubles=db.troubles.filter(x=>x.id!==id);
+  save();
+  renderExistingTroubles(machineId);
+  try{renderRoute()}catch(e){}
+  try{renderWorkDashboard()}catch(e){}
+  showToast('トラブルを削除しました');
+}
+
 function openTroubleForMachine(machineId){
   const m=machine(machineId);
   if(!m)return;
@@ -3549,6 +3594,7 @@ function openTroubleForMachine(machineId){
   fillMachineSelect(troubleMachine,false);
   troubleMachine.value=machineId;
   troubleMachineNote.innerHTML=`<b>${escapeHtml(machineDisplayTitle(m))}</b><div>${escapeHtml(machineDisplaySub(m))}</div>`;
+  renderExistingTroubles(machineId);
   switchPage('trouble');
   window.scrollTo(0,0);
 }
@@ -6150,6 +6196,7 @@ troubleMachine.addEventListener('change',()=>{
   troubleMachineNote.innerHTML=m
     ? `<b>${escapeHtml(machineDisplayTitle(m))}</b><div>${escapeHtml(machineDisplaySub(m))}</div>`
     : '設置場所を選択してください';
+  renderExistingTroubles(troubleMachine.value);
 });
 troubleForm.addEventListener('submit',e=>{
   e.preventDefault();
@@ -6166,9 +6213,7 @@ troubleForm.addEventListener('submit',e=>{
     const duplicate=(db.troubles||[]).find(t=>
       t.status!=='done' &&
       t.machineId===machineId &&
-      t.type===type &&
-      t.priority===priority &&
-      (t.memo||'').trim()===memo
+      (t.type||'').trim()===type.trim()
     );
 
     if(duplicate){
@@ -6487,7 +6532,7 @@ if(window.modelPageBackBtn)modelPageBackBtn.addEventListener('click',closeModelE
 if(window.modelPageCancelBtn)modelPageCancelBtn.addEventListener('click',closeModelEditorPage);
 if(window.modelPageSaveBtn)modelPageSaveBtn.addEventListener('click',saveModelEditorPage);
 
-window.openRouteWorkEdit=openRouteWorkEdit;window.openTroubleForMachine=openTroubleForMachine;window.openMonthlyManualBuilder=openMonthlyManualBuilder;window.closeMonthlyManualBuilder=closeMonthlyManualBuilder;window.toggleMonthlyManualMachine=toggleMonthlyManualMachine;window.toggleMonthlyManualWork=toggleMonthlyManualWork;window.clearMonthlyManualSelection=clearMonthlyManualSelection;window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openWeeklyDayDetail=openWeeklyDayDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
+window.deleteTroubleRecord=deleteTroubleRecord;window.openRouteWorkEdit=openRouteWorkEdit;window.openTroubleForMachine=openTroubleForMachine;window.openMonthlyManualBuilder=openMonthlyManualBuilder;window.closeMonthlyManualBuilder=closeMonthlyManualBuilder;window.toggleMonthlyManualMachine=toggleMonthlyManualMachine;window.toggleMonthlyManualWork=toggleMonthlyManualWork;window.clearMonthlyManualSelection=clearMonthlyManualSelection;window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openWeeklyDayDetail=openWeeklyDayDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
 window.openModelEditor=openModelEditor;window.deleteModel=deleteModel;window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
