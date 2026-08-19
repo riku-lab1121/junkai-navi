@@ -1301,6 +1301,18 @@ nav.modal-blocked{
   font-size:11px;
   line-height:1.45;
 }
+
+/* Ver.8.9.1 トラブル重複表示修正 */
+.route-trouble-note{
+  max-width:100%;
+}
+.route-trouble-head{
+  font-weight:900;
+  margin-bottom:5px;
+}
+.route-trouble-note>div+div{
+  margin-top:3px;
+}
 </style>
 </head>
 <body>
@@ -2895,6 +2907,31 @@ function createManualRoute(){
 function machineTroubles(m){
   return (db.troubles||[]).filter(t=>t.machineId===m.id&&t.status!=='done');
 }
+function uniqueMachineTroubles(m){
+  const seen=new Set();
+  return machineTroubles(m).filter(t=>{
+    const key=[t.type||'',t.priority||'',(t.memo||'').trim()].join('|');
+    if(seen.has(key))return false;
+    seen.add(key);
+    return true;
+  });
+}
+function cleanupDuplicateTroubles(){
+  if(!Array.isArray(db.troubles))return 0;
+  const seen=new Set(),next=[];
+  let removed=0;
+  for(const t of db.troubles){
+    if(t.status==='done'){next.push(t);continue}
+    const key=[t.machineId||'',t.type||'',t.priority||'',(t.memo||'').trim()].join('|');
+    if(seen.has(key)){removed++;continue}
+    seen.add(key);next.push(t);
+  }
+  if(removed){
+    db.troubles=next;
+    try{save()}catch(e){console.warn('duplicate trouble cleanup',e)}
+  }
+  return removed;
+}
 function routeReason(m,includeTrouble=true){
   const reasons=[];
   const rd=dayDiff(m.lastRegular,today()),ri=regularInterval(m);
@@ -3392,10 +3429,14 @@ function renderRouteWeek(){
 
 
 let routeWorkEditStopId=null;
+let routeWorkEditScrollY=0;
+let routeWorkEditReturnStopId=null;
 
 function openRouteWorkEdit(stopId){
   const stop=(todaysRoute()?.stops||[]).find(s=>s.id===stopId);
   if(!stop)return;
+  routeWorkEditScrollY=window.scrollY||0;
+  routeWorkEditReturnStopId=stopId;
   const m=machine(stop.machineId);
   if(!m)return;
 
@@ -3422,11 +3463,32 @@ function openRouteWorkEdit(stopId){
   window.scrollTo(0,0);
 }
 function closeRouteWorkEdit(){
+  const targetStopId=routeWorkEditReturnStopId;
+  const previousY=routeWorkEditScrollY;
+
   routeWorkEditStopId=null;
   switchPage('route');
   routePeriodSet('today');
   renderRoute();
-  window.scrollTo(0,0);
+
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      const card=targetStopId
+        ? document.querySelector(`#routeList .stop[data-stop-id="${CSS.escape(targetStopId)}"]`)
+        : null;
+
+      if(card){
+        const rect=card.getBoundingClientRect();
+        const targetY=Math.max(0,window.scrollY+rect.top-120);
+        window.scrollTo({top:targetY,behavior:'auto'});
+      }else{
+        window.scrollTo({top:previousY,behavior:'auto'});
+      }
+
+      routeWorkEditReturnStopId=null;
+      routeWorkEditScrollY=0;
+    });
+  });
 }
 function recomputeMachineWorkDates(machineId){
   const m=machine(machineId);
@@ -3479,6 +3541,8 @@ function saveRouteWorkEdit(){
 function openTroubleForMachine(machineId){
   const m=machine(machineId);
   if(!m)return;
+  routeWorkEditScrollY=window.scrollY||0;
+  routeWorkEditReturnStopId=(todaysRoute()?.stops||[]).find(s=>s.machineId===machineId)?.id||null;
   troubleReturnPage='route';
   troubleForm.reset();
   troubleAddRoute.checked=false;
@@ -3510,11 +3574,16 @@ function renderRoute(){
     }
     const el=document.createElement('div');
     el.className='stop '+(s.status==='current'?'current ':'')+(s.status==='done'?'done':'');
-    const state=s.status==='done'?'完了':s.status==='current'?'作業中':machineTroubles(m).length?'トラブル':regularDue(m)?'定期巡回':supplyDue(m)||m.prioritySupply?'補充巡回':collectionDue(m)?'集金':'巡回';
+    el.dataset.stopId=s.id;
+    const state=s.status==='done'?'完了':s.status==='current'?'作業中':uniqueMachineTroubles(m).length?'トラブル':regularDue(m)?'定期巡回':supplyDue(m)||m.prioritySupply?'補充巡回':collectionDue(m)?'集金':'巡回';
     const memo=m.inventoryMemo?`<div class="urgent-note">在庫: ${escapeHtml(m.inventoryMemo)}</div>`:'';
-    const troubleRows=machineTroubles(m);
+    const troubleRows=uniqueMachineTroubles(m);
     const troubleMemo=troubleRows.length
-      ? `<div class="route-trouble-note">${troubleRows.map(t=>`<b>${escapeHtml(t.type)}</b>${t.memo?`：${escapeHtml(t.memo)}`:''}`).join('<br>')}</div>`
+      ? `<div class="route-trouble-note">
+          <div class="route-trouble-head">未解決トラブル ${troubleRows.length}件</div>
+          ${troubleRows.slice(0,3).map(t=>`<div><b>${escapeHtml(t.type)}</b>${t.memo?`：${escapeHtml(t.memo)}`:''}</div>`).join('')}
+          ${troubleRows.length>3?`<div class="sub">ほか${troubleRows.length-3}件</div>`:''}
+        </div>`
       : '';
     el.innerHTML=`<div class="stop-head">
       <div>
@@ -6090,11 +6159,28 @@ troubleForm.addEventListener('submit',e=>{
   try{
     const machineId=troubleMachine.value;
     if(!machineId){alert('自販機を選んでください');return}
+    const type=troubleType.value;
+    const priority=troublePriority.value;
+    const memo=troubleMemo.value.trim();
+
+    const duplicate=(db.troubles||[]).find(t=>
+      t.status!=='done' &&
+      t.machineId===machineId &&
+      t.type===type &&
+      t.priority===priority &&
+      (t.memo||'').trim()===memo
+    );
+
+    if(duplicate){
+      alert('同じ内容の未解決トラブルがすでに登録されています。');
+      return;
+    }
+
     const item={
       id:uid(),machineId,
-      type:troubleType.value,
-      priority:troublePriority.value,
-      memo:troubleMemo.value.trim(),
+      type,
+      priority,
+      memo,
       status:'open',createdAt:Date.now(),date:today()
     };
     db.troubles.push(item);
@@ -6104,6 +6190,23 @@ troubleForm.addEventListener('submit',e=>{
     switchPage(target);
     try{renderRoute()}catch(e){console.warn('route redraw after trouble',e)}
     try{renderWorkDashboard()}catch(e){}
+    if(target==='route'){
+      requestAnimationFrame(()=>{
+        requestAnimationFrame(()=>{
+          const card=routeWorkEditReturnStopId
+            ? document.querySelector(`#routeList .stop[data-stop-id="${CSS.escape(routeWorkEditReturnStopId)}"]`)
+            : null;
+          if(card){
+            const rect=card.getBoundingClientRect();
+            window.scrollTo({top:Math.max(0,window.scrollY+rect.top-120),behavior:'auto'});
+          }else{
+            window.scrollTo({top:routeWorkEditScrollY||0,behavior:'auto'});
+          }
+          routeWorkEditReturnStopId=null;
+          routeWorkEditScrollY=0;
+        });
+      });
+    }
     showToast('トラブルを受付しました');
   }catch(err){
     console.error(err);
@@ -6436,6 +6539,7 @@ function machineWorkBadgesHtml(m){
   return items.map(x=>`<span class="work-chip">${escapeHtml(x[0])}</span>`).join('');
 }
 
+cleanupDuplicateTroubles();
 renderAll();
 </script>
 </body>
