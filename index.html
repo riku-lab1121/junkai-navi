@@ -875,6 +875,28 @@ nav.modal-blocked{
   opacity:.55;
   transform:none!important;
 }
+
+/* Ver.7.3: usability-first. Large input/edit operations use full pages. */
+#modelModal{display:none!important}
+#modelEditorPage{
+  min-height:calc(100dvh - 90px);
+  padding-bottom:110px!important;
+}
+#modelEditorPage .flow-card{
+  border-radius:14px;
+}
+.simple-page-actions{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  padding:4px 0 24px;
+}
+.simple-page-actions button{
+  width:100%;
+  min-height:58px;
+  font-size:17px;
+  font-weight:900;
+}
 </style>
 </head>
 <body>
@@ -1415,6 +1437,35 @@ nav.modal-blocked{
         <button class="primary" id="saveSettings">設定を保存</button>
       </div>
     </section>
+
+
+<section id="modelEditorPage" class="hidden flow-page">
+  <div class="flow-head">
+    <div>
+      <div class="section-title">機種マスター</div>
+      <div class="flow-title" id="modelPageTitle">機種を追加</div>
+      <div class="sub">必要な項目だけ入力して保存できます。</div>
+    </div>
+    <button class="secondary" type="button" id="modelPageBackBtn">戻る</button>
+  </div>
+
+  <div class="flow-card">
+    <input type="hidden" id="modelPageEditId">
+    <label>機種名 *</label>
+    <input id="modelPageName" placeholder="例：85QV" />
+
+    <label>標準作業時間（分）</label>
+    <input id="modelPageMinutes" type="number" min="1" value="25" inputmode="numeric" />
+
+    <label>機種メモ</label>
+    <textarea id="modelPageMemo" rows="5" placeholder="注意点・タンク種類など"></textarea>
+  </div>
+
+  <div class="simple-page-actions">
+    <button class="primary" type="button" id="modelPageSaveBtn">保存する</button>
+    <button class="secondary" type="button" id="modelPageCancelBtn">キャンセル</button>
+  </div>
+</section>
 
 <section id="registerPage" class="hidden registration-page">
       <div class="reg-hero">
@@ -3006,7 +3057,7 @@ function switchPage(p){
   page=p;
 
   // まず画面そのものを切り替える。MAPの後処理で失敗しても遷移は止めない。
-  ['home','map','route','calendar','machines','register','report','manualRoute','autoRoute','trouble','settings'].forEach(x=>{
+  ['home','map','route','calendar','machines','register','report','manualRoute','autoRoute','trouble','settings','modelEditor'].forEach(x=>{
     const el=document.getElementById(x+'Page');
     if(el) el.classList.toggle('hidden',x!==p);
   });
@@ -3790,12 +3841,57 @@ function renderModelMaster(){
 }
 function openModelEditor(id=null){
   const m=id?modelById(id):null;
-  modelEditId.value=m?.id||'';
-  modelName.value=m?.name||'';
-  modelMinutes.value=m?.minutes||25;
-  modelMemo.value=m?.memo||'';
-  modelModalTitle.textContent=m?'機種を編集':'機種を追加';
-  showModal('modelModal');
+  modelPageEditId.value=m?.id||'';
+  modelPageName.value=m?.name||'';
+  modelPageMinutes.value=m?.minutes||25;
+  modelPageMemo.value=m?.memo||'';
+  modelPageTitle.textContent=m?'機種を編集':'機種を追加';
+  modelEditorReturnPage=page==='settings'?'settings':'machines';
+  switchPage('modelEditor');
+  window.scrollTo(0,0);
+  setTimeout(()=>modelPageName.focus(),80);
+}
+
+let modelEditorReturnPage='settings';
+function closeModelEditorPage(){
+  switchPage(modelEditorReturnPage||'settings');
+  if((modelEditorReturnPage||'settings')==='settings'){
+    setSettingsTab('model');
+    renderModelMaster();
+  }
+}
+function saveModelEditorPage(){
+  const name=(modelPageName.value||'').trim();
+  if(!name){
+    alert('機種名を入力してください');
+    modelPageName.focus();
+    return;
+  }
+  if(modelPageSaveBtn.disabled)return;
+  modelPageSaveBtn.disabled=true;
+  const oldText=modelPageSaveBtn.textContent;
+  modelPageSaveBtn.textContent='保存中…';
+  try{
+    syncDbFromStorage();
+    if(!Array.isArray(db.models))db.models=[];
+    const id=modelPageEditId.value||uid();
+    const data={
+      id,
+      name,
+      minutes:Math.max(1,Number(modelPageMinutes.value)||25),
+      memo:(modelPageMemo.value||'').trim()
+    };
+    const idx=db.models.findIndex(m=>m.id===id);
+    if(idx>=0)db.models[idx]=data;
+    else db.models.push(data);
+    save();
+    fillModelSelect();
+    showToast(`${name} を保存しました`);
+    closeModelEditorPage();
+  }finally{
+    modelPageSaveBtn.disabled=false;
+    modelPageSaveBtn.textContent=oldText;
+  }
 }
 function deleteModel(id){
   if(!confirm('この機種を削除しますか？\\n登録済み自販機の機種名表示はそのまま保持します。'))return;
@@ -4220,6 +4316,11 @@ if(window.saveModelBtn && !saveModelBtn.dataset.bound){
     saveModelMaster();
   });
 }
+
+
+if(window.modelPageBackBtn)modelPageBackBtn.addEventListener('click',closeModelEditorPage);
+if(window.modelPageCancelBtn)modelPageCancelBtn.addEventListener('click',closeModelEditorPage);
+if(window.modelPageSaveBtn)modelPageSaveBtn.addEventListener('click',saveModelEditorPage);
 
 window.openModelEditor=openModelEditor;window.deleteModel=deleteModel;window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
