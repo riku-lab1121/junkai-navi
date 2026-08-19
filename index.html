@@ -1257,6 +1257,50 @@ nav.modal-blocked{
   line-height:1.45;
   font-weight:750;
 }
+
+/* Ver.8.9 巡回カードから作業変更・トラブル */
+.route-actions{
+  flex-wrap:wrap;
+}
+.route-work-edit-title{
+  font-size:22px;
+  font-weight:900;
+  line-height:1.3;
+}
+.route-work-edit-choices{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:9px;
+  margin-top:10px;
+}
+.route-work-choice{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-height:54px;
+  padding:12px;
+  border-radius:13px;
+  background:#f8fafc;
+  border:1px solid #e5e7eb;
+  font-weight:850;
+}
+.route-work-choice input{
+  width:22px;
+  height:22px;
+}
+.trouble-route-btn{
+  color:#b42318!important;
+  background:#fff1f0!important;
+}
+.route-trouble-note{
+  margin-top:8px;
+  padding:8px 10px;
+  border-radius:10px;
+  background:#fff1f0;
+  color:#9f231b;
+  font-size:11px;
+  line-height:1.45;
+}
 </style>
 </head>
 <body>
@@ -1670,7 +1714,37 @@ nav.modal-blocked{
       </div>
     </section>
 
-    <section id="troublePage" class="hidden flow-page">
+    
+<section id="routeWorkEditPage" class="hidden flow-page">
+  <div class="flow-head">
+    <div>
+      <div class="section-title">今日の巡回</div>
+      <div class="flow-title">作業内容を変更</div>
+      <div class="sub" id="routeWorkEditMachineSub">今回行う作業を選択します。</div>
+    </div>
+    <button class="secondary" id="routeWorkEditBackBtn" type="button">戻る</button>
+  </div>
+
+  <div class="flow-card">
+    <div class="route-work-edit-title" id="routeWorkEditMachineName"></div>
+    <div class="sub" id="routeWorkEditMachineMeta"></div>
+
+    <div class="section-title" style="margin-top:18px">今回の作業</div>
+    <div id="routeWorkEditChoices" class="route-work-edit-choices"></div>
+
+    <div id="routeWorkEditMemoWrap" class="hidden" style="margin-top:16px">
+      <div class="sub">原料・在庫メモ</div>
+      <div id="routeWorkEditMemo" class="machine-detail-note"></div>
+    </div>
+  </div>
+
+  <div class="flow-card">
+    <button class="primary" id="routeWorkEditSaveBtn" type="button" style="width:100%;min-height:58px">変更を保存</button>
+    <button class="secondary" id="routeWorkEditCancelBtn" type="button" style="width:100%;margin-top:10px">キャンセル</button>
+  </div>
+</section>
+
+<section id="troublePage" class="hidden flow-page">
       <div class="flow-head">
         <div>
           <div class="section-title">仕事管理</div>
@@ -3193,7 +3267,7 @@ function renderShift(){
 }
 
 function renderHeader(){
-  const titles={home:'ホーム',map:'MAP',route:'今日の巡回',calendar:'カレンダー',machines:'自販機',register:'自販機登録',report:'日報',manualRoute:'手動巡回作成',autoRoute:'巡回作成',trouble:'トラブル受付',settings:'設定',monthlyActionPlan:'月間行動計画表',monthlyDayDetail:'巡回詳細',deleteMachine:'自販機を削除',machineDetail:'自販機詳細',dayOff:'休み設定',monthlyManualBuilder:'手動巡回作成',returnConfirm:'外回り終了'};
+  const titles={home:'ホーム',map:'MAP',route:'今日の巡回',calendar:'カレンダー',machines:'自販機',register:'自販機登録',report:'日報',manualRoute:'手動巡回作成',autoRoute:'巡回作成',trouble:'トラブル受付',settings:'設定',monthlyActionPlan:'月間行動計画表',monthlyDayDetail:'巡回詳細',deleteMachine:'自販機を削除',machineDetail:'自販機詳細',dayOff:'休み設定',monthlyManualBuilder:'手動巡回作成',returnConfirm:'外回り終了',routeWorkEdit:'作業内容変更'};
   document.getElementById('pageTitle').textContent=titles[page];
   const d=new Date();document.getElementById('todayLabel').textContent=d.toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'short'});
 }
@@ -3316,6 +3390,105 @@ function renderRouteWeek(){
   }).join('');
 }
 
+
+let routeWorkEditStopId=null;
+
+function openRouteWorkEdit(stopId){
+  const stop=(todaysRoute()?.stops||[]).find(s=>s.id===stopId);
+  if(!stop)return;
+  const m=machine(stop.machineId);
+  if(!m)return;
+
+  routeWorkEditStopId=stopId;
+  routeWorkEditMachineName.textContent=machineDisplayTitle(m);
+  routeWorkEditMachineMeta.textContent=machineDisplaySub(m)||`${m.area||'未設定'}エリア`;
+  routeWorkEditMachineSub.textContent=stop.status==='done'
+    ? 'この巡回で実施した作業内容を修正します。'
+    : '今回行う作業を選択します。';
+
+  const all=['原料','清掃','集金','排水','水汲み'];
+  const selected=new Set(stop.workTypes||[]);
+  routeWorkEditChoices.innerHTML=all.map(w=>`
+    <label class="route-work-choice">
+      <input type="checkbox" value="${w}" ${selected.has(w)?'checked':''}>
+      <span>${w}</span>
+    </label>`).join('');
+
+  const memo=(m.inventoryMemo||'').trim();
+  routeWorkEditMemoWrap.classList.toggle('hidden',!memo);
+  routeWorkEditMemo.textContent=memo;
+
+  switchPage('routeWorkEdit');
+  window.scrollTo(0,0);
+}
+function closeRouteWorkEdit(){
+  routeWorkEditStopId=null;
+  switchPage('route');
+  routePeriodSet('today');
+  renderRoute();
+  window.scrollTo(0,0);
+}
+function recomputeMachineWorkDates(machineId){
+  const m=machine(machineId);
+  if(!m)return;
+  const logs=(db.logs||[])
+    .filter(l=>l.type==='work'&&l.machineId===machineId&&l.end)
+    .sort((a,b)=>b.end-a.end);
+
+  const lastWith=(name)=>logs.find(l=>(l.workTypes||[]).includes(name));
+  const regular=logs.find(l=>{
+    const w=l.workTypes||[];
+    return w.includes('原料')&&w.includes('清掃');
+  });
+
+  m.lastRegular=regular?.date||null;
+  m.lastSupply=lastWith('原料')?.date||m.lastRegular||null;
+  m.lastCollection=lastWith('集金')?.date||m.lastRegular||null;
+}
+function saveRouteWorkEdit(){
+  const stop=(todaysRoute()?.stops||[]).find(s=>s.id===routeWorkEditStopId);
+  if(!stop)return;
+  const works=[...routeWorkEditChoices.querySelectorAll('input:checked')].map(x=>x.value);
+  if(!works.length){
+    alert('作業を1つ以上選んでください');
+    return;
+  }
+
+  stop.workTypes=works;
+
+  // 完了後の修正なら、当該巡回の実績ログも修正。
+  if(stop.status==='done'){
+    const log=(db.logs||[])
+      .filter(l=>l.date===today()&&l.type==='work'&&l.machineId===stop.machineId&&l.end)
+      .sort((a,b)=>b.end-a.end)[0];
+    if(log)log.workTypes=[...works];
+
+    const m=machine(stop.machineId);
+    if(m){
+      if(works.includes('排水'))m.needsDrain=false;
+      if(works.includes('水汲み'))m.needsWater=false;
+      if(works.includes('原料'))m.prioritySupply=false;
+    }
+    recomputeMachineWorkDates(stop.machineId);
+  }
+
+  save();
+  closeRouteWorkEdit();
+  showToast(stop.status==='done'?'実施内容を修正しました':'作業内容を変更しました');
+}
+function openTroubleForMachine(machineId){
+  const m=machine(machineId);
+  if(!m)return;
+  troubleReturnPage='route';
+  troubleForm.reset();
+  troubleAddRoute.checked=false;
+  fillMachineSelect(troubleMachine,false);
+  troubleMachine.value=machineId;
+  troubleMachineNote.innerHTML=`<b>${escapeHtml(machineDisplayTitle(m))}</b><div>${escapeHtml(machineDisplaySub(m))}</div>`;
+  switchPage('trouble');
+  window.scrollTo(0,0);
+}
+
 function renderRoute(){
   const r=todaysRoute(),stops=r?.stops||[];
   routeCount.textContent=stops.length;
@@ -3339,18 +3512,25 @@ function renderRoute(){
     el.className='stop '+(s.status==='current'?'current ':'')+(s.status==='done'?'done':'');
     const state=s.status==='done'?'完了':s.status==='current'?'作業中':machineTroubles(m).length?'トラブル':regularDue(m)?'定期巡回':supplyDue(m)||m.prioritySupply?'補充巡回':collectionDue(m)?'集金':'巡回';
     const memo=m.inventoryMemo?`<div class="urgent-note">在庫: ${escapeHtml(m.inventoryMemo)}</div>`:'';
+    const troubleRows=machineTroubles(m);
+    const troubleMemo=troubleRows.length
+      ? `<div class="route-trouble-note">${troubleRows.map(t=>`<b>${escapeHtml(t.type)}</b>${t.memo?`：${escapeHtml(t.memo)}`:''}`).join('<br>')}</div>`
+      : '';
     el.innerHTML=`<div class="stop-head">
       <div>
         <div class="sub">${String(i+1).padStart(2,'0')} ・ ${escapeHtml(m.area||'未設定')} ・ ${state}</div>
         <div class="stop-name">${m.site?`<div class="sub">${escapeHtml(m.site)}</div>`:''}${escapeHtml(m.name)}</div>
         <div class="worktags">${[...new Set([...(s.workTypes||[]),...workFor(m)])].map(w=>`<span class="tag">${w}</span>`).join('')}</div>
         ${memo}
+        ${troubleMemo}
       </div>
       <div>${s.status==='done'?'<span class="pill green">✓</span>':`<button class="smallbtn" onclick="openWorkPicker('${s.id}')">開始</button>`}</div>
     </div>
     <div class="route-actions">
       <button class="route-order-btn" onclick="moveStop('${s.id}',-1)" ${i===0?'disabled':''}>↑</button>
       <button class="route-order-btn" onclick="moveStop('${s.id}',1)" ${i===stops.length-1?'disabled':''}>↓</button>
+      <button class="smallbtn" onclick="openRouteWorkEdit('${s.id}')">${s.status==='done'?'実施内容':'作業変更'}</button>
+      <button class="smallbtn trouble-route-btn" onclick="openTroubleForMachine('${m.id}')">トラブル</button>
       <button class="smallbtn navbtn" onclick="navigateToMachine('${m.id}')">ナビ</button>
       <span class="mini">約${s.plannedMinutes}分</span>
     </div>`;
@@ -3978,7 +4158,7 @@ function switchPage(p){
   page=p;
 
   // まず画面そのものを切り替える。MAPの後処理で失敗しても遷移は止めない。
-  ['home','map','route','calendar','machines','register','report','manualRoute','autoRoute','trouble','settings','modelEditor','monthlyActionPlan','monthlyDayDetail','deleteMachine','machineDetail','dayOff','monthlyManualBuilder','returnConfirm'].forEach(x=>{
+  ['home','map','route','calendar','machines','register','report','manualRoute','autoRoute','trouble','settings','modelEditor','monthlyActionPlan','monthlyDayDetail','deleteMachine','machineDetail','dayOff','monthlyManualBuilder','returnConfirm','routeWorkEdit'].forEach(x=>{
     const el=document.getElementById(x+'Page');
     if(el) el.classList.toggle('hidden',x!==p);
   });
@@ -5920,8 +6100,10 @@ troubleForm.addEventListener('submit',e=>{
     db.troubles.push(item);
     if(troubleAddRoute.checked)addMachineToToday(machineId,true);
     save();
-    renderAll();
-    switchPage('home');
+    const target=troubleReturnPage||'home';
+    switchPage(target);
+    try{renderRoute()}catch(e){console.warn('route redraw after trouble',e)}
+    try{renderWorkDashboard()}catch(e){}
     showToast('トラブルを受付しました');
   }catch(err){
     console.error(err);
@@ -6155,6 +6337,11 @@ if(window.returnConfirmSaveBtn && !returnConfirmSaveBtn.dataset.bound){
   btn.addEventListener('click',e=>{e.preventDefault();switchPage('home');renderShift();});
 });
 
+
+if(window.routeWorkEditBackBtn)routeWorkEditBackBtn.addEventListener('click',closeRouteWorkEdit);
+if(window.routeWorkEditCancelBtn)routeWorkEditCancelBtn.addEventListener('click',closeRouteWorkEdit);
+if(window.routeWorkEditSaveBtn)routeWorkEditSaveBtn.addEventListener('click',saveRouteWorkEdit);
+
 // Ver.8.7: 重要操作は inline onclick に依存させない。
 if(window.deletePageConfirmBtn && !deletePageConfirmBtn.dataset.bound){
   deletePageConfirmBtn.dataset.bound='1';
@@ -6197,7 +6384,7 @@ if(window.modelPageBackBtn)modelPageBackBtn.addEventListener('click',closeModelE
 if(window.modelPageCancelBtn)modelPageCancelBtn.addEventListener('click',closeModelEditorPage);
 if(window.modelPageSaveBtn)modelPageSaveBtn.addEventListener('click',saveModelEditorPage);
 
-window.openMonthlyManualBuilder=openMonthlyManualBuilder;window.closeMonthlyManualBuilder=closeMonthlyManualBuilder;window.toggleMonthlyManualMachine=toggleMonthlyManualMachine;window.toggleMonthlyManualWork=toggleMonthlyManualWork;window.clearMonthlyManualSelection=clearMonthlyManualSelection;window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openWeeklyDayDetail=openWeeklyDayDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
+window.openRouteWorkEdit=openRouteWorkEdit;window.openTroubleForMachine=openTroubleForMachine;window.openMonthlyManualBuilder=openMonthlyManualBuilder;window.closeMonthlyManualBuilder=closeMonthlyManualBuilder;window.toggleMonthlyManualMachine=toggleMonthlyManualMachine;window.toggleMonthlyManualWork=toggleMonthlyManualWork;window.clearMonthlyManualSelection=clearMonthlyManualSelection;window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openWeeklyDayDetail=openWeeklyDayDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
 window.openModelEditor=openModelEditor;window.deleteModel=deleteModel;window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
