@@ -1243,6 +1243,13 @@ nav.modal-blocked{
   backdrop-filter:blur(14px)
 }
 .manual-plan-footer .primary{width:auto;min-width:190px;min-height:52px}
+
+/* Ver.8.8 外回り終了と業務終了を分離 */
+.shift-times-three{grid-template-columns:repeat(3,1fr)!important}
+.shift-times-three .timebox{min-width:0}
+.shift-times-three .timebox .sub{font-size:10px}
+#workEndBtn{background:#111827;color:#fff}
+#returnConfirmPage,#workEndConfirmPage{min-height:calc(100dvh - 90px);padding-bottom:110px!important}
 </style>
 </head>
 <body>
@@ -1287,19 +1294,24 @@ nav.modal-blocked{
           <span class="pill" id="shiftElapsed">00:00</span>
         </div>
 
-        <div class="shift-times" id="shiftTimes">
+        <div class="shift-times shift-times-three" id="shiftTimes">
           <div class="timebox">
             <span class="sub">出発</span>
             <b id="departureTime">--:--</b>
           </div>
           <div class="timebox">
-            <span class="sub">帰社</span>
+            <span class="sub">外回り終了</span>
             <b id="returnTime">--:--</b>
+          </div>
+          <div class="timebox">
+            <span class="sub">業務終了</span>
+            <b id="workEndTime">--:--</b>
           </div>
         </div>
 
         <button class="primary departbtn" id="departureBtn" style="margin-top:14px">出発</button>
-        <button class="primary returnbtn hidden" id="returnBtn" style="margin-top:10px">帰社する</button>
+        <button class="primary returnbtn hidden" id="returnBtn" style="margin-top:10px">外回りを終了する</button>
+        <button class="primary hidden" id="workEndBtn" style="margin-top:10px">業務を終了する</button>
         <button class="secondary hidden" id="shiftReportBtn" style="margin-top:10px;width:100%">今日の日報を見る</button>
       </div>
 
@@ -1307,8 +1319,8 @@ nav.modal-blocked{
         <div class="row">
           <div>
             <div class="section-title">今日の日報</div>
-            <div style="font-size:20px;font-weight:900">勤務終了済み</div>
-            <div class="sub">帰社後の日報を確認できます</div>
+            <div style="font-size:20px;font-weight:900">業務終了済み</div>
+            <div class="sub">今日の勤務記録を確認できます</div>
           </div>
           <button class="secondary" id="openDailyReportBtn">日報を見る</button>
         </div>
@@ -2224,6 +2236,49 @@ nav.modal-blocked{
     </section>
 
 
+
+<section id="returnConfirmPage" class="hidden flow-page">
+  <div class="flow-head">
+    <div>
+      <div class="section-title">今日の勤務</div>
+      <div class="flow-title">外回りを終了</div>
+      <div class="sub">会社へ戻った時刻を記録します。業務自体はまだ終了しません。</div>
+    </div>
+    <button class="secondary" id="returnConfirmBackBtn" type="button">戻る</button>
+  </div>
+  <div class="flow-card">
+    <div style="font-size:22px;font-weight:900">外回り終了を記録しますか？</div>
+    <div class="notice" style="margin-top:14px">
+      帰社後の事務作業などは引き続き勤務時間として計測します。最後に「業務を終了する」を押してください。
+    </div>
+  </div>
+  <div class="flow-card">
+    <button class="primary returnbtn" id="returnConfirmSaveBtn" type="button" style="width:100%;min-height:58px">外回り終了を記録</button>
+    <button class="secondary" id="returnConfirmCancelBtn" type="button" style="width:100%;margin-top:10px">キャンセル</button>
+  </div>
+</section>
+
+<section id="workEndConfirmPage" class="hidden flow-page">
+  <div class="flow-head">
+    <div>
+      <div class="section-title">今日の勤務</div>
+      <div class="flow-title">業務を終了</div>
+      <div class="sub">今日の勤務終了時刻を確定します。</div>
+    </div>
+    <button class="secondary" id="workEndConfirmBackBtn" type="button">戻る</button>
+  </div>
+  <div class="flow-card">
+    <div style="font-size:22px;font-weight:900">今日の業務を終了しますか？</div>
+    <div class="notice" style="margin-top:14px">
+      業務終了時刻を記録して、今日の勤務時間を確定します。
+    </div>
+  </div>
+  <div class="flow-card">
+    <button class="primary" id="workEndConfirmSaveBtn" type="button" style="width:100%;min-height:58px">業務終了を記録</button>
+    <button class="secondary" id="workEndConfirmCancelBtn" type="button" style="width:100%;margin-top:10px">キャンセル</button>
+  </div>
+</section>
+
 <section id="monthlyManualBuilderPage" class="hidden flow-page">
   <div class="flow-head">
     <div>
@@ -2563,6 +2618,9 @@ function hasDeparted(){
 function hasReturned(){
   return !!todaysShift()?.returnAt;
 }
+function hasWorkEnded(){
+  return !!todaysShift()?.workEndAt;
+}
 function timeLabel(ms){
   if(!ms)return '--:--';
   return new Date(ms).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',hour12:false});
@@ -2570,31 +2628,66 @@ function timeLabel(ms){
 function shiftElapsedSeconds(){
   const s=todaysShift();
   if(!s?.departureAt)return 0;
-  const end=s.returnAt||Date.now();
+  const end=s.workEndAt||Date.now();
   return Math.max(0,(end-s.departureAt)/1000);
+}
+function outsideElapsedSeconds(){
+  const s=todaysShift();
+  if(!s?.departureAt)return 0;
+  const end=s.returnAt||s.workEndAt||Date.now();
+  return Math.max(0,(end-s.departureAt)/1000);
+}
+function officeElapsedSeconds(){
+  const s=todaysShift();
+  if(!s?.returnAt)return 0;
+  const end=s.workEndAt||Date.now();
+  return Math.max(0,(end-s.returnAt)/1000);
 }
 function startDeparture(){
   if(hasDeparted())return;
   if(!db.shifts) db.shifts={};
-  db.shifts[today()]={date:today(),departureAt:Date.now(),returnAt:null};
+  db.shifts[today()]={date:today(),departureAt:Date.now(),returnAt:null,workEndAt:null};
   save();
   renderAll();
 }
 function requestReturn(){
   if(!hasDeparted() || hasReturned())return;
   if(db.active){
-    alert(db.active.type==='work'?'作業を終了してから帰社してください。':'休憩を終了してから帰社してください。');
+    alert(db.active.type==='work'?'作業を終了してから外回りを終了してください。':'休憩を終了してから外回りを終了してください。');
     return;
   }
-  showModal('returnModal');
+  switchPage('returnConfirm');
+  window.scrollTo(0,0);
 }
 function finishReturn(){
   const s=todaysShift();
   if(!s || s.returnAt)return;
   s.returnAt=Date.now();
   save();
-  hideModal('returnModal');
+  switchPage('home');
   renderAll();
+  window.scrollTo(0,0);
+  showToast('外回り終了を記録しました');
+}
+function requestWorkEnd(){
+  const s=todaysShift();
+  if(!s?.returnAt || s.workEndAt)return;
+  if(db.active){
+    alert(db.active.type==='work'?'現在の作業を終了してください。':'休憩を終了してください。');
+    return;
+  }
+  switchPage('workEndConfirm');
+  window.scrollTo(0,0);
+}
+function finishWorkEnd(){
+  const s=todaysShift();
+  if(!s || !s.returnAt || s.workEndAt)return;
+  s.workEndAt=Date.now();
+  save();
+  switchPage('home');
+  renderAll();
+  window.scrollTo(0,0);
+  showToast('今日の業務終了を記録しました');
 }
 
 
@@ -3008,14 +3101,20 @@ function getWorkSeconds(){
 }
 function getTravelSeconds(){
   if(!hasDeparted()) return 0;
-  return Math.max(0, shiftElapsedSeconds() - getWorkSeconds() - getBreakSeconds());
+  const s=todaysShift();
+  const outsideEnd=s?.returnAt||Date.now();
+  const works=(db.logs||[]).filter(l=>l.date===today()&&l.type==='work'&&l.end&&l.start<outsideEnd)
+    .reduce((a,l)=>a+Math.max(0,(Math.min(l.end,outsideEnd)-l.start)/1000),0);
+  const breaks=(db.logs||[]).filter(l=>l.date===today()&&l.type==='break'&&l.end&&l.start<outsideEnd)
+    .reduce((a,l)=>a+Math.max(0,(Math.min(l.end,outsideEnd)-l.start)/1000),0);
+  return Math.max(0, outsideElapsedSeconds() - works - breaks);
 }
 function mins(sec){ return Math.max(0, Math.round(sec/60)); }
 
 function activeElapsed(){return db.active?Math.max(0,(Date.now()-db.active.start)/1000):0}
 function startBreak(){
   if(!hasDeparted()){alert('先に「出発」を押してください。');return}
-  if(hasReturned()){alert('今日は帰社済みです。');return}
+  if(hasWorkEnded()){alert('今日は業務終了済みです。');return}
   if(db.active){alert('先に現在の計測を終了してください。');return}
   db.active={type:'break',start:Date.now()};save();renderAll();
 }
@@ -3026,7 +3125,7 @@ function endBreak(){
 }
 function openWorkPicker(stopId){
   if(!hasDeparted()){alert('先に「出発」を押してください。');return}
-  if(hasReturned()){alert('今日は帰社済みです。');return}
+  if(hasReturned()){alert('外回りは終了済みです。自販機作業は開始できません。');return}
   if(db.active){alert('先に現在の計測を終了してください。');return}
   const s=(todaysRoute()?.stops||[]).find(x=>x.id===stopId) || currentStop();
   if(!s){alert('巡回ルートがありません。');return}
@@ -3068,35 +3167,40 @@ function renderAll(){applyAppSettings();renderHeader();renderShift();renderHome(
 
 function renderShift(){
   const s=todaysShift();
-  const departed=!!s?.departureAt, returned=!!s?.returnAt;
+  const departed=!!s?.departureAt, returned=!!s?.returnAt, ended=!!s?.workEndAt;
 
   departureTime.textContent=departed?timeLabel(s.departureAt):'--:--';
   returnTime.textContent=returned?timeLabel(s.returnAt):'--:--';
+  workEndTime.textContent=ended?timeLabel(s.workEndAt):'--:--';
   shiftElapsed.textContent=fmtTime(shiftElapsedSeconds());
+
+  departureBtn.classList.add('hidden');
+  returnBtn.classList.add('hidden');
+  workEndBtn.classList.add('hidden');
 
   if(!departed){
     shiftState.textContent='未出発';
-    shiftDetail.textContent='出発すると作業・休憩を記録できます';
+    shiftDetail.textContent='出発すると外回りの時間を記録します';
     departureBtn.classList.remove('hidden');
-    returnBtn.classList.add('hidden');
-    departureBtn.textContent='出発';
   }else if(!returned){
-    shiftState.textContent='巡回中';
-    shiftDetail.textContent='移動時間を自動計測中。作業・休憩・帰社を記録できます';
-    departureBtn.classList.add('hidden');
+    shiftState.textContent='外回り中';
+    shiftDetail.textContent='移動・自販機作業・休憩を記録できます';
     returnBtn.classList.remove('hidden');
+  }else if(!ended){
+    shiftState.textContent='帰社・社内業務中';
+    shiftDetail.textContent=`外回り ${timeLabel(s.departureAt)}〜${timeLabel(s.returnAt)}。業務時間は継続中です`;
+    workEndBtn.classList.remove('hidden');
   }else{
-    shiftState.textContent='帰社済み';
-    shiftDetail.textContent=`勤務記録 ${timeLabel(s.departureAt)}〜${timeLabel(s.returnAt)}`;
-    departureBtn.classList.add('hidden');
-    returnBtn.classList.add('hidden');
+    shiftState.textContent='業務終了';
+    shiftDetail.textContent=`勤務記録 ${timeLabel(s.departureAt)}〜${timeLabel(s.workEndAt)} / 外回り終了 ${timeLabel(s.returnAt)}`;
   }
-  shiftReportBtn.classList.toggle('hidden',!returned);
-  returnedReportCard.classList.add('hidden');
+
+  shiftReportBtn.classList.toggle('hidden',!ended);
+  returnedReportCard.classList.toggle('hidden',!ended);
 }
 
 function renderHeader(){
-  const titles={home:'ホーム',map:'MAP',route:'今日の巡回',calendar:'カレンダー',machines:'自販機',register:'自販機登録',report:'日報',manualRoute:'手動巡回作成',autoRoute:'巡回作成',trouble:'トラブル受付',settings:'設定',monthlyActionPlan:'月間行動計画表',monthlyDayDetail:'巡回詳細',deleteMachine:'自販機を削除',machineDetail:'自販機詳細',dayOff:'休み設定'};
+  const titles={home:'ホーム',map:'MAP',route:'今日の巡回',calendar:'カレンダー',machines:'自販機',register:'自販機登録',report:'日報',manualRoute:'手動巡回作成',autoRoute:'巡回作成',trouble:'トラブル受付',settings:'設定',monthlyActionPlan:'月間行動計画表',monthlyDayDetail:'巡回詳細',deleteMachine:'自販機を削除',machineDetail:'自販機詳細',dayOff:'休み設定',monthlyManualBuilder:'手動巡回作成',returnConfirm:'外回り終了',workEndConfirm:'業務終了'};
   document.getElementById('pageTitle').textContent=titles[page];
   const d=new Date();document.getElementById('todayLabel').textContent=d.toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'short'});
 }
@@ -3881,7 +3985,7 @@ function switchPage(p){
   page=p;
 
   // まず画面そのものを切り替える。MAPの後処理で失敗しても遷移は止めない。
-  ['home','map','route','calendar','machines','register','report','manualRoute','autoRoute','trouble','settings','modelEditor','monthlyActionPlan','monthlyDayDetail','deleteMachine','machineDetail','dayOff','monthlyManualBuilder'].forEach(x=>{
+  ['home','map','route','calendar','machines','register','report','manualRoute','autoRoute','trouble','settings','modelEditor','monthlyActionPlan','monthlyDayDetail','deleteMachine','machineDetail','dayOff','monthlyManualBuilder','returnConfirm','workEndConfirm'].forEach(x=>{
     const el=document.getElementById(x+'Page');
     if(el) el.classList.toggle('hidden',x!==p);
   });
@@ -4480,9 +4584,11 @@ function dailyReportData(){
   const route=todaysRoute();
   const workSec=works.reduce((a,l)=>a+Math.max(0,(l.end-l.start)/1000),0);
   const breakSec=breaks.reduce((a,l)=>a+Math.max(0,(l.end-l.start)/1000),0);
-  const shiftSec=shift?.departureAt?Math.max(0,((shift.returnAt||Date.now())-shift.departureAt)/1000):0;
-  return {shift,works,breaks,route,workSec,breakSec,shiftSec,
-    travelSec:Math.max(0,shiftSec-workSec-breakSec),
+  const shiftSec=shift?.departureAt?Math.max(0,((shift.workEndAt||Date.now())-shift.departureAt)/1000):0;
+  const outsideSec=shift?.departureAt?Math.max(0,((shift.returnAt||Date.now())-shift.departureAt)/1000):0;
+  const officeSec=shift?.returnAt?Math.max(0,((shift.workEndAt||Date.now())-shift.returnAt)/1000):0;
+  return {shift,works,breaks,route,workSec,breakSec,shiftSec,outsideSec,officeSec,
+    travelSec:getTravelSeconds(),
     done:(route?.stops||[]).filter(s=>s.status==='done').length};
 }
 function reportMinutes(sec){return Math.max(0,Math.round(sec/60))}
@@ -4514,9 +4620,11 @@ function dailyReportText(){
   const lines=[
     `【巡回日報 ${today()}】`,
     `出発: ${r.shift?.departureAt?timeLabel(r.shift.departureAt):'-'}`,
-    `帰社: ${r.shift?.returnAt?timeLabel(r.shift.returnAt):'-'}`,
+    `外回り終了: ${r.shift?.returnAt?timeLabel(r.shift.returnAt):'-'}`,
+    `業務終了: ${r.shift?.workEndAt?timeLabel(r.shift.workEndAt):'-'}`,
     `勤務: ${reportMinutes(r.shiftSec)}分`,
     `移動: ${reportMinutes(r.travelSec)}分`,
+    `帰社後: ${reportMinutes(r.officeSec)}分`,
     `作業: ${reportMinutes(r.workSec)}分`,
     `休憩: ${reportMinutes(r.breakSec)}分`,
     `完了: ${r.done}台`,
@@ -5845,8 +5953,7 @@ importBackupBtn.addEventListener('click',()=>backupFileInput.click());
 backupFileInput.addEventListener('change',()=>{if(backupFileInput.files[0])importFullBackup(backupFileInput.files[0]);backupFileInput.value=''});
 departureBtn.addEventListener('click',startDeparture);
 returnBtn.addEventListener('click',requestReturn);
-cancelReturnBtn.addEventListener('click',()=>hideModal('returnModal'));
-confirmReturnBtn.addEventListener('click',finishReturn);
+workEndBtn.addEventListener('click',requestWorkEnd);
 cancelDeleteBtn.addEventListener('click',()=>{pendingDeleteId=null;hideModal('deleteModal')});
 confirmDeleteBtn.addEventListener('click',confirmDeleteMachine);
 addMachineBtn.addEventListener('click',()=>openRegisterPage('machines'));
@@ -6049,6 +6156,24 @@ document.addEventListener('visibilitychange',()=>{
 });
 
 
+
+
+if(window.returnConfirmSaveBtn && !returnConfirmSaveBtn.dataset.bound){
+  returnConfirmSaveBtn.dataset.bound='1';
+  returnConfirmSaveBtn.addEventListener('click',e=>{e.preventDefault();finishReturn();});
+}
+[window.returnConfirmBackBtn,window.returnConfirmCancelBtn].filter(Boolean).forEach(btn=>{
+  if(btn.dataset.bound)return; btn.dataset.bound='1';
+  btn.addEventListener('click',e=>{e.preventDefault();switchPage('home');renderShift();});
+});
+if(window.workEndConfirmSaveBtn && !workEndConfirmSaveBtn.dataset.bound){
+  workEndConfirmSaveBtn.dataset.bound='1';
+  workEndConfirmSaveBtn.addEventListener('click',e=>{e.preventDefault();finishWorkEnd();});
+}
+[window.workEndConfirmBackBtn,window.workEndConfirmCancelBtn].filter(Boolean).forEach(btn=>{
+  if(btn.dataset.bound)return; btn.dataset.bound='1';
+  btn.addEventListener('click',e=>{e.preventDefault();switchPage('home');renderShift();});
+});
 
 // Ver.8.7: 重要操作は inline onclick に依存させない。
 if(window.deletePageConfirmBtn && !deletePageConfirmBtn.dataset.bound){
