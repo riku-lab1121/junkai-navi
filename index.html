@@ -3805,17 +3805,29 @@ function deleteModel(id){
   fillModelSelect();
 }
 function saveModelMaster(){
-  const name=modelName.value.trim();
-  if(!name){alert('機種名を入力してください');return}
-  const id=modelEditId.value||uid();
-  const data={id,name,minutes:Math.max(1,Number(modelMinutes.value)||25),memo:modelMemo.value.trim()};
-  const idx=(db.models||[]).findIndex(m=>m.id===id);
-  if(idx>=0)db.models[idx]=data;else db.models.push(data);
-  save();
-  hideModal('modelModal');
-  renderModelMaster();
-  fillModelSelect();
-  showToast(`${name} を保存しました`);
+  const name=(modelName.value||'').trim();
+  if(!name){alert('機種名を入力してください');modelName.focus();return}
+  const btn=saveModelBtn;
+  if(btn.disabled)return;
+  btn.disabled=true;
+  const oldText=btn.textContent;
+  btn.textContent='保存中…';
+  try{
+    syncDbFromStorage();
+    if(!Array.isArray(db.models))db.models=[];
+    const id=modelEditId.value||uid();
+    const data={id,name,minutes:Math.max(1,Number(modelMinutes.value)||25),memo:(modelMemo.value||'').trim()};
+    const idx=db.models.findIndex(m=>m.id===id);
+    if(idx>=0)db.models[idx]=data;else db.models.push(data);
+    save();
+    hideModal('modelModal');
+    renderModelMaster();
+    fillModelSelect();
+    showToast(`${name} を保存しました`);
+  }finally{
+    btn.disabled=false;
+    btn.textContent=oldText;
+  }
 }
 
 function renderSettingsAreaSummary(){
@@ -4193,6 +4205,21 @@ document.addEventListener('visibilitychange',()=>{
     renderAll();
   }
 });
+
+
+// Ver.7.2.1: 機種マスターの操作イベントは初期化時に1回だけ登録する。
+// 設定タブを開いたかどうかに依存させず、重複登録も防ぐ。
+if(window.addModelBtn && !addModelBtn.dataset.bound){
+  addModelBtn.dataset.bound='1';
+  addModelBtn.addEventListener('click',()=>openModelEditor());
+}
+if(window.saveModelBtn && !saveModelBtn.dataset.bound){
+  saveModelBtn.dataset.bound='1';
+  saveModelBtn.addEventListener('click',(e)=>{
+    e.preventDefault();
+    saveModelMaster();
+  });
+}
 
 window.openModelEditor=openModelEditor;window.deleteModel=deleteModel;window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
