@@ -993,6 +993,149 @@ nav.modal-blocked{
 #planEditorPage .flow-card{border-radius:14px}
 
 #taskModal{display:none!important}
+
+/* Ver.7.6 月間行動計画表 = 一覧表 */
+#monthlyPlanPage{
+  padding-bottom:100px!important;
+}
+.monthly-table-card{
+  padding:0!important;
+  overflow:hidden;
+}
+.monthly-table-wrap{
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.monthly-action-table{
+  width:100%;
+  min-width:920px;
+  border-collapse:collapse;
+  background:#fff;
+  font-size:13px;
+}
+.monthly-action-table th,
+.monthly-action-table td{
+  border:1px solid #e5e7eb;
+  padding:10px 9px;
+  vertical-align:top;
+  text-align:left;
+  white-space:nowrap;
+}
+.monthly-action-table th{
+  background:#f8fafc;
+  color:#475569;
+  font-weight:900;
+  position:sticky;
+  top:0;
+  z-index:2;
+}
+.monthly-action-table td.plan-title{
+  min-width:190px;
+  white-space:normal;
+  font-weight:850;
+}
+.monthly-action-table td.plan-memo{
+  min-width:180px;
+  white-space:normal;
+  color:#64748b;
+}
+.monthly-action-table .status-chip{
+  display:inline-block;
+  padding:4px 8px;
+  border-radius:999px;
+  background:#f1f5f9;
+  font-size:11px;
+  font-weight:800;
+}
+.monthly-action-table .status-chip.done{
+  background:#dcfce7;
+  color:#166534;
+}
+.monthly-action-table .priority-high{
+  font-weight:900;
+}
+.monthly-action-table .row-actions{
+  display:flex;
+  gap:6px;
+}
+.monthly-action-table button{
+  padding:7px 9px;
+  min-height:34px;
+  border-radius:9px;
+}
+
+/* Ver.7.6.1 カレンダーと月間行動計画表を明確に分離 */
+.calendar-mode-switch{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-bottom:12px;
+  background:#fff;
+  border-radius:16px;
+  padding:7px;
+}
+.calendar-mode-switch button{
+  min-height:48px;
+  border-radius:12px;
+  font-size:14px;
+  font-weight:900;
+  background:#eef2f7;
+  color:#475569;
+}
+.calendar-mode-switch button.active{
+  background:#111827;
+  color:#fff;
+}
+#calendarPage .month-grid{
+  display:grid;
+  grid-template-columns:repeat(7,minmax(0,1fr));
+  gap:0;
+  overflow:hidden;
+  border:1px solid #e5e7eb;
+  border-radius:14px;
+  background:#fff;
+}
+#calendarPage .month-head{
+  padding:9px 2px;
+  font-size:11px;
+  font-weight:850;
+  border-bottom:1px solid #e5e7eb;
+}
+#calendarPage .month-day{
+  min-height:78px;
+  border:0;
+  border-right:1px solid #eef0f3;
+  border-bottom:1px solid #eef0f3;
+  border-radius:0;
+  padding:6px 4px;
+  text-align:left;
+  background:#fff;
+}
+#calendarPage .month-day .n{
+  font-size:15px;
+  font-weight:900;
+}
+#calendarPage .month-day.today .n{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:27px;
+  height:27px;
+  border-radius:50%;
+  background:#ef4444;
+  color:#fff;
+}
+#calendarPage .month-day.today{
+  outline:none!important;
+}
+#calendarPage .month-day.other{
+  opacity:.35;
+}
+#calendarPage .month-event{
+  font-size:8px;
+  padding:2px 3px;
+  margin-top:3px;
+}
 </style>
 </head>
 <body>
@@ -1537,6 +1680,58 @@ nav.modal-blocked{
 
 
 
+
+<section id="monthlyPlanPage" class="hidden flow-page">
+  <div class="calendar-mode-switch">
+    <button id="monthlyCalendarTabBtn">カレンダー</button>
+    <button class="active" id="monthlyTableTabBtn">月間行動計画表</button>
+  </div>
+  <div class="flow-head">
+    <div>
+      <div class="section-title">仕事管理</div>
+      <div class="flow-title">月間行動計画表</div>
+      <div class="sub">1か月分の予定を一覧表で組みます。</div>
+    </div>
+    <button class="secondary" type="button" id="monthlyPlanBackBtn">戻る</button>
+  </div>
+
+  <div class="flow-card">
+    <div class="row">
+      <button class="secondary" id="monthlyPlanPrevBtn">‹</button>
+      <div style="text-align:center;flex:1">
+        <b id="monthlyPlanTitle" style="font-size:20px"></b>
+      </div>
+      <button class="secondary" id="monthlyPlanNextBtn">›</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="sub" id="monthlyPlanSummaryText">0件</div>
+      <button class="primary" id="monthlyPlanAddBtn" style="width:auto;padding:11px 16px">＋ 行追加</button>
+    </div>
+  </div>
+
+  <div class="flow-card monthly-table-card">
+    <div class="monthly-table-wrap">
+      <table class="monthly-action-table">
+        <thead>
+          <tr>
+            <th>日付</th>
+            <th>曜</th>
+            <th>エリア</th>
+            <th>行動内容</th>
+            <th>対象</th>
+            <th>優先</th>
+            <th>状態</th>
+            <th>メモ</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="monthlyPlanTableBody"></tbody>
+      </table>
+    </div>
+    <div id="monthlyPlanEmpty" class="empty hidden">この月の行動予定はまだありません。</div>
+  </div>
+</section>
+
 <section id="planEditorPage" class="hidden flow-page">
   <div class="flow-head">
     <div>
@@ -1725,11 +1920,15 @@ nav.modal-blocked{
     </section>
 
     <section id="calendarPage" class="hidden">
-      <div class="card">
+      <div class="calendar-mode-switch">
+        <button class="active" id="calendarViewTabBtn">カレンダー</button>
+        <button id="monthlyPlanViewTabBtn">月間行動計画表</button>
+      </div>
+      <div class="card calendar-main-card">
         <div class="calendar-toolbar">
           <button class="secondary" id="calendarPrevBtn">‹</button>
           <div style="text-align:center;flex:1">
-            <div class="section-title" style="margin:0">月間行動計画表</div>
+            <div class="section-title" style="margin:0">カレンダー</div>
             <div style="font-size:18px;font-weight:900" id="calendarTitle"></div>
           </div>
           <button class="secondary" id="calendarNextBtn">›</button>
@@ -1741,12 +1940,7 @@ nav.modal-blocked{
           </div>
           <button class="secondary" id="calendarTodayBtn">今日</button>
         </div>
-      </div>
-      <div class="monthly-plan-summary" id="monthlyPlanSummary">
-        <div><span>今月の予定</span><b id="monthPlanCount">0</b></div>
-        <div><span>巡回予定</span><b id="monthRoutePlanCount">0</b></div>
-        <div><span>高優先</span><b id="monthHighPlanCount">0</b></div>
-        <button class="primary" id="monthAddPlanBtn">＋ 行動予定を追加</button>
+        <button class="secondary" id="openMonthlyPlanBtn" style="width:100%;margin-top:12px">月間行動計画表へ</button>
       </div>
       <div id="calendarContent"></div>
       <div class="calendar-detail" id="calendarDetail"></div>
@@ -3266,7 +3460,7 @@ function switchPage(p){
   page=p;
 
   // まず画面そのものを切り替える。MAPの後処理で失敗しても遷移は止めない。
-  ['home','map','route','calendar','machines','register','report','manualRoute','autoRoute','trouble','settings','modelEditor','planEditor'].forEach(x=>{
+  ['home','map','route','calendar','machines','register','report','manualRoute','autoRoute','trouble','settings','modelEditor','planEditor','monthlyPlan'].forEach(x=>{
     const el=document.getElementById(x+'Page');
     if(el) el.classList.toggle('hidden',x!==p);
   });
@@ -3286,7 +3480,7 @@ function switchPage(p){
   renderHeader();
 
   if(p==='machines') renderMachines();
-  if(p==='calendar') renderCalendar();
+  if(p==='calendar'){ if(!calendarMode)calendarMode='month'; renderCalendar(); }
   if(p==='route') renderRoute();
   if(p==='home'){renderHome();renderShift();renderActive();renderWorkDashboard();}
 
@@ -3746,6 +3940,9 @@ function exportReportCsv(all=false){
 
 
 let workFilter='today';
+let calendarMode='month';
+let calendarAnchor=today();
+let calendarSelectedDate=today();
 
 function localDateObj(s){const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)}
 function endOfWeek(){
@@ -3762,12 +3959,116 @@ function taskInFilter(t,filter){
   if(filter==='month') return t.due<=endOfMonth();
   return true;
 }
+
+let monthlyPlanAnchor=today();
+
+function monthlyPlanMonthKey(){
+  const d=ymdDate(monthlyPlanAnchor);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+function monthlyPlanRows(){
+  const key=monthlyPlanMonthKey();
+  return (db.tasks||[])
+    .filter(t=>!t.done && String(t.due||'').startsWith(key))
+    .slice()
+    .sort((a,b)=>String(a.due).localeCompare(String(b.due))
+      || String(a.area||'').localeCompare(String(b.area||''),'ja')
+      || String(a.title||'').localeCompare(String(b.title||''),'ja'));
+}
+function planCategoryLabel(t){
+  const c=t.category||'other';
+  return c==='route'?'巡回':c==='work'?'作業':c==='meeting'?'予定':'その他';
+}
+function planTargetLabel(t){
+  const parts=[];
+  if(t.machineId){
+    const m=machine(t.machineId);
+    if(m)parts.push(machineDisplayTitle(m));
+  }
+  if(t.area)parts.push(t.area);
+  return parts.join(' / ')||'-';
+}
+function renderMonthlyPlan(){
+  const d=ymdDate(monthlyPlanAnchor);
+  monthlyPlanTitle.textContent=`${d.getFullYear()}年 ${d.getMonth()+1}月`;
+  const rows=monthlyPlanRows();
+  monthlyPlanSummaryText.textContent=`${rows.length}件`;
+  monthlyPlanEmpty.classList.toggle('hidden',rows.length>0);
+  monthlyPlanTableBody.innerHTML='';
+
+  const dow=['日','月','火','水','木','金','土'];
+  rows.forEach(t=>{
+    const dd=ymdDate(t.due);
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td>${dd.getMonth()+1}/${dd.getDate()}</td>
+      <td>${dow[dd.getDay()]}</td>
+      <td>${escapeHtml(t.area||'-')}</td>
+      <td class="plan-title">${escapeHtml(t.title||'')}</td>
+      <td>${escapeHtml(planTargetLabel(t))}</td>
+      <td class="${t.priority==='high'?'priority-high':''}">${t.priority==='high'?'高':'通常'}</td>
+      <td><span class="status-chip ${t.done?'done':''}">${t.done?'完了':'予定'}</span></td>
+      <td class="plan-memo">${escapeHtml(t.memo||'-')}</td>
+      <td>
+        <div class="row-actions">
+          <button class="secondary" onclick="editMonthlyPlan('${t.id}')">編集</button>
+          <button class="secondary" onclick="completeMonthlyPlan('${t.id}')">完了</button>
+          <button class="secondary danger" onclick="deleteMonthlyPlan('${t.id}')">削除</button>
+        </div>
+      </td>`;
+    monthlyPlanTableBody.appendChild(tr);
+  });
+}
+function openMonthlyPlan(){
+  monthlyPlanAnchor=calendarAnchor||today();
+  switchPage('monthlyPlan');
+  renderMonthlyPlan();
+  window.scrollTo(0,0);
+}
+function moveMonthlyPlanMonth(delta){
+  const d=ymdDate(monthlyPlanAnchor);
+  monthlyPlanAnchor=localYmd(new Date(d.getFullYear(),d.getMonth()+delta,1,12));
+  renderMonthlyPlan();
+}
+function editMonthlyPlan(id){
+  const t=(db.tasks||[]).find(x=>x.id===id);
+  if(!t)return;
+  planEditorReturnPage='monthlyPlan';
+  fillPlanEditorSelects();
+  planDate.value=t.due||today();
+  planTitle.value=t.title||'';
+  planType.value=t.category||'other';
+  planArea.value=t.area||'';
+  planMachine.value=t.machineId||'';
+  planPriority.value=t.priority||'normal';
+  planMemo.value=t.memo||'';
+  planEditorEditingId=id;
+  switchPage('planEditor');
+  window.scrollTo(0,0);
+}
+function completeMonthlyPlan(id){
+  const t=(db.tasks||[]).find(x=>x.id===id);
+  if(!t)return;
+  t.done=true;
+  save();
+  renderMonthlyPlan();
+  showToast('完了にしました');
+}
+function deleteMonthlyPlan(id){
+  if(!confirm('この予定を削除しますか？'))return;
+  db.tasks=(db.tasks||[]).filter(x=>x.id!==id);
+  save();
+  renderMonthlyPlan();
+}
+
 let planEditorReturnPage='calendar';
+let planEditorEditingId=null;
 function fillPlanEditorSelects(){
   planArea.innerHTML='<option value="">指定なし</option>'+areaNames().map(a=>`<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
   fillMachineSelect(planMachine,true);
 }
 function openPlanEditor(date=today()){
+  planEditorEditingId=null;
   planEditorReturnPage=(page&&page!=='planEditor')?page:'calendar';
   fillPlanEditorSelects();
   planDate.value=date||today();
@@ -3786,8 +4087,11 @@ function openTaskModal(){
 }
 
 function closePlanEditor(){
-  switchPage(planEditorReturnPage||'calendar');
-  if((planEditorReturnPage||'calendar')==='calendar')renderCalendar();
+  const target=planEditorReturnPage||'calendar';
+  planEditorEditingId=null;
+  switchPage(target);
+  if(target==='calendar')renderCalendar();
+  if(target==='monthlyPlan')renderMonthlyPlan();
 }
 function savePlanEditor(){
   const title=(planTitle.value||'').trim();
@@ -3802,8 +4106,9 @@ function savePlanEditor(){
   try{
     syncDbFromStorage();
     if(!Array.isArray(db.tasks))db.tasks=[];
-    db.tasks.push({
-      id:uid(),
+
+    const data={
+      id:planEditorEditingId||uid(),
       title,
       due,
       category:planType.value||'other',
@@ -3813,15 +4118,32 @@ function savePlanEditor(){
       memo:(planMemo.value||'').trim(),
       done:false,
       createdAt:Date.now()
-    });
+    };
+
+    const idx=db.tasks.findIndex(t=>t.id===data.id);
+    if(idx>=0){
+      data.createdAt=db.tasks[idx].createdAt||Date.now();
+      data.done=!!db.tasks[idx].done;
+      db.tasks[idx]=data;
+    }else{
+      db.tasks.push(data);
+    }
+
     save();
-    showToast('行動予定を保存しました');
-    planEditorReturnPage='calendar';
-    switchPage('calendar');
-    calendarAnchor=due;
-    calendarSelectedDate=due;
-    calendarMode='month';
-    renderCalendar();
+    showToast(planEditorEditingId?'予定を更新しました':'行動予定を保存しました');
+
+    const target=planEditorReturnPage||'calendar';
+    planEditorEditingId=null;
+    if(target==='monthlyPlan'){
+      monthlyPlanAnchor=due;
+      switchPage('monthlyPlan');
+      renderMonthlyPlan();
+    }else{
+      switchPage('calendar');
+      calendarAnchor=due;
+      calendarSelectedDate=due;
+      renderCalendar();
+    }
     window.scrollTo(0,0);
   }catch(err){
     console.error(err);
@@ -4077,21 +4399,8 @@ function renderMonthCalendar(){
   calendarContent.innerHTML=`<div class="month-grid">${heads}${days.map(date=>{const dd=ymdDate(date),ev=calendarEventsForDate(date),other=dd.getMonth()!==first.getMonth();return `<button class="month-day ${other?'other':''} ${date===today()?'today':''}" onclick="renderCalendarDetail('${date}')"><div class="n">${dd.getDate()}</div>${ev.slice(0,2).map(e=>`<div class="month-event ${e.category==='route'?'route':''} ${e.priority==='high'?'high':''}">${escapeHtml(e.label)}</div>`).join('')}${ev.length>2?`<div class="month-event">+${ev.length-2}</div>`:''}</button>`}).join('')}</div>`;
 }
 
-function renderMonthlyPlanSummary(){
-  const anchor=ymdDate(calendarAnchor);
-  const y=anchor.getFullYear(),m=anchor.getMonth();
-  const inMonth=(db.tasks||[]).filter(t=>{
-    if(t.done||!t.due)return false;
-    const d=ymdDate(t.due);
-    return d.getFullYear()===y&&d.getMonth()===m;
-  });
-  monthPlanCount.textContent=inMonth.length;
-  monthRoutePlanCount.textContent=inMonth.filter(t=>(t.category||'')==='route').length;
-  monthHighPlanCount.textContent=inMonth.filter(t=>t.priority==='high').length;
-}
 
 function renderCalendar(){
-  renderMonthlyPlanSummary();
   calendarWeekBtn.classList.toggle('active',calendarMode==='week');calendarMonthBtn.classList.toggle('active',calendarMode==='month');
   calendarMode==='week'?renderWeekCalendar():renderMonthCalendar();renderCalendarDetail(calendarSelectedDate||today());
 }
@@ -4286,6 +4595,23 @@ monthAddPlanBtn.addEventListener('click',()=>openPlanEditor(calendarSelectedDate
 planEditorBackBtn.addEventListener('click',closePlanEditor);
 planCancelBtn.addEventListener('click',closePlanEditor);
 planSaveBtn.addEventListener('click',savePlanEditor);
+
+
+openMonthlyPlanBtn.addEventListener('click',openMonthlyPlan);
+monthlyPlanViewTabBtn.addEventListener('click',openMonthlyPlan);
+calendarViewTabBtn.addEventListener('click',()=>{calendarMode='month';renderCalendar()});
+monthlyCalendarTabBtn.addEventListener('click',()=>{switchPage('calendar');calendarMode='month';renderCalendar();window.scrollTo(0,0)});
+
+monthlyPlanBackBtn.addEventListener('click',()=>{switchPage('calendar');renderCalendar()});
+monthlyPlanPrevBtn.addEventListener('click',()=>moveMonthlyPlanMonth(-1));
+monthlyPlanNextBtn.addEventListener('click',()=>moveMonthlyPlanMonth(1));
+monthlyPlanAddBtn.addEventListener('click',()=>{
+  const d=ymdDate(monthlyPlanAnchor);
+  const date=localYmd(new Date(d.getFullYear(),d.getMonth(),1,12));
+  planEditorReturnPage='monthlyPlan';
+  openPlanEditor(date);
+  planEditorReturnPage='monthlyPlan';
+});
 
 calendarWeekBtn.addEventListener('click',()=>{calendarMode='week';renderCalendar()});
 calendarMonthBtn.addEventListener('click',()=>{calendarMode='month';renderCalendar()});
@@ -4648,6 +4974,7 @@ if(window.modelPageBackBtn)modelPageBackBtn.addEventListener('click',closeModelE
 if(window.modelPageCancelBtn)modelPageCancelBtn.addEventListener('click',closeModelEditorPage);
 if(window.modelPageSaveBtn)modelPageSaveBtn.addEventListener('click',saveModelEditorPage);
 
+window.editMonthlyPlan=editMonthlyPlan;window.completeMonthlyPlan=completeMonthlyPlan;window.deleteMonthlyPlan=deleteMonthlyPlan;
 window.openModelEditor=openModelEditor;window.deleteModel=deleteModel;window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
