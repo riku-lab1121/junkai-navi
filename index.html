@@ -1033,6 +1033,42 @@ nav.modal-blocked{
   border-radius:10px;
   background:#f8fafc;
 }
+
+/* Ver.8.0 月間計画 自動作成 */
+.monthly-auto-card{
+  border:1px solid #dbeafe;
+}
+.weekday-badge{
+  display:inline-flex;
+  align-items:center;
+  padding:6px 9px;
+  border-radius:999px;
+  background:#eef2ff;
+  color:#3730a3;
+  font-size:11px;
+  font-weight:900;
+  white-space:nowrap;
+}
+.monthly-auto-actions{
+  display:grid;
+  grid-template-columns:2fr 1fr;
+  gap:8px;
+  margin-top:10px;
+}
+.monthly-auto-actions button{min-height:50px}
+.monthly-plan-table{
+  min-width:1080px!important;
+}
+.auto-plan-tag{
+  display:inline-block;
+  margin-left:5px;
+  padding:2px 5px;
+  border-radius:999px;
+  background:#e0f2fe;
+  color:#075985;
+  font-size:9px;
+  font-weight:900;
+}
 </style>
 </head>
 <body>
@@ -1659,8 +1695,36 @@ nav.modal-blocked{
     </div>
   </div>
 
+  <div class="flow-card monthly-auto-card">
+    <div class="row">
+      <div>
+        <div class="section-title">自動作成</div>
+        <div class="sub">エリア・距離・巡回期限を見て平日に割り振ります</div>
+      </div>
+      <span class="weekday-badge">土日休み</span>
+    </div>
+
+    <div class="grid2" style="margin-top:10px">
+      <div>
+        <label>1日の最大台数</label>
+        <input id="monthlyAutoMaxStops" type="number" min="1" max="30" value="15">
+      </div>
+      <div>
+        <label>1日の作業上限（分）</label>
+        <input id="monthlyAutoBudget" type="number" min="30" step="30" value="360">
+      </div>
+    </div>
+
+    <div class="monthly-auto-actions">
+      <button class="primary" type="button" onclick="autoCreateMonthlyPlan()">自動で月間計画を作る</button>
+      <button class="secondary" type="button" onclick="clearAutoMonthlyPlan()">自動作成分を消す</button>
+    </div>
+    <div class="sub" id="monthlyAutoSummary" style="margin-top:8px"></div>
+  </div>
+
   <div class="flow-card">
-    <div class="section-title">行動予定を追加</div>
+    <div class="row"><div class="section-title" id="monthlyActionFormTitle">手動で予定を追加</div><button class="secondary hidden" type="button" id="monthlyActionCancelEdit" onclick="cancelMonthlyActionEdit()">編集をやめる</button></div>
+    <input id="monthlyActionEditId" type="hidden">
     <div class="grid2">
       <div>
         <label>日付 *</label>
@@ -1698,7 +1762,7 @@ nav.modal-blocked{
     <input id="monthlyActionMemo" placeholder="任意">
 
     <button class="primary" type="button" onclick="saveMonthlyActionPlan()" style="width:100%;margin-top:12px">
-      表に追加
+      <span id="monthlyActionSaveLabel">表に追加</span>
     </button>
   </div>
 
@@ -1711,6 +1775,8 @@ nav.modal-blocked{
             <th>曜</th>
             <th>エリア</th>
             <th>行動内容</th>
+            <th>対象</th>
+            <th>距離目安</th>
             <th>種類</th>
             <th>優先</th>
             <th>状態</th>
@@ -4114,11 +4180,38 @@ function regularDueDate(m){return m.lastRegular?addDaysYmd(m.lastRegular,regular
 function supplyDueDate(m){return m.weekly&&m.lastSupply?addDaysYmd(m.lastSupply,supplyInterval(m)):null}
 function collectionDueDate(m){return m.lastCollection?addDaysYmd(m.lastCollection,14):null}
 
+
 let monthlyActionPlanAnchor=today();
 
 function monthlyActionMonthKey(){
   const d=ymdDate(monthlyActionPlanAnchor);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+function monthlyActionMonthBounds(){
+  const d=ymdDate(monthlyActionPlanAnchor);
+  return {
+    start:localYmd(new Date(d.getFullYear(),d.getMonth(),1,12)),
+    end:localYmd(new Date(d.getFullYear(),d.getMonth()+1,0,12))
+  };
+}
+function monthlyWorkdays(){
+  const {start,end}=monthlyActionMonthBounds();
+  const out=[];
+  for(let d=ymdDate(start),e=ymdDate(end);d<=e;d.setDate(d.getDate()+1)){
+    const day=d.getDay();
+    if(day!==0&&day!==6)out.push(localYmd(d));
+  }
+  return out;
+}
+function nextWeekdayOnOrAfter(date,workdays){
+  if(!workdays.length)return null;
+  const hit=workdays.find(x=>x>=date);
+  return hit||workdays[workdays.length-1];
+}
+function nearestWorkday(date,workdays){
+  if(!workdays.length)return null;
+  const target=ymdDate(date).getTime();
+  return workdays.slice().sort((a,b)=>Math.abs(ymdDate(a)-target)-Math.abs(ymdDate(b)-target))[0];
 }
 function fillMonthlyActionAreas(){
   if(!window.monthlyActionArea)return;
@@ -4136,6 +4229,12 @@ function openMonthlyActionPlan(){
   monthlyActionType.value='route';
   monthlyActionPriority.value='normal';
   monthlyActionMemo.value='';
+  monthlyActionEditId.value='';
+  monthlyActionCancelEdit.classList.add('hidden');
+  monthlyActionFormTitle.textContent='手動で予定を追加';
+  monthlyActionSaveLabel.textContent='表に追加';
+  monthlyAutoMaxStops.value=Number(db.settings?.maxStops||15);
+  monthlyAutoBudget.value=Number(db.settings?.workBudget||360);
   switchPage('monthlyActionPlan');
   renderMonthlyActionPlan();
   window.scrollTo(0,0);
@@ -4149,6 +4248,7 @@ function moveMonthlyActionPlan(delta){
   const d=ymdDate(monthlyActionPlanAnchor);
   monthlyActionPlanAnchor=localYmd(new Date(d.getFullYear(),d.getMonth()+delta,1,12));
   monthlyActionDate.value=monthlyActionPlanAnchor;
+  cancelMonthlyActionEdit();
   renderMonthlyActionPlan();
 }
 function monthlyActionTypeLabel(v){
@@ -4163,11 +4263,26 @@ function monthlyActionRows(){
       || String(a.area||'').localeCompare(String(b.area||''),'ja')
       || String(a.title||'').localeCompare(String(b.title||''),'ja'));
 }
+function monthlyPlanMachineNames(t){
+  const ids=Array.isArray(t.machineIds)?t.machineIds:(t.machineId?[t.machineId]:[]);
+  const names=ids.map(id=>machine(id)).filter(Boolean).map(m=>machineDisplayTitle(m));
+  if(!names.length)return '-';
+  if(names.length<=2)return names.join(' / ');
+  return `${names[0]} / ${names[1]} ほか${names.length-2}台`;
+}
+function monthlyPlanDistanceLabel(t){
+  const km=Number(t.distanceKm);
+  return Number.isFinite(km)&&km>0?`約${km.toFixed(1)}km`:'-';
+}
 function renderMonthlyActionPlan(){
   const d=ymdDate(monthlyActionPlanAnchor);
   monthlyActionPlanTitle.textContent=`${d.getFullYear()}年 ${d.getMonth()+1}月`;
   const rows=monthlyActionRows();
   monthlyActionPlanEmpty.classList.toggle('hidden',rows.length>0);
+  const autoRows=rows.filter(t=>t.autoMonthlyPlan);
+  monthlyAutoSummary.textContent=autoRows.length
+    ? `自動作成 ${autoRows.length}日分・対象 ${autoRows.reduce((s,t)=>s+(t.machineIds?.length||0),0)}台`
+    : '自動作成分はまだありません';
   const dow=['日','月','火','水','木','金','土'];
   monthlyActionPlanBody.innerHTML=rows.map(t=>{
     const dd=ymdDate(t.due);
@@ -4175,12 +4290,15 @@ function renderMonthlyActionPlan(){
       <td>${dd.getMonth()+1}/${dd.getDate()}</td>
       <td>${dow[dd.getDay()]}</td>
       <td>${escapeHtml(t.area||'-')}</td>
-      <td><b>${escapeHtml(t.title||'')}</b></td>
+      <td><b>${escapeHtml(t.title||'')}</b>${t.autoMonthlyPlan?'<span class="auto-plan-tag">自動</span>':''}</td>
+      <td>${escapeHtml(monthlyPlanMachineNames(t))}</td>
+      <td>${escapeHtml(monthlyPlanDistanceLabel(t))}</td>
       <td>${escapeHtml(monthlyActionTypeLabel(t.category||'other'))}</td>
       <td class="${t.priority==='high'?'high-plan':''}">${t.priority==='high'?'高':'通常'}</td>
       <td>${t.done?'完了':'予定'}</td>
       <td>${escapeHtml(t.memo||'-')}</td>
       <td><div class="plan-actions">
+        <button class="secondary" type="button" onclick="editMonthlyAction('${t.id}')">編集</button>
         <button class="secondary" type="button" onclick="toggleMonthlyActionDone('${t.id}')">${t.done?'戻す':'完了'}</button>
         <button class="secondary danger" type="button" onclick="deleteMonthlyAction('${t.id}')">削除</button>
       </div></td>
@@ -4193,24 +4311,64 @@ function saveMonthlyActionPlan(){
   if(!due){alert('日付を選んでください');return}
   if(!title){alert('行動内容を入力してください');monthlyActionTitleInput.focus();return}
   if(!Array.isArray(db.tasks))db.tasks=[];
-  db.tasks.push({
-    id:uid(),
-    title,
-    due,
-    area:monthlyActionArea.value||'',
-    category:monthlyActionType.value||'other',
-    priority:monthlyActionPriority.value||'normal',
-    memo:(monthlyActionMemo.value||'').trim(),
-    machineId:null,
-    done:false,
-    createdAt:Date.now()
-  });
+
+  const editId=monthlyActionEditId.value;
+  if(editId){
+    const t=db.tasks.find(x=>x.id===editId);
+    if(!t){alert('編集対象が見つかりません');cancelMonthlyActionEdit();return}
+    t.due=due;
+    t.title=title;
+    t.area=monthlyActionArea.value||'';
+    t.category=monthlyActionType.value||'other';
+    t.priority=monthlyActionPriority.value||'normal';
+    t.memo=(monthlyActionMemo.value||'').trim();
+    // 自動作成行を編集しても対象自販機・距離情報は保持。
+  }else{
+    db.tasks.push({
+      id:uid(),
+      title,
+      due,
+      area:monthlyActionArea.value||'',
+      category:monthlyActionType.value||'other',
+      priority:monthlyActionPriority.value||'normal',
+      memo:(monthlyActionMemo.value||'').trim(),
+      machineId:null,
+      machineIds:[],
+      done:false,
+      autoMonthlyPlan:false,
+      createdAt:Date.now()
+    });
+  }
   save();
-  monthlyActionTitleInput.value='';
-  monthlyActionMemo.value='';
+  cancelMonthlyActionEdit();
   renderMonthlyActionPlan();
   renderWorkDashboard();
-  showToast('月間行動計画表に追加しました');
+  showToast(editId?'予定を更新しました':'月間行動計画表に追加しました');
+}
+function editMonthlyAction(id){
+  const t=(db.tasks||[]).find(x=>x.id===id);
+  if(!t)return;
+  monthlyActionEditId.value=id;
+  monthlyActionDate.value=t.due||today();
+  monthlyActionArea.value=t.area||'';
+  monthlyActionTitleInput.value=t.title||'';
+  monthlyActionType.value=t.category||'route';
+  monthlyActionPriority.value=t.priority||'normal';
+  monthlyActionMemo.value=t.memo||'';
+  monthlyActionFormTitle.textContent='予定を編集';
+  monthlyActionSaveLabel.textContent='変更を保存';
+  monthlyActionCancelEdit.classList.remove('hidden');
+  window.scrollTo({top:monthlyActionFormTitle.getBoundingClientRect().top+window.scrollY-90,behavior:'smooth'});
+}
+function cancelMonthlyActionEdit(){
+  monthlyActionEditId.value='';
+  monthlyActionTitleInput.value='';
+  monthlyActionMemo.value='';
+  monthlyActionType.value='route';
+  monthlyActionPriority.value='normal';
+  monthlyActionFormTitle.textContent='手動で予定を追加';
+  monthlyActionSaveLabel.textContent='表に追加';
+  if(window.monthlyActionCancelEdit)monthlyActionCancelEdit.classList.add('hidden');
 }
 function toggleMonthlyActionDone(id){
   const t=(db.tasks||[]).find(x=>x.id===id);
@@ -4226,6 +4384,160 @@ function deleteMonthlyAction(id){
   save();
   renderMonthlyActionPlan();
   renderWorkDashboard();
+}
+function clearAutoMonthlyPlan(){
+  const key=monthlyActionMonthKey();
+  const count=(db.tasks||[]).filter(t=>t.autoMonthlyPlan&&String(t.due||'').startsWith(key)).length;
+  if(!count){showToast('自動作成分はありません');return}
+  if(!confirm(`この月の自動作成分 ${count}件を削除しますか？\\n手動で追加した予定は残ります。`))return;
+  db.tasks=(db.tasks||[]).filter(t=>!(t.autoMonthlyPlan&&String(t.due||'').startsWith(key)));
+  save();
+  renderMonthlyActionPlan();
+  renderWorkDashboard();
+}
+function machineAutoDueDate(m,monthEnd){
+  const dates=[
+    regularDueDate(m),
+    supplyDueDate(m),
+    collectionDueDate(m)
+  ].filter(Boolean).sort();
+  const due=dates[0]||monthEnd;
+  return due;
+}
+function autoPlanDistanceKm(machines){
+  const pts=machines.filter(m=>Number.isFinite(Number(m.lat))&&Number.isFinite(Number(m.lng)));
+  if(pts.length<2)return 0;
+  // greedy nearest-neighbour length inside the day's cluster
+  let remaining=pts.slice(1),current=pts[0],km=0;
+  while(remaining.length){
+    let bestI=0,bestD=Infinity;
+    remaining.forEach((m,i)=>{
+      const d=hav({lat:Number(current.lat),lng:Number(current.lng)},{lat:Number(m.lat),lng:Number(m.lng)});
+      if(d<bestD){bestD=d;bestI=i}
+    });
+    km+=bestD;
+    current=remaining.splice(bestI,1)[0];
+  }
+  return km;
+}
+function machinePairDistance(a,b){
+  if(!a||!b)return Infinity;
+  if(!Number.isFinite(Number(a.lat))||!Number.isFinite(Number(a.lng))||
+     !Number.isFinite(Number(b.lat))||!Number.isFinite(Number(b.lng)))return Infinity;
+  return hav({lat:Number(a.lat),lng:Number(a.lng)},{lat:Number(b.lat),lng:Number(b.lng)});
+}
+function autoCreateMonthlyPlan(){
+  const workdays=monthlyWorkdays();
+  if(!workdays.length){alert('対象月に平日がありません');return}
+  const {start,end}=monthlyActionMonthBounds();
+  const maxStops=Math.max(1,Number(monthlyAutoMaxStops.value)||15);
+  const budget=Math.max(30,Number(monthlyAutoBudget.value)||360);
+
+  // Remove only old auto-generated rows for this month before rebuilding.
+  const key=monthlyActionMonthKey();
+  db.tasks=(db.tasks||[]).filter(t=>!(t.autoMonthlyPlan&&String(t.due||'').startsWith(key)));
+
+  // Candidate: overdue or due by month-end.
+  const candidates=db.machines
+    .map(m=>({m,due:machineAutoDueDate(m,end)}))
+    .filter(x=>x.due<=end)
+    .sort((a,b)=>String(a.due).localeCompare(String(b.due))
+      || String(a.m.area||'未設定').localeCompare(String(b.m.area||'未設定'),'ja'));
+
+  if(!candidates.length){
+    save();
+    renderMonthlyActionPlan();
+    alert('この月に巡回期限が来る自販機がありません。');
+    return;
+  }
+
+  // Day buckets. We prefer same area, close GPS, near due date and capacity.
+  const buckets=new Map(workdays.map(d=>[d,{date:d,machines:[],minutes:0,areaCounts:new Map()}]));
+
+  for(const item of candidates){
+    const m=item.m;
+    let target=item.due<start?start:item.due;
+    target=nearestWorkday(target,workdays)||workdays[0];
+    const area=m.area||'未設定';
+    const minutes=Math.max(1,Number(m.workMinutes||25));
+
+    let choices=workdays.map(date=>{
+      const b=buckets.get(date);
+      if(b.machines.length>=maxStops)return null;
+      if(b.machines.length>0 && b.minutes+minutes>budget)return null;
+
+      const dayGap=Math.abs(dayDiff(date,target));
+      const sameArea=b.areaCounts.get(area)||0;
+      let nearest=Infinity;
+      for(const other of b.machines){
+        const d=machinePairDistance(m,other);
+        if(d<nearest)nearest=d;
+      }
+      if(!Number.isFinite(nearest))nearest=20;
+
+      // Lower is better. Same area and nearby strongly reduce score.
+      let score=dayGap*12 + Math.min(nearest,50);
+      score-=sameArea*22;
+      // Prefer dates on or before due date slightly, to avoid lateness.
+      if(date>item.due)score+=Math.max(0,dayDiff(item.due,date))*8;
+      return {date,score};
+    }).filter(Boolean);
+
+    if(!choices.length){
+      // Capacity overflow: pick lightest weekday anyway.
+      choices=workdays.map(date=>{
+        const b=buckets.get(date);
+        return {date,score:b.machines.length*100+b.minutes};
+      });
+    }
+    choices.sort((a,b)=>a.score-b.score||a.date.localeCompare(b.date));
+    const pick=buckets.get(choices[0].date);
+    pick.machines.push(m);
+    pick.minutes+=minutes;
+    pick.areaCounts.set(area,(pick.areaCounts.get(area)||0)+1);
+  }
+
+  // Create one monthly-plan row per day + area, so the table stays editable.
+  let created=0,totalMachines=0;
+  for(const [date,b] of buckets){
+    if(!b.machines.length)continue;
+    const byArea=new Map();
+    for(const m of b.machines){
+      const area=m.area||'未設定';
+      if(!byArea.has(area))byArea.set(area,[]);
+      byArea.get(area).push(m);
+    }
+    for(const [area,machines] of byArea){
+      machines.sort((a,b)=>{
+        const ad=machineAutoDueDate(a,end),bd=machineAutoDueDate(b,end);
+        return String(ad).localeCompare(String(bd));
+      });
+      const distanceKm=autoPlanDistanceKm(machines);
+      const totalMinutes=machines.reduce((s,m)=>s+Math.max(1,Number(m.workMinutes||25)),0);
+      const overdue=machines.some(m=>machineAutoDueDate(m,end)<start);
+      db.tasks.push({
+        id:uid(),
+        title:`${area}エリア巡回（${machines.length}台）`,
+        due:date,
+        area,
+        category:'route',
+        priority:overdue?'high':'normal',
+        memo:`自動作成・作業目安 ${totalMinutes}分`,
+        machineId:null,
+        machineIds:machines.map(m=>m.id),
+        distanceKm,
+        done:false,
+        autoMonthlyPlan:true,
+        createdAt:Date.now()
+      });
+      created++;
+      totalMachines+=machines.length;
+    }
+  }
+  save();
+  renderMonthlyActionPlan();
+  renderWorkDashboard();
+  showToast(`${created}日分・${totalMachines}台を自動作成しました`);
 }
 
 function calendarEventsForDate(date){
@@ -4816,7 +5128,7 @@ if(window.modelPageBackBtn)modelPageBackBtn.addEventListener('click',closeModelE
 if(window.modelPageCancelBtn)modelPageCancelBtn.addEventListener('click',closeModelEditorPage);
 if(window.modelPageSaveBtn)modelPageSaveBtn.addEventListener('click',saveModelEditorPage);
 
-window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
+window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
 window.openModelEditor=openModelEditor;window.deleteModel=deleteModel;window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
