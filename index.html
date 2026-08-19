@@ -1494,6 +1494,16 @@ nav.modal-blocked{
 .calendar-no-machines{padding:14px 0;color:#64748b;font-size:12px}
 .month-event.route-event,.cal-dot.route{background:#eaf3ff;color:#1673d1}
 .month-event.task-event,.cal-dot.task{background:#f3f4f6;color:#475569}
+
+/* Ver.9.6 編集後の一覧復帰 */
+#machineTableBody tr.machine-row-return-highlight td{
+  animation:machineReturnFlash 1.6s ease-out;
+}
+@keyframes machineReturnFlash{
+  0%{background:#dbeafe}
+  55%{background:#eff6ff}
+  100%{background:transparent}
+}
 </style>
 </head>
 <body>
@@ -4373,23 +4383,16 @@ function renderRoute(){
     const el=document.createElement('div');
     el.className='stop '+(s.status==='current'?'current ':'')+(s.status==='done'?'done':'');
     el.dataset.stopId=s.id;
-    const state=s.status==='done'?'完了':s.status==='current'?'作業中':uniqueMachineTroubles(m).length?'トラブル':regularDue(m)?'定期巡回':supplyDue(m)||m.prioritySupply?'補充巡回':collectionDue(m)?'集金':'巡回';
-    const memo=m.inventoryMemo?`<div class="urgent-note">在庫: ${escapeHtml(m.inventoryMemo)}</div>`:'';
     const troubleRows=uniqueMachineTroubles(m);
-    const troubleMemo=troubleRows.length
-      ? `<div class="route-trouble-note">
-          <div class="route-trouble-head">対応中トラブル ${troubleRows.length}件</div>
-          ${troubleRows.slice(0,3).map(t=>`<div><span class="route-trouble-status ${troubleStatusClass(t.status)}">${troubleStatusLabel(t.status)}</span> <b>${escapeHtml(t.type)}</b>${t.memo?`：${escapeHtml(t.memo)}`:''}</div>`).join('')}
-          ${troubleRows.length>3?`<div class="sub">ほか${troubleRows.length-3}件</div>`:''}
-        </div>`
-      : '';
+    const hasUrgentTrouble=troubleRows.some(t=>t.priority==='high');
+    const state=s.status==='done'?'完了':s.status==='current'?'作業中':troubleRows.length?(hasUrgentTrouble?'緊急トラブル':'トラブル'):regularDue(m)?'定期巡回':supplyDue(m)||m.prioritySupply?'補充巡回':collectionDue(m)?'集金':'巡回';
+    const memo=m.inventoryMemo?`<div class="urgent-note">在庫: ${escapeHtml(m.inventoryMemo)}</div>`:'';
     el.innerHTML=`<div class="stop-head">
       <div>
         <div class="sub">${String(i+1).padStart(2,'0')} ・ ${escapeHtml(m.area||'未設定')} ・ ${state}${s.plannedArrival?` ・ ${escapeHtml(s.plannedArrival)}頃`:''}</div>
         <div class="stop-name">${m.site?`<div class="sub">${escapeHtml(m.site)}</div>`:''}${escapeHtml(m.name)}</div>
         <div class="worktags">${[...new Set([...(s.workTypes||[]),...workFor(m)])].map(w=>`<span class="tag">${w}</span>`).join('')}</div>
         ${memo}
-        ${troubleMemo}
         ${s.facilityWarning?`<div class="route-window-warning">${escapeHtml(s.facilityWarning)}</div>`:''}
       </div>
       <div>${s.status==='done'?'<span class="pill green">✓</span>':`<button class="smallbtn" onclick="openWorkPicker('${s.id}')">開始</button>`}</div>
@@ -4513,6 +4516,7 @@ function renderMachines(){
   rows.forEach(m=>{
     const st=machineStatusInfo(m);
     const tr=document.createElement('tr');
+    tr.dataset.machineId=m.id;
     tr.innerHTML=`
       <td><b>${escapeHtml(m.area||'未設定')}</b></td>
       <td>#${escapeHtml(m.number||'-')}</td>
@@ -4540,6 +4544,7 @@ function setAreaFilter(area){
   renderMachines();
 }
 function editMachine(id){
+  rememberMachineListPosition(id);
   openRegisterPage('machines',id);
 }
 function deleteMachine(id){
@@ -4767,6 +4772,35 @@ function searchPlaceInAppleMaps(){
 
 let registerReturnPage='machines';
 let registerEditingId=null;
+let machineListReturnState={machineId:null,scrollY:0,restore:false};
+
+function rememberMachineListPosition(machineId){
+  machineListReturnState={
+    machineId:machineId||null,
+    scrollY:window.scrollY||0,
+    restore:true
+  };
+}
+function restoreMachineListPosition(machineId=null,highlight=true){
+  const id=machineId||machineListReturnState.machineId;
+  const fallback=machineListReturnState.scrollY||0;
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      const row=id?document.querySelector(`#machineTableBody tr[data-machine-id="${CSS.escape(id)}"]`):null;
+      if(row){
+        const top=row.getBoundingClientRect().top+window.scrollY-180;
+        window.scrollTo({top:Math.max(0,top),behavior:'auto'});
+        if(highlight){
+          row.classList.add('machine-row-return-highlight');
+          setTimeout(()=>row.classList.remove('machine-row-return-highlight'),1600);
+        }
+      }else{
+        window.scrollTo({top:fallback,behavior:'auto'});
+      }
+      machineListReturnState.restore=false;
+    });
+  });
+}
 let registerMapPickMode=false;
 
 function fillRegisterArea(){
@@ -4849,6 +4883,9 @@ function renderRegisterLocation(){
 }
 function openRegisterPage(returnPage='machines',machineId=null){
   registerReturnPage=returnPage;
+  if(machineId&&returnPage==='machines'&&!machineListReturnState.restore){
+    rememberMachineListPosition(machineId);
+  }
   resetRegisterPage();
   fillRegisterArea();
   fillRegisterFacilitySelect(machineId?machine(machineId)?.facilityId||'':'');
@@ -4909,8 +4946,15 @@ function openRegisterPage(returnPage='machines',machineId=null){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 function closeRegisterPage(){
+  const editedId=registerEditingId||machineListReturnState.machineId;
   registerEditingId=null;
-  switchPage('machines');
+  if(registerReturnPage==='machines'||machineListReturnState.restore){
+    switchPage('machines');
+    renderMachines();
+    restoreMachineListPosition(editedId,false);
+  }else{
+    switchPage(registerReturnPage||'machines');
+  }
 }
 function useCurrentLocationForRegister(){
   if(!navigator.geolocation){alert('この端末では位置情報を使えません。');return}
@@ -5100,7 +5144,9 @@ function saveRegisterPage(){
     db={...defaults,...verify};
     if(!Array.isArray(db.machines)) db.machines=[];
 
-    showToast(registerEditingId?`${name} を保存しました`:`${name} を登録しました`);
+    const wasEditing=!!registerEditingId;
+    const savedMachineId=id;
+    showToast(wasEditing?`${name} を保存しました`:`${name} を登録しました`);
     registerEditingId=null;
 
     registerReturnPage='machines';
@@ -5109,6 +5155,7 @@ function saveRegisterPage(){
     setTimeout(()=>{
       syncDbFromStorage();
       renderMachines();
+      if(wasEditing)restoreMachineListPosition(savedMachineId,true);
     },50);
   }catch(err){
     console.error('register save error',err);
