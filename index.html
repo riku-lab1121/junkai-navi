@@ -6517,8 +6517,58 @@ function machineAutoDueDate(m,monthEnd){
     supplyDueDate(m),
     collectionDueDate(m)
   ].filter(Boolean).sort();
-  const due=dates[0]||monthEnd;
-  return due;
+  return dates[0]||monthEnd;
+}
+function monthlyDatesByInterval(lastDate,interval,start,end){
+  interval=Number(interval)||0;
+  if(interval<=0)return [];
+  let d=lastDate?addDaysYmd(lastDate,interval):start;
+  let guard=0;
+  while(d<start && guard++<500)d=addDaysYmd(d,interval);
+  const out=[];
+  guard=0;
+  while(d<=end && guard++<500){out.push(d);d=addDaysYmd(d,interval)}
+  return out;
+}
+function monthlyDatesByWeekdays(days,start,end){
+  const set=new Set((days||[]).map(Number));
+  if(!set.size)return [];
+  const out=[];
+  for(let d=start;d<=end;d=addDaysYmd(d,1)){
+    if(set.has(ymdDate(d).getDay()))out.push(d);
+  }
+  return out;
+}
+function machineMonthlyOccurrences(m,start,end){
+  const map=new Map();
+  const put=(date,kind,rank)=>{
+    if(!date||date<start||date>end)return;
+    const prev=map.get(date);
+    // 同日なら 基本巡回 > 原料 > 排水 > 給水/ゴミ回収
+    if(!prev||rank<prev.rank)map.set(date,{date,kind,rank});
+  };
+
+  monthlyDatesByInterval(m.lastRegular||'',regularInterval(m)||14,start,end)
+    .forEach(d=>put(d,'基本巡回',1));
+
+  const supplyDates=m.supplyScheduleMode==='weekdays'
+    ? monthlyDatesByWeekdays(m.supplyWeekdays,start,end)
+    : monthlyDatesByInterval(m.lastSupply||m.lastRegular||'',supplyInterval(m),start,end);
+  supplyDates.forEach(d=>put(d,'原料補充',2));
+
+  const drainDates=m.drainScheduleMode==='weekdays'
+    ? monthlyDatesByWeekdays(m.drainWeekdays,start,end)
+    : monthlyDatesByInterval(m.lastDrain||m.lastRegular||'',drainInterval(m),start,end);
+  drainDates.forEach(d=>put(d,'排水',3));
+
+  // その他は週1設定。既存データのフラグ名のどちらにも対応。
+  if(m.waterWeekly||m.needsWaterWeekly){
+    monthlyDatesByInterval(m.lastWater||m.lastRegular||'',7,start,end).forEach(d=>put(d,'給水',4));
+  }
+  if(m.trashWeekly||m.garbageWeekly||m.needsTrashWeekly){
+    monthlyDatesByInterval(m.lastTrash||m.lastGarbage||m.lastRegular||'',7,start,end).forEach(d=>put(d,'ゴミ回収',4));
+  }
+  return [...map.values()].sort((a,b)=>a.date.localeCompare(b.date));
 }
 function autoPlanDistanceKm(machines){
   const pts=machines.filter(m=>Number.isFinite(Number(m.lat))&&Number.isFinite(Number(m.lng)));
@@ -6553,10 +6603,9 @@ function autoCreateMonthlyPlan(){
   const key=monthlyActionMonthKey();
   db.tasks=(db.tasks||[]).filter(t=>!(t.autoMonthlyPlan&&String(t.due||'').startsWith(key)));
 
-  // Candidate: overdue or due by month-end.
+  // Ver.9.4: 1台につき月1回ではなく、周期に応じて月内の全訪問候補を作る。
   const candidates=db.machines
-    .map(m=>({m,due:machineAutoDueDate(m,end)}))
-    .filter(x=>x.due<=end)
+    .flatMap(m=>machineMonthlyOccurrences(m,start,end).map(o=>({m,due:o.date,workKind:o.kind})))
     .sort((a,b)=>String(a.due).localeCompare(String(b.due))
       || String(a.m.area||'未設定').localeCompare(String(b.m.area||'未設定'),'ja'));
 
@@ -6568,7 +6617,7 @@ function autoCreateMonthlyPlan(){
   }
 
   // Day buckets. We prefer same area, close GPS, near due date and capacity.
-  const buckets=new Map(workdays.map(d=>[d,{date:d,machines:[],minutes:0,areaCounts:new Map(),capacity:dayWorkCapacity(d)}]));
+  const buckets=new Map(workdays.map(d=>[d,{date:d,machines:[],items:[],minutes:0,areaCounts:new Map(),capacity:dayWorkCapacity(d)}]));
 
   for(const item of candidates){
     const m=item.m;
@@ -6611,6 +6660,7 @@ function autoCreateMonthlyPlan(){
     choices.sort((a,b)=>a.score-b.score||a.date.localeCompare(b.date));
     const pick=buckets.get(choices[0].date);
     pick.machines.push(m);
+    pick.items.push({m,workKind:item.workKind,due:item.due});
     pick.minutes+=minutes;
     pick.areaCounts.set(area,(pick.areaCounts.get(area)||0)+1);
   }
@@ -6620,15 +6670,16 @@ function autoCreateMonthlyPlan(){
   for(const [date,b] of buckets){
     if(!b.machines.length)continue;
     const byArea=new Map();
-    for(const m of b.machines){
-      const area=m.area||'未設定';
+    for(const it of b.items){
+      const area=it.m.area||'未設定';
       if(!byArea.has(area))byArea.set(area,[]);
-      byArea.get(area).push(m);
+      byArea.get(area).push(it);
     }
-    for(const [area,machines] of byArea){
+    for(const [area,areaItems] of byArea){
+      const machines=areaItems.map(x=>x.m);
       machines.sort((a,b)=>{
-        const ad=machineAutoDueDate(a,end),bd=machineAutoDueDate(b,end);
-        return String(ad).localeCompare(String(bd));
+        const ai=areaItems.find(x=>x.m.id===a.id),bi=areaItems.find(x=>x.m.id===b.id);
+        return String(ai?.due||'').localeCompare(String(bi?.due||''));
       });
       // 同じ施設を連続させ、その中ではGPSが近い順に寄せる
       const facilityGroups=new Map();
@@ -6662,9 +6713,10 @@ function autoCreateMonthlyPlan(){
         area,
         category:'route',
         priority:overdue?'high':'normal',
-        memo:`自動作成・作業目安 ${totalMinutes}分`,
+        memo:`自動作成・作業目安 ${totalMinutes}分・${[...new Set(areaItems.map(x=>x.workKind))].join(' / ')}`,
         machineId:null,
         machineIds:machines.map(m=>m.id),
+        machineWorkKinds:areaItems.map(x=>({machineId:x.m.id,work:x.workKind,due:x.due})),
         distanceKm,
         done:false,
         autoMonthlyPlan:true,
