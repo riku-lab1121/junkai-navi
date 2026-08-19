@@ -928,6 +928,28 @@ nav.modal-blocked{
   color:#64748b!important;
 }
 #registerPage label[for="rpName"]{font-weight:900}
+
+/* Ver.7.4 複数エリア選択 */
+.multi-area-select{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:8px;
+}
+.multi-area-select button{
+  min-height:42px;
+  padding:9px 13px;
+  border-radius:999px;
+  background:#eef2f7;
+  color:#334155;
+  font-weight:850;
+  border:1px solid #e2e8f0;
+}
+.multi-area-select button.active{
+  background:#111827;
+  color:#fff;
+  border-color:#111827;
+}
 </style>
 </head>
 <body>
@@ -1260,7 +1282,8 @@ nav.modal-blocked{
 
       <div class="flow-card">
         <label>対象エリア</label>
-        <select id="routeArea"><option value="all">全エリア</option></select>
+        <div id="routeAreaMulti" class="multi-area-select"></div>
+        <input type="hidden" id="routeArea" value="all" />
 
         <label>候補の出し方</label>
         <select id="routeCandidateMode">
@@ -2109,20 +2132,65 @@ function routeSiteKey(m){
   if((m.site||'').trim()) return `site:${m.area||'未設定'}:${m.site.trim()}`;
   return `machine:${m.id}`;
 }
+
+let routeAreasSelected=['all'];
+
+function normalizeRouteAreas(values){
+  const valid=new Set([...areaNames(),'未設定']);
+  let arr=(Array.isArray(values)?values:[values]).filter(Boolean);
+  if(arr.includes('all') || !arr.length)return ['all'];
+  arr=[...new Set(arr.filter(a=>valid.has(a)))];
+  return arr.length?arr:['all'];
+}
+function routeSelectedAreas(){
+  return normalizeRouteAreas(routeAreasSelected);
+}
+function renderRouteAreaMulti(){
+  const host=document.getElementById('routeAreaMulti');
+  if(!host)return;
+  const areas=['all',...areaNames(),'未設定'];
+  const selected=routeSelectedAreas();
+  host.innerHTML=areas.map(a=>{
+    const label=a==='all'?'全エリア':a;
+    const active=selected.includes(a);
+    return `<button type="button" data-routearea="${escapeHtml(a)}" class="${active?'active':''}">${escapeHtml(label)}</button>`;
+  }).join('');
+  host.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click',()=>{
+      const a=b.dataset.routearea;
+      let next=routeSelectedAreas();
+      if(a==='all'){
+        next=['all'];
+      }else{
+        next=next.filter(x=>x!=='all');
+        if(next.includes(a))next=next.filter(x=>x!==a);
+        else next.push(a);
+        if(!next.length)next=['all'];
+      }
+      routeAreasSelected=normalizeRouteAreas(next);
+      routeArea.value=routeAreasSelected.join('|');
+      renderRouteAreaMulti();
+      renderRoutePreview();
+    });
+  });
+}
+
 function candidateMachinesFromOptions(){
-  const area=routeArea.value||'all';
+  const areas=routeSelectedAreas();
   const mode=routeCandidateMode.value||'recommended';
   const includeTrouble=routeIncludeTrouble.checked;
 
-  let list=db.machines.filter(m=>area==='all'||(m.area||'未設定')===area);
+  let list=db.machines.filter(m=>{
+    if(areas.includes('all'))return true;
+    return areas.includes(m.area||'未設定');
+  });
 
   if(mode==='recommended'){
     list=list.filter(m=>routeScore(m,includeTrouble)>0);
   }
 
-  // Higher priority first. Unknown-info machines naturally go later in "all".
   list.sort((a,b)=>routeScore(b,includeTrouble)-routeScore(a,includeTrouble)
-    || String(a.site||a.name).localeCompare(String(b.site||b.name),'ja'));
+    || String(a.name||a.site).localeCompare(String(b.name||b.site),'ja'));
 
   return list;
 }
@@ -2223,47 +2291,58 @@ function renderRoutePreview(){
 }
 function generateRoute(){
   if(confirmGenerateRoute.disabled)return;
-  confirmGenerateRoute.disabled=true;
   const originalLabel=confirmGenerateRoute.textContent;
+  confirmGenerateRoute.disabled=true;
   confirmGenerateRoute.textContent='作成中…';
-  const area=routeArea.value||'all';
-  const chosen=orderRouteMachines(chooseRouteMachines());
 
-  db.routes[today()]={
-    date:today(),
-    createdAt:Date.now(),
-    areaFilter:area,
-    candidateMode:routeCandidateMode.value,
-    stops:chosen.map((m,i)=>({
-      id:uid(),
-      machineId:m.id,
-      order:i+1,
-      status:'pending',
-      workTypes:routeWorkTypes(m),
-      plannedMinutes:Number(m.workMinutes||25)
-    }))
-  };
-  save();
-  renderAll();
-  switchPage('route');
+  try{
+    const chosen=orderRouteMachines(chooseRouteMachines());
+    if(!chosen.length){
+      alert('巡回候補が0台です。候補の出し方を「登録済みを全部候補にする」にするか、対象エリアを追加してください。');
+      return;
+    }
 
-  if(!chosen.length){
-    alert('巡回候補が0台です。「登録済みを全部候補にする」にすると期限前の自販機も選べます。');
-  }else{
+    const selectedAreas=routeSelectedAreas();
+    db.routes[today()]={
+      date:today(),
+      createdAt:Date.now(),
+      areaFilter:selectedAreas.includes('all')?'all':selectedAreas.join('|'),
+      areas:selectedAreas,
+      candidateMode:routeCandidateMode.value,
+      stops:chosen.map((m,i)=>({
+        id:uid(),
+        machineId:m.id,
+        order:i+1,
+        status:'pending',
+        workTypes:routeWorkTypes(m),
+        plannedMinutes:Number(m.workMinutes||25)
+      }))
+    };
+
+    save();
+    switchPage('route');
+    renderAll();
     showToast(`${chosen.length}台の巡回を作成しました`);
+  }catch(err){
+    console.error('generateRoute failed',err);
+    alert('巡回作成でエラーが発生しました。条件を確認してもう一度お試しください。');
+  }finally{
+    confirmGenerateRoute.disabled=false;
+    confirmGenerateRoute.textContent=originalLabel;
   }
-  confirmGenerateRoute.disabled=false;
-  confirmGenerateRoute.textContent=originalLabel;
 }
 function openRouteOptions(){
   autoRouteReturnPage=(page&&page!=='autoRoute')?page:'route';
   fillAreaControls();
   const r=todaysRoute();
-  routeArea.value=r?.areaFilter||'all';
+  const prior=r?.areas || (r?.areaFilter&&r.areaFilter!=='all'?String(r.areaFilter).split('|'):['all']);
+  routeAreasSelected=normalizeRouteAreas(prior);
+  routeArea.value=routeAreasSelected.join('|');
   routeCandidateMode.value=r?.candidateMode||db.settings?.routeDefaultMode||'recommended';
   routeMaxStops.value=db.settings.maxStops||15;
   routeBudget.value=db.settings.workBudget||360;
   routeIncludeTrouble.checked=true;
+  renderRouteAreaMulti();
   renderRoutePreview();
   switchPage('autoRoute');
   window.scrollTo({top:0,behavior:'smooth'});
@@ -2496,7 +2575,6 @@ function fillAreaControls(){
   const current=areaFilter.value||'all';
   areaFilter.innerHTML='<option value="all">全エリア</option>'+areaNames().map(a=>`<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('')+'<option value="未設定">未設定</option>';
   if([...areaFilter.options].some(o=>o.value===current)) areaFilter.value=current;
-  routeArea.innerHTML='<option value="all">全エリア</option>'+areaNames().map(a=>`<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('')+'<option value="未設定">未設定</option>';
   mArea.innerHTML='<option value="未設定">未設定</option>'+areaNames().map(a=>`<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
   const host=document.getElementById('mapAreaFilters');
   if(host){
@@ -4065,7 +4143,6 @@ manualClearBtn.addEventListener('click',()=>{manualRouteSelected=[];renderManual
 manualCreateBtn.addEventListener('click',createManualRoute);
 confirmGenerateRoute.addEventListener('click',generateRoute);
 refreshRoutePreviewBtn.addEventListener('click',renderRoutePreview);
-routeArea.addEventListener('change',renderRoutePreview);
 routeCandidateMode.addEventListener('change',renderRoutePreview);
 routeMaxStops.addEventListener('input',renderRoutePreview);
 routeBudget.addEventListener('input',renderRoutePreview);
