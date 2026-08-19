@@ -702,6 +702,53 @@ nav button{
 }
 .manual-machine{touch-action:manipulation;min-height:58px}
 .simple-area-filters button{touch-action:manipulation}
+
+/* Ver.6.5 全モーダル共通スクロール修正 */
+body.modal-open{
+  position:fixed!important;
+  left:0!important;
+  right:0!important;
+  width:100%!important;
+  overflow:hidden!important;
+  touch-action:none!important;
+}
+.modal{
+  position:fixed!important;
+  inset:0!important;
+  overflow:hidden!important;
+  overscroll-behavior:contain!important;
+  touch-action:none!important;
+}
+.modal:not(.hidden){
+  display:flex!important;
+  align-items:flex-end!important;
+  justify-content:center!important;
+}
+.modal .sheet{
+  width:100%!important;
+  max-width:760px!important;
+  max-height:88dvh!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  -webkit-overflow-scrolling:touch!important;
+  overscroll-behavior:contain!important;
+  touch-action:pan-y!important;
+  padding-bottom:calc(24px + env(safe-area-inset-bottom))!important;
+}
+.modal .sheet input,
+.modal .sheet select,
+.modal .sheet textarea,
+.modal .sheet button{
+  touch-action:manipulation!important;
+}
+nav.modal-blocked{
+  pointer-events:none!important;
+  opacity:.55;
+}
+#troubleModal .sheet,
+#manualRouteModal .sheet{
+  max-height:88dvh!important;
+}
 </style>
 </head>
 <body>
@@ -3404,14 +3451,37 @@ function renderCalendar(){
   calendarMode==='week'?renderWeekCalendar():renderMonthCalendar();renderCalendarDetail(calendarSelectedDate||today());
 }
 
-function showModal(id){
-  document.getElementById(id).classList.remove('hidden');
+let modalPageScrollY=0;
+function lockPageForModal(){
+  if(document.body.classList.contains('modal-open'))return;
+  modalPageScrollY=window.scrollY||0;
+  document.body.style.top=`-${modalPageScrollY}px`;
   document.body.classList.add('modal-open');
+  const nav=document.querySelector('nav');
+  if(nav)nav.classList.add('modal-blocked');
+}
+function unlockPageFromModal(){
+  if(!document.body.classList.contains('modal-open'))return;
+  document.body.classList.remove('modal-open');
+  document.body.style.top='';
+  const nav=document.querySelector('nav');
+  if(nav)nav.classList.remove('modal-blocked');
+  window.scrollTo(0,modalPageScrollY);
+}
+function showModal(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  lockPageForModal();
+  el.classList.remove('hidden');
+  const sheet=el.querySelector('.sheet');
+  if(sheet)sheet.scrollTop=0;
 }
 function hideModal(id){
-  document.getElementById(id).classList.add('hidden');
-  if(!document.querySelector('.modal:not(.hidden)')) document.body.classList.remove('modal-open');
-  if(map && page==='map') setTimeout(()=>map.invalidateSize(),80);
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.classList.add('hidden');
+  const anyOpen=[...document.querySelectorAll('.modal')].some(m=>!m.classList.contains('hidden'));
+  if(!anyOpen)unlockPageFromModal();
 }
 function renderSettingsAreaSummary(){
   settingsAreaSummary.innerHTML=areaNames().length
@@ -3778,6 +3848,13 @@ function repairViewportLayout(){
 window.addEventListener('orientationchange',()=>setTimeout(repairViewportLayout,120));
 window.addEventListener('pageshow',repairViewportLayout);
 repairViewportLayout();
+
+
+document.querySelectorAll('.modal').forEach(modal=>{
+  modal.addEventListener('touchmove',e=>{
+    if(!e.target.closest('.sheet'))e.preventDefault();
+  },{passive:false});
+});
 
 renderAll();
 </script>
