@@ -665,6 +665,43 @@ nav button{
   touch-action:none!important;
   -webkit-tap-highlight-color:rgba(0,0,0,.08);
 }
+
+/* Ver.6.4 */
+.manual-route-sheet{
+  height:86dvh!important;
+  max-height:86dvh!important;
+  display:flex!important;
+  flex-direction:column!important;
+  overflow:hidden!important;
+  padding-bottom:0!important;
+}
+.manual-route-header{flex:0 0 auto}
+.manual-route-scroll{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto!important;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  margin-top:10px;
+  padding-bottom:14px;
+}
+.manual-list{
+  max-height:none!important;
+  overflow:visible!important;
+}
+.manual-route-footer{
+  flex:0 0 auto;
+  background:#fff;
+  border-top:1px solid var(--line);
+  padding:10px 0 calc(10px + env(safe-area-inset-bottom));
+}
+.manual-route-footer button{
+  width:100%;
+  padding:15px;
+  border-radius:14px;
+}
+.manual-machine{touch-action:manipulation;min-height:58px}
+.simple-area-filters button{touch-action:manipulation}
 </style>
 </head>
 <body>
@@ -1242,18 +1279,31 @@ nav button{
 
 
 <div class="modal hidden" id="manualRouteModal">
-  <div class="sheet">
-    <div class="row"><h2>手動で巡回を作る</h2><button class="secondary" data-close="manualRouteModal">閉じる</button></div>
-    <div class="grid2">
-      <select id="manualRouteArea"><option value="all">全エリア</option></select>
-      <input id="manualRouteSearch" placeholder="自販機名・場所を検索" />
+  <div class="sheet manual-route-sheet">
+    <div class="manual-route-header">
+      <div class="row">
+        <h2>手動で巡回を作る</h2>
+        <button class="secondary" data-close="manualRouteModal">閉じる</button>
+      </div>
+
+      <div class="grid2">
+        <select id="manualRouteArea"><option value="all">全エリア</option></select>
+        <input id="manualRouteSearch" placeholder="自販機名・場所を検索" />
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <div><b id="manualSelectedCount">0</b>台選択</div>
+        <button class="secondary" id="manualClearBtn">すべて解除</button>
+      </div>
     </div>
-    <div class="row" style="margin:10px 0">
-      <div><b id="manualSelectedCount">0</b>台選択</div>
-      <button class="secondary" id="manualClearBtn">すべて解除</button>
+
+    <div class="manual-route-scroll">
+      <div class="manual-list" id="manualRouteList"></div>
     </div>
-    <div class="manual-list" id="manualRouteList"></div>
-    <button class="primary" id="manualCreateBtn" style="margin-top:14px">選択した順で作成</button>
+
+    <div class="manual-route-footer">
+      <button class="primary" id="manualCreateBtn">選択した順で作成</button>
+    </div>
   </div>
 </div>
 
@@ -1603,7 +1653,12 @@ function openManualRoute(){
   manualRouteArea.innerHTML=routeArea.innerHTML;
   manualRouteArea.value='all';manualRouteSearch.value='';
   manualRouteSelected=(todaysRoute()?.stops||[]).map(s=>s.machineId);
-  renderManualRouteList();showModal('manualRouteModal');
+  renderManualRouteList();
+  showModal('manualRouteModal');
+  setTimeout(()=>{
+    const scroller=document.querySelector('.manual-route-scroll');
+    if(scroller) scroller.scrollTop=0;
+  },30);
 }
 function manualMachinesFiltered(){
   const area=manualRouteArea.value||'all',q=manualRouteSearch.value.trim().toLowerCase();
@@ -2057,8 +2112,31 @@ function fillAreaControls(){
   const host=document.getElementById('mapAreaFilters');
   if(host){
     host.innerHTML=`<button data-maparea="all">全エリア</button>`+areaNames().map(a=>`<button data-maparea="${escapeHtml(a)}">${escapeHtml(a)}</button>`).join('')+`<button data-maparea="未設定">未設定</button>`;
-    host.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>setMapArea(b.dataset.maparea)));
-    host.querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.maparea===mapArea));
+    host.querySelectorAll('button').forEach(b=>{
+      b.type='button';
+      let touched=false;
+      b.addEventListener('touchend',e=>{
+        touched=true;
+        e.preventDefault();
+        e.stopPropagation();
+        setMapArea(b.dataset.maparea);
+        setTimeout(()=>{touched=false},250);
+      },{passive:false});
+      b.addEventListener('pointerup',e=>{
+        if(e.pointerType!=='touch'){
+          e.preventDefault();
+          e.stopPropagation();
+          setMapArea(b.dataset.maparea);
+        }
+      });
+      b.addEventListener('click',e=>{
+        if(touched)return;
+        e.preventDefault();
+        e.stopPropagation();
+        setMapArea(b.dataset.maparea);
+      });
+      b.classList.toggle('active',b.dataset.maparea===mapArea);
+    });
   }
 }
 function renderAreaSettings(){
@@ -2208,8 +2286,15 @@ function setMapMode(mode){
 function setMapArea(area){
   hideMapMachineCard();
   mapArea=area;
-  document.querySelectorAll('#mapAreaSegment button').forEach(b=>b.classList.toggle('active',b.dataset.maparea===area));
-  renderMapMarkers();
+  document.querySelectorAll('#mapAreaFilters [data-maparea]').forEach(b=>{
+    b.classList.toggle('active',b.dataset.maparea===area);
+  });
+  try{
+    renderMapMarkers();
+    if(map) map.invalidateSize(false);
+  }catch(e){
+    console.warn('map area filter',e);
+  }
 }
 function addMachineToToday(machineId){
   const m=machine(machineId);if(!m)return;
@@ -3630,7 +3715,10 @@ rpChooseOnMap.addEventListener('click',chooseLocationOnMapForRegister);
 rpClearLocation.addEventListener('click',()=>{rpLat.value='';rpLng.value='';renderRegisterLocation()});
 registerPageForm.addEventListener('submit',e=>e.preventDefault());
 registerSaveBtn.addEventListener('click',saveRegisterPage);
-mapFilterBtn.addEventListener('click',()=>{
+mapFilterBtn.addEventListener('click',e=>{
+  e.preventDefault();
+  e.stopPropagation();
+  fillAreaControls();
   mapAreaFilters.classList.toggle('hidden');
   mapFilterBtn.classList.toggle('active',!mapAreaFilters.classList.contains('hidden'));
 });
@@ -3646,11 +3734,6 @@ mapMenuBtn.addEventListener('click',()=>{
 });
 mapRegisterMenuBtn.addEventListener('click',()=>openRegisterPage('map'));
 cancelMapRegisterBtn.addEventListener('click',()=>{setMapRegisterMode(false);clearTempRegisterMarker();});
-document.querySelectorAll('#mapAreaSegment button').forEach(b=>b.addEventListener('click',()=>{
-  setMapArea(b.dataset.maparea);
-  mapOptionsPanel.classList.add('hidden');
-  mapMenuBtn.classList.remove('active');
-}));
 mapInfoCloseBtn.addEventListener('click',hideMapMachineCard);
 mapInfoNavBtn.addEventListener('click',()=>{if(selectedExternalPlace)navigateExternalPlace();else if(selectedMapMachineId)navigateToMachine(selectedMapMachineId)});
 mapInfoAddBtn.addEventListener('click',()=>{if(selectedExternalPlace)registerAtExternalPlace();else if(selectedMapMachineId)addMachineToToday(selectedMapMachineId)});
