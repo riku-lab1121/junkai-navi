@@ -1324,6 +1324,66 @@ nav.modal-blocked{
   flex:0 0 auto;border:0;border-radius:12px;padding:10px 14px;
   background:#fff1f0;color:#b42318;font-weight:900;font-size:15px;
 }
+
+/* Ver.8.9.4 トラブル対応状況 */
+.existing-trouble-main{min-width:0;flex:1}
+.existing-trouble-actions{
+  display:flex;flex-direction:column;gap:7px;align-items:stretch;min-width:145px
+}
+.existing-trouble-actions select{
+  min-height:42px;border:1px solid #dbe1e8;border-radius:10px;background:#fff;padding:7px;font-weight:800
+}
+.trouble-status-badge,.route-trouble-status{
+  display:inline-flex;align-items:center;border-radius:999px;font-size:10px;font-weight:900
+}
+.trouble-status-badge{padding:4px 7px;margin-bottom:6px}
+.route-trouble-status{padding:2px 6px;margin-right:2px}
+.trouble-status-badge.open,.route-trouble-status.open{background:#fff1f0;color:#b42318}
+.trouble-status-badge.mechanic,.route-trouble-status.mechanic{background:#fff7dd;color:#9a6700}
+.trouble-status-badge.done,.route-trouble-status.done{background:#dcfce7;color:#15803d}
+
+/* Ver.8.9.5 手動巡回を「選択→順番」の2段階に */
+.manual-step-tabs{
+  display:flex;align-items:center;gap:10px;margin:0 4px 14px;
+}
+.manual-step-tab{
+  display:flex;align-items:center;gap:7px;color:#94a3b8;font-size:12px;font-weight:900;white-space:nowrap;
+}
+.manual-step-tab span{
+  width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:#e5e7eb;color:#64748b;
+}
+.manual-step-tab.active{color:#111827}
+.manual-step-tab.active span{background:#111827;color:#fff}
+.manual-step-line{height:2px;flex:1;background:#e5e7eb}
+.manual-area-buttons{display:flex;flex-wrap:wrap;gap:8px;margin-top:7px}
+.manual-area-buttons button{
+  border:0;border-radius:999px;padding:10px 14px;background:#eef2f7;color:#334155;font-weight:850
+}
+.manual-area-buttons button.active{background:#111827;color:#fff}
+.manual-plus{background:#e5e7eb!important;color:#64748b!important}
+.manual-selected-order-list{display:flex;flex-direction:column;gap:8px}
+.manual-order-row{
+  display:grid;grid-template-columns:38px 34px 1fr auto;gap:9px;align-items:center;
+  padding:11px;border:1px solid #e5e7eb;border-radius:13px;background:#fff;
+}
+.manual-order-row.dragging{opacity:.7;box-shadow:0 10px 24px #0002}
+.manual-drag-handle{
+  width:36px;height:46px;display:flex;align-items:center;justify-content:center;border-radius:10px;
+  background:#eef2f7;font-size:24px;font-weight:900;color:#475569;touch-action:none;user-select:none
+}
+.manual-order-num{
+  width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:#111827;color:#fff;font-size:12px;font-weight:900
+}
+.manual-order-info{min-width:0}
+.manual-order-info b{display:block;font-size:15px;line-height:1.3}
+.manual-order-info span{display:block;font-size:11px;color:#64748b;margin-top:3px}
+.manual-order-arrows{display:flex;gap:5px}
+.manual-order-arrows button{
+  width:40px;height:40px;border:0;border-radius:10px;background:#eef2f7;font-weight:900;font-size:16px
+}
+.manual-order-arrows button:disabled{opacity:.3}
 </style>
 </head>
 <body>
@@ -1639,48 +1699,79 @@ nav.modal-blocked{
     </section>
   
     
-    <section id="manualRoutePage" class="hidden flow-page">
-<div class="route-edit-notice">外回り終了後でも、巡回の作成・編集・並べ替えはできます。作業開始だけできません。</div>
+    
+<section id="manualRoutePage" class="hidden flow-page">
+  <div class="route-edit-notice">外回り終了後でも、巡回の作成・編集・並べ替えはできます。作業開始だけできません。</div>
 
-      <div class="flow-head">
+  <div class="flow-head">
+    <div>
+      <div class="section-title">巡回作成</div>
+      <div class="flow-title">手動で巡回を作る</div>
+      <div class="sub" id="manualRouteStepText">① 巡回する自販機を選びます。</div>
+    </div>
+    <button class="secondary" id="manualRouteBackBtn">戻る</button>
+  </div>
+
+  <div class="manual-step-tabs">
+    <div class="manual-step-tab active" id="manualStepTab1"><span>1</span>自販機を選ぶ</div>
+    <div class="manual-step-line"></div>
+    <div class="manual-step-tab" id="manualStepTab2"><span>2</span>順番を決める</div>
+  </div>
+
+  <div id="manualSelectStep">
+    <div class="flow-card">
+      <label>エリア</label>
+      <div id="manualRouteAreaButtons" class="manual-area-buttons"></div>
+      <input type="hidden" id="manualRouteArea" value="all">
+
+      <label style="margin-top:12px">検索</label>
+      <input id="manualRouteSearch" placeholder="施設名・設置場所・管理Noを検索">
+
+      <div class="row" style="margin-top:12px">
+        <div><b id="manualSelectedCount">0</b>台選択</div>
+        <button class="secondary" id="manualClearBtn">すべて解除</button>
+      </div>
+    </div>
+
+    <div class="flow-card">
+      <div class="section-title">自販機を選択</div>
+      <div class="manual-list page-manual-list" id="manualRouteList"></div>
+    </div>
+
+    <div class="page-actionbar">
+      <div>
+        <b><span id="manualSelectedCountBottom">0</span>台</b>
+        <span class="sub">選択中</span>
+      </div>
+      <button class="primary" id="manualNextBtn">順番を決める</button>
+    </div>
+  </div>
+
+  <div id="manualOrderStep" class="hidden">
+    <div class="flow-card">
+      <div class="row">
         <div>
-          <div class="section-title">巡回作成</div>
-          <div class="flow-title">手動で巡回を作る</div>
-          <div class="sub">自販機を選んだ順番が、そのまま巡回順になります。</div>
+          <div class="section-title">巡回する順番</div>
+          <div class="sub">≡ を押しながら上下に動かすか、↑↓で調整できます。</div>
         </div>
-        <button class="secondary" id="manualRouteBackBtn">戻る</button>
+        <button class="secondary" id="manualBackToSelectBtn">選び直す</button>
       </div>
+    </div>
 
-      <div class="flow-card">
-        <div class="grid2">
-          <div>
-            <label>エリア</label>
-            <select id="manualRouteArea"><option value="all">全エリア</option></select>
-          </div>
-          <div>
-            <label>検索</label>
-            <input id="manualRouteSearch" placeholder="自販機名・場所を検索" />
-          </div>
-        </div>
-        <div class="row" style="margin-top:10px">
-          <div><b id="manualSelectedCount">0</b>台選択</div>
-          <button class="secondary" id="manualClearBtn">すべて解除</button>
-        </div>
-      </div>
+    <div class="flow-card">
+      <div id="manualSelectedOrderList" class="manual-selected-order-list"></div>
+    </div>
 
-      <div class="flow-card">
-        <div class="section-title">自販機を選択</div>
-        <div class="manual-list page-manual-list" id="manualRouteList"></div>
+    <div class="page-actionbar">
+      <div>
+        <b><span id="manualOrderCount">0</span>台</b>
+        <span class="sub">巡回予定</span>
       </div>
+      <button class="primary" id="manualCreateBtn">この順番で巡回を作成</button>
+    </div>
+  </div>
+</section>
 
-      <div class="page-actionbar">
-        <div>
-          <b><span id="manualSelectedCountBottom">0</span>台</b>
-          <span class="sub">選択中</span>
-        </div>
-        <button class="primary" id="manualCreateBtn">この内容で巡回を作成</button>
-      </div>
-    </section>
 
     <section id="autoRoutePage" class="hidden flow-page">
       <div class="flow-head">
@@ -1793,6 +1884,13 @@ nav.modal-blocked{
           <select id="troubleType">
             <option>売切れ</option><option>詰まり</option><option>釣銭</option><option>水漏れ</option>
             <option>排水</option><option>温度</option><option>故障</option><option>その他</option>
+          </select>
+
+          <label>対応状況</label>
+          <select id="troubleStatus">
+            <option value="open">未解決</option>
+            <option value="mechanic">メカニック依頼</option>
+            <option value="done">解決</option>
           </select>
 
           <label>緊急度</label>
@@ -2836,42 +2934,189 @@ function hav(a,b){
   return 2*R*Math.asin(Math.sqrt(h));
 }
 
+
+let manualRouteStep='select';
+let manualRouteDragId=null;
+
+function renderManualAreaButtons(){
+  const host=document.getElementById('manualRouteAreaButtons');
+  if(!host)return;
+  const current=manualRouteArea.value||'all';
+  const areas=['all',...areaNames()];
+  if(db.machines.some(m=>(m.area||'未設定')==='未設定'))areas.push('未設定');
+  host.innerHTML=areas.map(a=>{
+    const label=a==='all'?'全エリア':a;
+    return `<button type="button" data-manual-area="${escapeHtml(a)}" class="${current===a?'active':''}">${escapeHtml(label)}</button>`;
+  }).join('');
+  host.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      manualRouteArea.value=btn.dataset.manualArea;
+      renderManualAreaButtons();
+      renderManualRouteList();
+    });
+  });
+}
+
 function openManualRoute(){
   manualRouteReturnPage=(page&&page!=='manualRoute')?page:'route';
-  fillAreaControls();
-  manualRouteArea.innerHTML=routeArea.innerHTML;
+  manualRouteStep='select';
   manualRouteArea.value='all';
   manualRouteSearch.value='';
   manualRouteSelected=(todaysRoute()?.stops||[]).map(s=>s.machineId);
-  renderManualRouteList();
   switchPage('manualRoute');
-  window.scrollTo({top:0,behavior:'smooth'});
+  renderManualAreaButtons();
+  renderManualRouteStep();
+  window.scrollTo({top:0,behavior:'auto'});
 }
+
+function renderManualRouteStep(){
+  const select=manualRouteStep==='select';
+  manualSelectStep.classList.toggle('hidden',!select);
+  manualOrderStep.classList.toggle('hidden',select);
+  manualStepTab1.classList.toggle('active',select);
+  manualStepTab2.classList.toggle('active',!select);
+  manualRouteStepText.textContent=select
+    ? '① 巡回する自販機を選びます。'
+    : '② 選んだ自販機の巡回順を決めます。';
+  if(select)renderManualRouteList();
+  else renderManualSelectedOrder();
+}
+
 function manualMachinesFiltered(){
-  const area=manualRouteArea.value||'all',q=manualRouteSearch.value.trim().toLowerCase();
+  const area=manualRouteArea.value||'all';
+  const q=manualRouteSearch.value.trim().toLowerCase();
   return db.machines.filter(m=>{
     if(area!=='all'&&(m.area||'未設定')!==area)return false;
-    return !q||[m.name,m.site,m.number,m.area].filter(Boolean).some(v=>String(v).toLowerCase().includes(q));
-  }).sort((a,b)=>String(a.site||a.name).localeCompare(String(b.site||b.name),'ja'));
+    return !q||[m.name,m.site,m.number,m.area,m.modelName]
+      .filter(Boolean).some(v=>String(v).toLowerCase().includes(q));
+  }).sort((a,b)=>String(machineDisplayTitle(a)).localeCompare(String(machineDisplayTitle(b)),'ja'));
 }
+
 function toggleManualMachine(id){
-  const i=manualRouteSelected.indexOf(id);if(i>=0)manualRouteSelected.splice(i,1);else manualRouteSelected.push(id);
+  const i=manualRouteSelected.indexOf(id);
+  if(i>=0)manualRouteSelected.splice(i,1);
+  else manualRouteSelected.push(id);
   renderManualRouteList();
 }
+
 function renderManualRouteList(){
-  const list=manualMachinesFiltered();manualSelectedCount.textContent=manualRouteSelected.length;if(window.manualSelectedCountBottom)manualSelectedCountBottom.textContent=manualRouteSelected.length;
-  if(!list.length){manualRouteList.innerHTML='<div class="empty">該当する自販機がありません。</div>';return}
+  const list=manualMachinesFiltered();
+  manualSelectedCount.textContent=manualRouteSelected.length;
+  manualSelectedCountBottom.textContent=manualRouteSelected.length;
+  manualNextBtn.disabled=!manualRouteSelected.length;
+
+  if(!list.length){
+    manualRouteList.innerHTML='<div class="empty">該当する自販機がありません。</div>';
+    return;
+  }
+
   manualRouteList.innerHTML=list.map(m=>{
     const i=manualRouteSelected.indexOf(m.id),sel=i>=0;
     return `<button class="manual-machine ${sel?'selected':''}" style="width:100%;text-align:left" onclick="toggleManualMachine('${m.id}')">
       <span style="display:flex;align-items:flex-start;gap:8px">
-        ${sel?`<span class="manual-order">${i+1}</span>`:'<span class="manual-order" style="background:#e5e7eb;color:#64748b">＋</span>'}
+        ${sel?`<span class="manual-order">✓</span>`:'<span class="manual-order manual-plus">＋</span>'}
         <span>${machineDisplayHtml(m)}</span>
       </span>
       <span class="mini">${Number(m.workMinutes||25)}分</span>
     </button>`;
   }).join('');
 }
+
+function openManualOrderStep(){
+  if(!manualRouteSelected.length){
+    alert('自販機を1台以上選んでください');
+    return;
+  }
+  manualRouteStep='order';
+  renderManualRouteStep();
+  window.scrollTo({top:0,behavior:'auto'});
+}
+
+function backToManualSelectStep(){
+  manualRouteStep='select';
+  renderManualRouteStep();
+  window.scrollTo({top:0,behavior:'auto'});
+}
+
+function moveManualOrder(id,delta){
+  const i=manualRouteSelected.indexOf(id);
+  if(i<0)return;
+  const ni=i+delta;
+  if(ni<0||ni>=manualRouteSelected.length)return;
+  [manualRouteSelected[i],manualRouteSelected[ni]]=[manualRouteSelected[ni],manualRouteSelected[i]];
+  renderManualSelectedOrder();
+}
+
+function renderManualSelectedOrder(){
+  manualOrderCount.textContent=manualRouteSelected.length;
+  if(!manualRouteSelected.length){
+    manualSelectedOrderList.innerHTML='<div class="empty">自販機が選択されていません。</div>';
+    return;
+  }
+
+  manualSelectedOrderList.innerHTML=manualRouteSelected.map((id,i)=>{
+    const m=machine(id);
+    if(!m)return '';
+    return `<div class="manual-order-row" data-machine-id="${id}">
+      <div class="manual-drag-handle" data-drag-id="${id}">≡</div>
+      <div class="manual-order-num">${i+1}</div>
+      <div class="manual-order-info">
+        <b>${escapeHtml(machineDisplayTitle(m))}</b>
+        <span>${escapeHtml(machineDisplaySub(m)||'詳細未設定')}</span>
+      </div>
+      <div class="manual-order-arrows">
+        <button type="button" onclick="moveManualOrder('${id}',-1)" ${i===0?'disabled':''}>↑</button>
+        <button type="button" onclick="moveManualOrder('${id}',1)" ${i===manualRouteSelected.length-1?'disabled':''}>↓</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  bindManualOrderDrag();
+}
+
+function bindManualOrderDrag(){
+  const host=manualSelectedOrderList;
+  if(!host)return;
+
+  host.querySelectorAll('.manual-drag-handle').forEach(handle=>{
+    handle.addEventListener('pointerdown',e=>{
+      manualRouteDragId=handle.dataset.dragId;
+      handle.setPointerCapture?.(e.pointerId);
+      handle.closest('.manual-order-row')?.classList.add('dragging');
+      e.preventDefault();
+    });
+
+    handle.addEventListener('pointermove',e=>{
+      if(!manualRouteDragId)return;
+      const under=document.elementFromPoint(e.clientX,e.clientY);
+      const row=under?.closest?.('.manual-order-row');
+      if(!row)return;
+      const targetId=row.dataset.machineId;
+      if(!targetId||targetId===manualRouteDragId)return;
+
+      const from=manualRouteSelected.indexOf(manualRouteDragId);
+      const to=manualRouteSelected.indexOf(targetId);
+      if(from<0||to<0)return;
+
+      manualRouteSelected.splice(from,1);
+      manualRouteSelected.splice(to,0,manualRouteDragId);
+      renderManualSelectedOrder();
+
+      const newHandle=manualSelectedOrderList.querySelector(`[data-drag-id="${CSS.escape(manualRouteDragId)}"]`);
+      try{newHandle?.setPointerCapture?.(e.pointerId)}catch(_){}
+    });
+
+    const finish=e=>{
+      if(!manualRouteDragId)return;
+      manualRouteDragId=null;
+      renderManualSelectedOrder();
+      e.preventDefault();
+    };
+    handle.addEventListener('pointerup',finish);
+    handle.addEventListener('pointercancel',finish);
+  });
+}
+
 function createManualRoute(){
   if(manualCreateBtn.disabled)return;
   const chosen=manualRouteSelected.map(id=>machine(id)).filter(Boolean);
@@ -2923,6 +3168,12 @@ function createManualRoute(){
 
 function machineTroubles(m){
   return (db.troubles||[]).filter(t=>t.machineId===m.id&&t.status!=='done');
+}
+function troubleStatusLabel(status){
+  return status==='mechanic'?'メカニック依頼':status==='done'?'解決':'未解決';
+}
+function troubleStatusClass(status){
+  return status==='mechanic'?'mechanic':status==='done'?'done':'open';
 }
 function uniqueMachineTroubles(m){
   const seen=new Set();
@@ -3560,17 +3811,40 @@ function renderExistingTroubles(machineId){
   const box=document.getElementById('existingTroubleBox');
   const list=document.getElementById('existingTroubleList');
   if(!box||!list)return;
-  const rows=(db.troubles||[]).filter(t=>t.machineId===machineId&&t.status!=='done');
+  const rows=(db.troubles||[]).filter(t=>t.machineId===machineId).sort((a,b)=>(a.status==='done')-(b.status==='done')||(b.createdAt||0)-(a.createdAt||0));
   box.classList.toggle('hidden',rows.length===0);
   list.innerHTML=rows.map(t=>`
     <div class="existing-trouble-row">
-      <div>
+      <div class="existing-trouble-main">
+        <div class="trouble-status-badge ${troubleStatusClass(t.status)}">${troubleStatusLabel(t.status)}</div>
         <b>${escapeHtml(t.type||'トラブル')}</b>
         ${t.memo?`<div class="sub">${escapeHtml(t.memo)}</div>`:''}
       </div>
-      <button type="button" class="delete-trouble-btn" onclick="deleteTroubleRecord('${t.id}','${machineId}')">削除</button>
+      <div class="existing-trouble-actions">
+        <select onchange="changeTroubleStatus('${t.id}',this.value,'${machineId}')">
+          <option value="open" ${t.status==='open'?'selected':''}>未解決</option>
+          <option value="mechanic" ${t.status==='mechanic'?'selected':''}>メカニック依頼</option>
+          <option value="done" ${t.status==='done'?'selected':''}>解決</option>
+        </select>
+        <button type="button" class="delete-trouble-btn" onclick="deleteTroubleRecord('${t.id}','${machineId}')">削除</button>
+      </div>
     </div>`).join('');
 }
+
+function changeTroubleStatus(id,status,machineId){
+  const t=(db.troubles||[]).find(x=>x.id===id);
+  if(!t)return;
+  t.status=status;
+  t.updatedAt=Date.now();
+  if(status==='done')t.resolvedAt=Date.now();
+  else t.resolvedAt=null;
+  save();
+  renderExistingTroubles(machineId);
+  try{renderRoute()}catch(e){}
+  try{renderWorkDashboard()}catch(e){}
+  showToast(status==='done'?'トラブルを解決にしました':status==='mechanic'?'メカニック依頼にしました':'未解決に戻しました');
+}
+
 function deleteTroubleRecord(id,machineId){
   const t=(db.troubles||[]).find(x=>x.id===id);
   if(!t)return;
@@ -3626,8 +3900,8 @@ function renderRoute(){
     const troubleRows=uniqueMachineTroubles(m);
     const troubleMemo=troubleRows.length
       ? `<div class="route-trouble-note">
-          <div class="route-trouble-head">未解決トラブル ${troubleRows.length}件</div>
-          ${troubleRows.slice(0,3).map(t=>`<div><b>${escapeHtml(t.type)}</b>${t.memo?`：${escapeHtml(t.memo)}`:''}</div>`).join('')}
+          <div class="route-trouble-head">対応中トラブル ${troubleRows.length}件</div>
+          ${troubleRows.slice(0,3).map(t=>`<div><span class="route-trouble-status ${troubleStatusClass(t.status)}">${troubleStatusLabel(t.status)}</span> <b>${escapeHtml(t.type)}</b>${t.memo?`：${escapeHtml(t.memo)}`:''}</div>`).join('')}
           ${troubleRows.length>3?`<div class="sub">ほか${troubleRows.length-3}件</div>`:''}
         </div>`
       : '';
@@ -6161,8 +6435,9 @@ troubleBackBtn.addEventListener('click',()=>switchPage(troubleReturnPage||'home'
 settingsBackBtn.addEventListener('click',()=>switchPage(settingsReturnPage||'home'));
 quickAutoRouteBtn.addEventListener('click',openRouteOptions);
 manualRouteBtn.addEventListener('click',openManualRoute);
-manualRouteArea.addEventListener('change',renderManualRouteList);
 manualRouteSearch.addEventListener('input',renderManualRouteList);
+manualNextBtn.addEventListener('click',openManualOrderStep);
+manualBackToSelectBtn.addEventListener('click',backToManualSelectStep);
 manualClearBtn.addEventListener('click',()=>{manualRouteSelected=[];renderManualRouteList()});
 manualCreateBtn.addEventListener('click',createManualRoute);
 confirmGenerateRoute.addEventListener('click',generateRoute);
@@ -6210,23 +6485,28 @@ troubleForm.addEventListener('submit',e=>{
     const priority=troublePriority.value;
     const memo=troubleMemo.value.trim();
 
-    const duplicate=(db.troubles||[]).find(t=>
+    const duplicate=status!=='done'?(db.troubles||[]).find(t=>
       t.status!=='done' &&
       t.machineId===machineId &&
       (t.type||'').trim()===type.trim()
-    );
+    ):null;
 
     if(duplicate){
       alert('同じ内容の未解決トラブルがすでに登録されています。');
       return;
     }
 
+    const status=troubleStatus.value||'open';
     const item={
       id:uid(),machineId,
       type,
       priority,
       memo,
-      status:'open',createdAt:Date.now(),date:today()
+      status,
+      createdAt:Date.now(),
+      updatedAt:Date.now(),
+      resolvedAt:status==='done'?Date.now():null,
+      date:today()
     };
     db.troubles.push(item);
     if(troubleAddRoute.checked)addMachineToToday(machineId,true);
@@ -6532,7 +6812,7 @@ if(window.modelPageBackBtn)modelPageBackBtn.addEventListener('click',closeModelE
 if(window.modelPageCancelBtn)modelPageCancelBtn.addEventListener('click',closeModelEditorPage);
 if(window.modelPageSaveBtn)modelPageSaveBtn.addEventListener('click',saveModelEditorPage);
 
-window.deleteTroubleRecord=deleteTroubleRecord;window.openRouteWorkEdit=openRouteWorkEdit;window.openTroubleForMachine=openTroubleForMachine;window.openMonthlyManualBuilder=openMonthlyManualBuilder;window.closeMonthlyManualBuilder=closeMonthlyManualBuilder;window.toggleMonthlyManualMachine=toggleMonthlyManualMachine;window.toggleMonthlyManualWork=toggleMonthlyManualWork;window.clearMonthlyManualSelection=clearMonthlyManualSelection;window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openWeeklyDayDetail=openWeeklyDayDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
+window.changeTroubleStatus=changeTroubleStatus;window.deleteTroubleRecord=deleteTroubleRecord;window.moveManualOrder=moveManualOrder;window.toggleManualMachine=toggleManualMachine;window.openRouteWorkEdit=openRouteWorkEdit;window.openTroubleForMachine=openTroubleForMachine;window.openMonthlyManualBuilder=openMonthlyManualBuilder;window.closeMonthlyManualBuilder=closeMonthlyManualBuilder;window.toggleMonthlyManualMachine=toggleMonthlyManualMachine;window.toggleMonthlyManualWork=toggleMonthlyManualWork;window.clearMonthlyManualSelection=clearMonthlyManualSelection;window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openWeeklyDayDetail=openWeeklyDayDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
 window.openModelEditor=openModelEditor;window.deleteModel=deleteModel;window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
