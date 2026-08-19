@@ -749,6 +749,66 @@ nav.modal-blocked{
 #manualRouteModal .sheet{
   max-height:88dvh!important;
 }
+
+/* Ver.7.0 大きい操作はモーダルではなく専用ページ */
+.flow-page{
+  padding-bottom:120px!important;
+}
+.flow-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  background:#fff;
+  border-radius:20px;
+  padding:16px;
+  margin-bottom:12px;
+}
+.flow-title{
+  font-size:25px;
+  font-weight:900;
+  line-height:1.2;
+}
+.flow-card{
+  background:#fff;
+  border-radius:18px;
+  padding:16px;
+  margin-bottom:12px;
+}
+.page-manual-list{
+  max-height:none!important;
+  overflow:visible!important;
+}
+.page-actionbar{
+  position:sticky;
+  bottom:78px;
+  z-index:100;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  background:rgba(244,244,246,.96);
+  backdrop-filter:blur(18px);
+  border-top:1px solid var(--line);
+  padding:10px 4px calc(10px + env(safe-area-inset-bottom));
+  margin-top:12px;
+}
+.page-actionbar .primary{
+  width:auto;
+  min-width:190px;
+  padding:14px 18px;
+  border-radius:14px;
+}
+.flow-page textarea{
+  min-height:130px;
+}
+#settingsPage .settings-tabs{
+  position:sticky;
+  top:0;
+  z-index:20;
+  background:#f4f4f6;
+  padding:8px 0;
+}
 </style>
 </head>
 <body>
@@ -1027,7 +1087,254 @@ nav.modal-blocked{
       </div>
     </section>
   
-    <section id="registerPage" class="hidden registration-page">
+    
+    <section id="manualRoutePage" class="hidden flow-page">
+      <div class="flow-head">
+        <div>
+          <div class="section-title">巡回作成</div>
+          <div class="flow-title">手動で巡回を作る</div>
+          <div class="sub">自販機を選んだ順番が、そのまま巡回順になります。</div>
+        </div>
+        <button class="secondary" id="manualRouteBackBtn">戻る</button>
+      </div>
+
+      <div class="flow-card">
+        <div class="grid2">
+          <div>
+            <label>エリア</label>
+            <select id="manualRouteArea"><option value="all">全エリア</option></select>
+          </div>
+          <div>
+            <label>検索</label>
+            <input id="manualRouteSearch" placeholder="自販機名・場所を検索" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div><b id="manualSelectedCount">0</b>台選択</div>
+          <button class="secondary" id="manualClearBtn">すべて解除</button>
+        </div>
+      </div>
+
+      <div class="flow-card">
+        <div class="section-title">自販機を選択</div>
+        <div class="manual-list page-manual-list" id="manualRouteList"></div>
+      </div>
+
+      <div class="page-actionbar">
+        <div>
+          <b><span id="manualSelectedCountBottom">0</span>台</b>
+          <span class="sub">選択中</span>
+        </div>
+        <button class="primary" id="manualCreateBtn">この内容で巡回を作成</button>
+      </div>
+    </section>
+
+    <section id="autoRoutePage" class="hidden flow-page">
+      <div class="flow-head">
+        <div>
+          <div class="section-title">巡回作成</div>
+          <div class="flow-title">おすすめで巡回を作る</div>
+          <div class="sub">期限・補充・集金・在庫・トラブルから候補を作ります。</div>
+        </div>
+        <button class="secondary" id="autoRouteBackBtn">戻る</button>
+      </div>
+
+      <div class="flow-card">
+        <label>対象エリア</label>
+        <select id="routeArea"><option value="all">全エリア</option></select>
+
+        <label>候補の出し方</label>
+        <select id="routeCandidateMode">
+          <option value="recommended">おすすめだけ</option>
+          <option value="all">登録済みを全部候補にする</option>
+        </select>
+
+        <div class="grid2">
+          <div>
+            <label>最大台数</label>
+            <input id="routeMaxStops" type="number" min="1" max="100" value="15" />
+          </div>
+          <div>
+            <label>作業時間上限（分）</label>
+            <input id="routeBudget" type="number" min="15" step="15" value="360" />
+          </div>
+        </div>
+
+        <div class="checkrow">
+          <input id="routeIncludeTrouble" type="checkbox" checked>
+          <span>未完了トラブルを優先する</span>
+        </div>
+      </div>
+
+      <div class="flow-card">
+        <div class="row">
+          <div>
+            <div class="section-title">候補プレビュー</div>
+            <div><b id="routePreviewCount">0</b>台 ・ 約 <b id="routePreviewMinutes">0</b>分</div>
+          </div>
+          <button class="secondary" id="refreshRoutePreviewBtn">更新</button>
+        </div>
+        <div id="routePreviewList" style="margin-top:10px"></div>
+      </div>
+
+      <div class="page-actionbar">
+        <div><b id="autoRouteActionCount">0</b>台候補</div>
+        <button class="primary" id="confirmGenerateRoute">この条件で作成</button>
+      </div>
+    </section>
+
+    <section id="troublePage" class="hidden flow-page">
+      <div class="flow-head">
+        <div>
+          <div class="section-title">仕事管理</div>
+          <div class="flow-title">トラブル受付</div>
+          <div class="sub">受付内容を保存し、必要なら今日の巡回にも追加します。</div>
+        </div>
+        <button class="secondary" id="troubleBackBtn">戻る</button>
+      </div>
+
+      <form id="troubleForm">
+        <div class="flow-card">
+          <label>自販機</label>
+          <select id="troubleMachine" required></select>
+
+          <label>内容</label>
+          <select id="troubleType">
+            <option>売切れ</option><option>詰まり</option><option>釣銭</option><option>水漏れ</option>
+            <option>排水</option><option>温度</option><option>故障</option><option>その他</option>
+          </select>
+
+          <label>緊急度</label>
+          <select id="troublePriority">
+            <option value="normal">通常</option>
+            <option value="high">緊急</option>
+          </select>
+
+          <label>メモ</label>
+          <textarea id="troubleMemo" rows="5" placeholder="状況や対応内容を入力"></textarea>
+
+          <div class="checkrow">
+            <input id="troubleAddRoute" type="checkbox" checked>
+            <span>今日の巡回に追加する</span>
+          </div>
+        </div>
+
+        <div class="page-actionbar">
+          <div class="sub">入力内容を保存します</div>
+          <button class="primary" type="submit" id="troubleSaveBtn">受付する</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="settingsPage" class="hidden flow-page">
+      <div class="flow-head">
+        <div>
+          <div class="section-title">アプリ</div>
+          <div class="flow-title">設定</div>
+        </div>
+        <button class="secondary" id="settingsBackBtn">戻る</button>
+      </div>
+
+      <div class="settings-tabs" id="settingsTabs">
+        <button class="active" data-settings-tab="work">勤務</button>
+        <button data-settings-tab="route">巡回</button>
+        <button data-settings-tab="map">MAP</button>
+        <button data-settings-tab="display">表示</button>
+        <button data-settings-tab="area">エリア</button>
+        <button data-settings-tab="data">データ</button>
+      </div>
+
+      <div class="settings-panel" data-settings-panel="work">
+        <div class="settings-group">
+          <div class="section-title">勤務時間</div>
+          <label>勤務開始</label><input id="sStart" type="time" />
+          <label>帰社目標</label><input id="sReturn" type="time" />
+          <label>休憩目標（分）</label><input id="sBreak" type="number" min="0" />
+        </div>
+      </div>
+
+      <div class="settings-panel hidden" data-settings-panel="route">
+        <div class="settings-group">
+          <div class="section-title">巡回作成</div>
+          <label>最大巡回台数</label><input id="sMax" type="number" min="1" max="100" />
+          <label>1日の作業上限（分・移動除く）</label><input id="sWorkBudget" type="number" min="30" />
+          <label>巡回作成の初期モード</label>
+          <select id="sRouteDefaultMode">
+            <option value="recommended">おすすめ</option>
+            <option value="all">登録済み全部を候補</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-panel hidden" data-settings-panel="map">
+        <div class="settings-group">
+          <div class="section-title">MAP表示</div>
+          <label>初期ズーム</label>
+          <input id="sMapZoom" type="range" min="10" max="18" step="1" />
+          <div class="row"><span class="sub">広域</span><b id="sMapZoomLabel">14</b><span class="sub">詳細</span></div>
+
+          <label>MAPを開いた時の表示</label>
+          <select id="sMapDefaultMode">
+            <option value="today">今日を強調</option>
+            <option value="all">通常</option>
+          </select>
+
+          <div class="checkrow"><input id="sGpsAuto" type="checkbox"><span>MAPを開いたら現在地を自動追跡</span></div>
+        </div>
+        <div class="settings-group">
+          <div class="section-title">店舗・施設検索</div>
+          <label>Apple Maps / MapKit JS トークン</label>
+          <input id="sMapKitToken" type="password" placeholder="Maps tokenを貼り付け" autocomplete="off" />
+          <div class="mapkit-token-status" id="mapKitTokenStatus">未設定の場合は登録済み自販機検索＋Apple Maps外部検索を使います。</div>
+        </div>
+      </div>
+
+      <div class="settings-panel hidden" data-settings-panel="display">
+        <div class="settings-group">
+          <div class="section-title">アプリ表示</div>
+          <label>画面の情報量</label>
+          <select id="sDensity">
+            <option value="standard">標準</option>
+            <option value="compact">コンパクト</option>
+          </select>
+          <div class="checkrow"><input id="sHaptics" type="checkbox"><span>ボタン操作時の軽い振動</span></div>
+        </div>
+      </div>
+
+      <div class="settings-panel hidden" data-settings-panel="area">
+        <div class="settings-group">
+          <div class="row">
+            <div>
+              <div class="section-title">巡回エリア</div>
+              <div class="sub">高松・坂出など自由に追加できます</div>
+            </div>
+            <button class="secondary" type="button" id="areaSettingsBtn">編集</button>
+          </div>
+          <div id="settingsAreaSummary" class="settings-area-summary"></div>
+        </div>
+      </div>
+
+      <div class="settings-panel hidden" data-settings-panel="data">
+        <div class="settings-group">
+          <div class="section-title">バックアップ・一括登録</div>
+          <div class="backup-actions">
+            <button class="secondary" type="button" id="exportCsvBtn">自販機CSV出力</button>
+            <button class="secondary" type="button" id="importCsvBtn">CSV読込</button>
+            <button class="secondary" type="button" id="exportBackupBtn">完全バックアップ</button>
+            <button class="secondary" type="button" id="importBackupBtn">復元</button>
+          </div>
+          <input class="hidden" id="csvFileInput" type="file" accept=".csv,text/csv" />
+          <input class="hidden" id="backupFileInput" type="file" accept=".json,application/json" />
+        </div>
+      </div>
+
+      <div class="page-actionbar">
+        <div class="sub">変更内容を保存</div>
+        <button class="primary" id="saveSettings">設定を保存</button>
+      </div>
+    </section>
+
+<section id="registerPage" class="hidden registration-page">
       <div class="reg-hero">
         <div class="row">
           <div>
@@ -1283,24 +1590,6 @@ nav.modal-blocked{
   </div>
 </div>
 
-<div class="modal hidden" id="troubleModal">
-  <div class="sheet">
-    <div class="row"><h2>トラブル受付</h2><button class="secondary" data-close="troubleModal">閉じる</button></div>
-    <form id="troubleForm">
-      <label>自販機</label><select id="troubleMachine" required></select>
-      <label>内容</label>
-      <select id="troubleType">
-        <option>売切れ</option><option>詰まり</option><option>釣銭</option><option>水漏れ</option>
-        <option>排水</option><option>温度</option><option>故障</option><option>その他</option>
-      </select>
-      <label>緊急度</label><select id="troublePriority"><option value="normal">通常</option><option value="high">緊急</option></select>
-      <label>メモ</label><textarea id="troubleMemo" rows="3"></textarea>
-      <div class="checkrow"><input id="troubleAddRoute" type="checkbox" checked><span>今日の巡回に追加する</span></div>
-      <button class="primary" type="submit" style="margin-top:14px">受付する</button>
-    </form>
-  </div>
-</div>
-
 <div class="modal hidden" id="dailyReportModal">
   <div class="sheet">
     <div class="row"><h2>今日の日報</h2><button class="secondary" data-close="dailyReportModal">閉じる</button></div>
@@ -1325,83 +1614,6 @@ nav.modal-blocked{
 </div>
 
 
-<div class="modal hidden" id="manualRouteModal">
-  <div class="sheet manual-route-sheet">
-    <div class="manual-route-header">
-      <div class="row">
-        <h2>手動で巡回を作る</h2>
-        <button class="secondary" data-close="manualRouteModal">閉じる</button>
-      </div>
-
-      <div class="grid2">
-        <select id="manualRouteArea"><option value="all">全エリア</option></select>
-        <input id="manualRouteSearch" placeholder="自販機名・場所を検索" />
-      </div>
-
-      <div class="row" style="margin-top:10px">
-        <div><b id="manualSelectedCount">0</b>台選択</div>
-        <button class="secondary" id="manualClearBtn">すべて解除</button>
-      </div>
-    </div>
-
-    <div class="manual-route-scroll">
-      <div class="manual-list" id="manualRouteList"></div>
-    </div>
-
-    <div class="manual-route-footer">
-      <button class="primary" id="manualCreateBtn">選択した順で作成</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal hidden" id="routeOptionsModal">
-  <div class="sheet">
-    <div class="row"><h2>今日の巡回を作る</h2><button class="secondary" data-close="routeOptionsModal">閉じる</button></div>
-
-    <label>対象エリア</label>
-    <select id="routeArea"><option value="all">全エリア</option></select>
-
-    <label>候補の出し方</label>
-    <select id="routeCandidateMode">
-      <option value="recommended">おすすめだけ</option>
-      <option value="all">登録済みを全部候補にする</option>
-    </select>
-
-    <div class="grid2">
-      <div>
-        <label>最大台数</label>
-        <input id="routeMaxStops" type="number" min="1" max="100" value="15" />
-      </div>
-      <div>
-        <label>作業時間上限（分）</label>
-        <input id="routeBudget" type="number" min="15" step="15" value="360" />
-      </div>
-    </div>
-
-    <div class="checkrow">
-      <input id="routeIncludeTrouble" type="checkbox" checked>
-      <span>未完了トラブルを優先する</span>
-    </div>
-
-    <div class="notice" style="margin-top:12px">
-      おすすめ：定期・補充・集金・在庫少なめ・トラブルを優先。同じ場所の複数台は続けて並びます。
-    </div>
-
-    <div class="card" style="margin-top:12px;background:#f8fafc">
-      <div class="row">
-        <div>
-          <div class="section-title">候補プレビュー</div>
-          <div><b id="routePreviewCount">0</b>台 ・ 約 <b id="routePreviewMinutes">0</b>分</div>
-        </div>
-        <button class="secondary" id="refreshRoutePreviewBtn">更新</button>
-      </div>
-      <div id="routePreviewList" style="margin-top:10px;max-height:34vh;overflow:auto"></div>
-    </div>
-
-    <button class="primary" id="confirmGenerateRoute" style="margin-top:14px">この条件で作成</button>
-  </div>
-</div>
-
 <div class="modal hidden" id="historyModal">
   <div class="sheet">
     <div class="row"><h2>日報・履歴</h2><button class="secondary" data-close="historyModal">閉じる</button></div>
@@ -1410,115 +1622,6 @@ nav.modal-blocked{
       <button class="secondary" id="exportHistoryBtn">履歴CSV</button>
     </div>
     <div id="historyList"></div>
-  </div>
-</div>
-
-<div class="modal hidden" id="settingsModal">
-  <div class="sheet settings-sheet">
-    <div class="row">
-      <div>
-        <div class="section-title" style="margin:0">アプリ</div>
-        <h2 style="margin:2px 0 0">設定</h2>
-      </div>
-      <button class="secondary" data-close="settingsModal">閉じる</button>
-    </div>
-
-    <div class="settings-tabs" id="settingsTabs">
-      <button class="active" data-settings-tab="work">勤務</button>
-      <button data-settings-tab="route">巡回</button>
-      <button data-settings-tab="map">MAP</button>
-      <button data-settings-tab="display">表示</button>
-      <button data-settings-tab="area">エリア</button>
-      <button data-settings-tab="data">データ</button>
-    </div>
-
-    <div class="settings-panel" data-settings-panel="work">
-      <div class="settings-group">
-        <div class="section-title">勤務時間</div>
-        <label>勤務開始</label><input id="sStart" type="time" />
-        <label>帰社目標</label><input id="sReturn" type="time" />
-        <label>休憩目標（分）</label><input id="sBreak" type="number" min="0" />
-      </div>
-    </div>
-
-    <div class="settings-panel hidden" data-settings-panel="route">
-      <div class="settings-group">
-        <div class="section-title">巡回作成</div>
-        <label>最大巡回台数</label><input id="sMax" type="number" min="1" max="100" />
-        <label>1日の作業上限（分・移動除く）</label><input id="sWorkBudget" type="number" min="30" />
-        <label>巡回作成の初期モード</label>
-        <select id="sRouteDefaultMode">
-          <option value="recommended">おすすめ</option>
-          <option value="all">登録済み全部を候補</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="settings-panel hidden" data-settings-panel="map">
-      <div class="settings-group">
-        <div class="section-title">MAP表示</div>
-        <label>初期ズーム</label>
-        <input id="sMapZoom" type="range" min="10" max="18" step="1" />
-        <div class="row"><span class="sub">広域</span><b id="sMapZoomLabel">14</b><span class="sub">詳細</span></div>
-
-        <label>MAPを開いた時の表示</label>
-        <select id="sMapDefaultMode">
-          <option value="today">今日を強調</option>
-          <option value="all">通常</option>
-        </select>
-
-        <div class="checkrow"><input id="sGpsAuto" type="checkbox"><span>MAPを開いたら現在地を自動追跡</span></div>
-      </div>
-
-      <div class="settings-group">
-        <div class="section-title">店舗・施設検索</div>
-        <label>Apple Maps / MapKit JS トークン</label>
-        <input id="sMapKitToken" type="password" placeholder="Maps tokenを貼り付け" autocomplete="off" />
-        <div class="mapkit-token-status" id="mapKitTokenStatus">未設定の場合は登録済み自販機検索＋Apple Maps外部検索を使います。</div>
-      </div>
-    </div>
-
-    <div class="settings-panel hidden" data-settings-panel="display">
-      <div class="settings-group">
-        <div class="section-title">アプリ表示</div>
-        <label>画面の情報量</label>
-        <select id="sDensity">
-          <option value="standard">標準</option>
-          <option value="compact">コンパクト</option>
-        </select>
-        <div class="checkrow"><input id="sHaptics" type="checkbox"><span>ボタン操作時の軽い振動</span></div>
-      </div>
-    </div>
-
-    <div class="settings-panel hidden" data-settings-panel="area">
-      <div class="settings-group">
-        <div class="row">
-          <div>
-            <div class="section-title">巡回エリア</div>
-            <div class="sub">高松・坂出など自由に追加できます</div>
-          </div>
-          <button class="secondary" type="button" id="areaSettingsBtn">編集</button>
-        </div>
-        <div id="settingsAreaSummary" class="settings-area-summary"></div>
-      </div>
-    </div>
-
-    <div class="settings-panel hidden" data-settings-panel="data">
-      <div class="settings-group">
-        <div class="section-title">バックアップ・一括登録</div>
-        <div class="backup-actions">
-          <button class="secondary" type="button" id="exportCsvBtn">自販機CSV出力</button>
-          <button class="secondary" type="button" id="importCsvBtn">CSV読込</button>
-          <button class="secondary" type="button" id="exportBackupBtn">完全バックアップ</button>
-          <button class="secondary" type="button" id="importBackupBtn">復元</button>
-        </div>
-        <input class="hidden" id="csvFileInput" type="file" accept=".csv,text/csv" />
-        <input class="hidden" id="backupFileInput" type="file" accept=".json,application/json" />
-        <div class="mini" style="margin-top:8px">完全バックアップには自販機・巡回・勤務記録・予定を含みます。</div>
-      </div>
-    </div>
-
-    <button class="primary" id="saveSettings" style="margin-top:16px">設定を保存</button>
   </div>
 </div>
 
@@ -1696,16 +1799,15 @@ function hav(a,b){
 }
 
 function openManualRoute(){
+  manualRouteReturnPage=(page&&page!=='manualRoute')?page:'route';
   fillAreaControls();
   manualRouteArea.innerHTML=routeArea.innerHTML;
-  manualRouteArea.value='all';manualRouteSearch.value='';
+  manualRouteArea.value='all';
+  manualRouteSearch.value='';
   manualRouteSelected=(todaysRoute()?.stops||[]).map(s=>s.machineId);
   renderManualRouteList();
-  showModal('manualRouteModal');
-  setTimeout(()=>{
-    const scroller=document.querySelector('.manual-route-scroll');
-    if(scroller) scroller.scrollTop=0;
-  },30);
+  switchPage('manualRoute');
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 function manualMachinesFiltered(){
   const area=manualRouteArea.value||'all',q=manualRouteSearch.value.trim().toLowerCase();
@@ -1719,7 +1821,7 @@ function toggleManualMachine(id){
   renderManualRouteList();
 }
 function renderManualRouteList(){
-  const list=manualMachinesFiltered();manualSelectedCount.textContent=manualRouteSelected.length;
+  const list=manualMachinesFiltered();manualSelectedCount.textContent=manualRouteSelected.length;if(window.manualSelectedCountBottom)manualSelectedCountBottom.textContent=manualRouteSelected.length;
   if(!list.length){manualRouteList.innerHTML='<div class="empty">該当する自販機がありません。</div>';return}
   manualRouteList.innerHTML=list.map(m=>{
     const i=manualRouteSelected.indexOf(m.id),sel=i>=0;
@@ -1730,7 +1832,7 @@ function createManualRoute(){
   const chosen=manualRouteSelected.map(id=>machine(id)).filter(Boolean);
   db.routes[today()]={date:today(),createdAt:Date.now(),areaFilter:'manual',candidateMode:'manual',
     stops:chosen.map((m,i)=>({id:uid(),machineId:m.id,order:i+1,status:'pending',workTypes:routeWorkTypes(m),plannedMinutes:Number(m.workMinutes||25)}))};
-  save();hideModal('manualRouteModal');renderAll();showToast(`${chosen.length}台の巡回を作成しました`);
+  save();renderAll();switchPage('route');showToast(`${chosen.length}台の巡回を作成しました`);
 }
 
 function machineTroubles(m){
@@ -1866,7 +1968,7 @@ function routeWorkTypes(m){
 }
 function renderRoutePreview(){
   const chosen=orderRouteMachines(chooseRouteMachines());
-  routePreviewCount.textContent=chosen.length;
+  routePreviewCount.textContent=chosen.length;if(window.autoRouteActionCount)autoRouteActionCount.textContent=chosen.length;
   routePreviewMinutes.textContent=chosen.reduce((s,m)=>s+Number(m.workMinutes||25),0);
 
   if(!chosen.length){
@@ -1906,8 +2008,8 @@ function generateRoute(){
     }))
   };
   save();
-  hideModal('routeOptionsModal');
   renderAll();
+  switchPage('route');
 
   if(!chosen.length){
     alert('巡回候補が0台です。「登録済みを全部候補にする」にすると期限前の自販機も選べます。');
@@ -1916,6 +2018,7 @@ function generateRoute(){
   }
 }
 function openRouteOptions(){
+  autoRouteReturnPage=(page&&page!=='autoRoute')?page:'route';
   fillAreaControls();
   const r=todaysRoute();
   routeArea.value=r?.areaFilter||'all';
@@ -1924,7 +2027,8 @@ function openRouteOptions(){
   routeBudget.value=db.settings.workBudget||360;
   routeIncludeTrouble.checked=true;
   renderRoutePreview();
-  showModal('routeOptionsModal');
+  switchPage('autoRoute');
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 function moveStop(stopId,delta){
   const r=todaysRoute();if(!r)return;
@@ -2036,7 +2140,7 @@ function renderShift(){
 }
 
 function renderHeader(){
-  const titles={home:'ホーム',map:'MAP',route:'今日の巡回',calendar:'カレンダー',machines:'自販機',register:'自販機登録',report:'日報'};
+  const titles={home:'ホーム',map:'MAP',route:'今日の巡回',calendar:'カレンダー',machines:'自販機',register:'自販機登録',report:'日報',manualRoute:'手動巡回作成',autoRoute:'巡回作成',trouble:'トラブル受付',settings:'設定'};
   document.getElementById('pageTitle').textContent=titles[page];
   const d=new Date();document.getElementById('todayLabel').textContent=d.toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'short'});
 }
@@ -2736,7 +2840,7 @@ function switchPage(p){
   page=p;
 
   // まず画面そのものを切り替える。MAPの後処理で失敗しても遷移は止めない。
-  ['home','map','route','calendar','machines','register','report'].forEach(x=>{
+  ['home','map','route','calendar','machines','register','report','manualRoute','autoRoute','trouble','settings'].forEach(x=>{
     const el=document.getElementById(x+'Page');
     if(el) el.classList.toggle('hidden',x!==p);
   });
@@ -3237,8 +3341,13 @@ function openTaskModal(){
   fillMachineSelect(taskMachine,true); showModal('taskModal');
 }
 function openTroubleModal(){
-  troubleForm.reset(); troubleAddRoute.checked=true;
-  fillMachineSelect(troubleMachine,false); showModal('troubleModal');
+  troubleReturnPage=(page&&page!=='trouble')?page:'home';
+  try{if(window.workManagerModal&&!workManagerModal.classList.contains('hidden'))hideModal('workManagerModal')}catch(e){}
+  troubleForm.reset();
+  troubleAddRoute.checked=true;
+  fillMachineSelect(troubleMachine,false);
+  switchPage('trouble');
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 function fillMachineSelect(sel,optional){
   sel.innerHTML=optional?'<option value="">紐付けなし</option>':'';
@@ -3573,6 +3682,10 @@ generateRouteBtn.addEventListener('click',openRouteOptions);regenBtn.addEventLis
 breakBtn.addEventListener('click',()=>db.active?.type==='break'?endBreak():startBreak());
 workBtn.addEventListener('click',()=>db.active?.type==='work'?endWork():openWorkPicker(currentStop()?.id));
 confirmWorkStart.addEventListener('click',startWork);
+manualRouteBackBtn.addEventListener('click',()=>switchPage(manualRouteReturnPage||'route'));
+autoRouteBackBtn.addEventListener('click',()=>switchPage(autoRouteReturnPage||'route'));
+troubleBackBtn.addEventListener('click',()=>switchPage(troubleReturnPage||'home'));
+settingsBackBtn.addEventListener('click',()=>switchPage(settingsReturnPage||'home'));
 quickAutoRouteBtn.addEventListener('click',openRouteOptions);
 manualRouteBtn.addEventListener('click',openManualRoute);
 manualRouteArea.addEventListener('change',renderManualRouteList);
@@ -3614,7 +3727,7 @@ troubleForm.addEventListener('submit',e=>{
     const m=machine(mid),r=ensureRoute();
     if(m&&!r.stops.some(s=>s.machineId===mid)) r.stops.push({id:uid(),machineId:mid,order:r.stops.length+1,status:'pending',workTypes:['トラブル'],plannedMinutes:Number(m.workMinutes||25)});
   }
-  save();hideModal('troubleModal');renderAll();if(!workManagerModal.classList.contains('hidden'))renderWorkManager();
+  save();renderAll();switchPage(troubleReturnPage||'home');showToast('トラブルを受け付けました');
 });
 historyBtn.addEventListener('click',()=>{renderHistory();showModal('historyModal')});
 exportTodayReportBtn.addEventListener('click',()=>exportReportCsv(false));
@@ -3644,7 +3757,7 @@ document.querySelectorAll('#settingsTabs button').forEach(b=>b.addEventListener(
   setSettingsTab(b.dataset.settingsTab);
 }));
 sMapZoom.addEventListener('input',()=>sMapZoomLabel.textContent=sMapZoom.value);
-settingsBtn.addEventListener('click',()=>{setSettingsFields();showModal('settingsModal')});
+settingsBtn.addEventListener('click',()=>{settingsReturnPage=(page&&page!=='settings')?page:'home';setSettingsFields();switchPage('settings');window.scrollTo({top:0,behavior:'smooth'})});
 saveSettings.addEventListener('click',()=>{
   db.settings={
     ...db.settings,
@@ -3664,8 +3777,8 @@ saveSettings.addEventListener('click',()=>{
   mapKitLoadingPromise=null;
   applyAppSettings();
   save();
-  hideModal('settingsModal');
   renderAll();
+  switchPage(settingsReturnPage||'home');
   showToast('設定を保存しました');
 });
 machineForm.addEventListener('submit',e=>{
