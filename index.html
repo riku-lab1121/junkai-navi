@@ -185,7 +185,8 @@
     .dash-tile.alert{background:#fef2f2;color:#991b1b}
     .dash-tile.warn{background:#fff7ed;color:#9a3412}
     .task-item,.trouble-item{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:9px;background:#fff}
-    .toast{position:fixed;left:50%;bottom:105px;transform:translateX(-50%);z-index:9000;background:#111827;color:#fff;padding:11px 16px;border-radius:999px;font-size:13px;font-weight:800;box-shadow:0 8px 24px rgba(0,0,0,.24);white-space:nowrap}
+    .toast{position:fixed;left:50%;bottom:105px;transform:translateX(-50%);z-index:9000;background:#111827;color:#fff;padding:12px 16px;border-radius:14px;font-size:13px;font-weight:850;box-shadow:0 8px 24px rgba(0,0,0,.24);max-width:calc(100vw - 32px);white-space:normal;text-align:center}
+.toast-success{background:#111827}.toast-info{background:#1e40af}.toast-error{background:#b42318}
 
     .task-item.done{opacity:.55}
     .priority-high{color:#b91c1c;font-weight:900}
@@ -1463,6 +1464,36 @@ nav.modal-blocked{
 .route-cycle-days{display:flex;align-items:center;justify-content:flex-end;gap:7px}
 .route-cycle-days input{width:90px;margin:0}
 .route-cycle-days span{font-size:12px;color:#64748b}
+
+/* Ver.9.5 カレンダー確認・クイック追加 */
+.calendar-detail-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.calendar-quick-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:14px 0}
+.calendar-quick-actions button{
+  min-height:46px;border:0;border-radius:12px;background:#eef2f7;color:#111827;
+  font-size:12px;font-weight:900
+}
+.calendar-quick-actions button.trouble{background:#fff1f0;color:#b42318}
+.calendar-route-detail{margin-top:10px;border-top:1px solid #e5e7eb;padding-top:12px}
+.calendar-route-detail-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.calendar-route-detail-head span{font-size:12px;color:#64748b;font-weight:850}
+.calendar-facility-group{margin:10px 0 14px}
+.calendar-facility-name{
+  padding:8px 10px;border-radius:10px;background:#eef4fb;color:#334155;font-weight:900;font-size:13px
+}
+.calendar-facility-name span{float:right;font-size:11px}
+.calendar-machine-row{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:11px 4px;border:0;border-bottom:1px solid #eef2f7;background:transparent;text-align:left
+}
+.calendar-machine-row b{font-size:14px}
+.calendar-machine-chevron{font-size:22px;color:#94a3b8}
+.calendar-work-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.calendar-work-tags span{
+  padding:3px 6px;border-radius:999px;background:#f1f5f9;color:#334155;font-size:9px;font-weight:850
+}
+.calendar-no-machines{padding:14px 0;color:#64748b;font-size:12px}
+.month-event.route-event,.cal-dot.route{background:#eaf3ff;color:#1673d1}
+.month-event.task-event,.cal-dot.task{background:#f3f4f6;color:#475569}
 </style>
 </head>
 <body>
@@ -4303,6 +4334,8 @@ function deleteTroubleRecord(id,machineId){
 }
 
 function openTroubleForMachine(machineId){
+  troubleTargetDate=null;
+  const label=troubleAddRoute.closest('.checkrow')?.querySelector('span');if(label)label.textContent='今日の巡回に追加する';
   const m=machine(machineId);
   if(!m)return;
   routeWorkEditScrollY=window.scrollY||0;
@@ -5599,6 +5632,8 @@ function openTaskModal(){
   fillMachineSelect(taskMachine,true); showModal('taskModal');
 }
 function openTroubleModal(){
+  troubleTargetDate=null;
+  const label=troubleAddRoute.closest('.checkrow')?.querySelector('span');if(label)label.textContent='今日の巡回に追加する';
   troubleReturnPage=(page&&page!=='trouble')?page:'home';
   try{if(window.workManagerModal&&!workManagerModal.classList.contains('hidden'))hideModal('workManagerModal')}catch(e){}
   troubleForm.reset();
@@ -5680,11 +5715,12 @@ function openWorkManager(filter='today'){
 
 
 let toastTimer=null;
-function showToast(message){
+function showToast(message,type='success',duration=2600){
   appToast.textContent=message;
-  appToast.classList.remove('hidden');
-  if(toastTimer) clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>appToast.classList.add('hidden'),1800);
+  appToast.classList.remove('hidden','toast-success','toast-error','toast-info');
+  appToast.classList.add(type==='error'?'toast-error':type==='info'?'toast-info':'toast-success');
+  if(toastTimer)clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>appToast.classList.add('hidden'),duration);
 }
 
 
@@ -5953,12 +5989,14 @@ function nearestWorkday(date,workdays){
 }
 
 let monthlyManualSelected=new Map();
+let monthlyManualReturnPage='monthlyActionPlan';
 
 function manualPlanDefaultWorks(m){
   const w=workFor(m);
   return w.length?[...w]:['原料','清掃','集金'];
 }
 function openMonthlyManualBuilder(){
+  monthlyManualReturnPage='monthlyActionPlan';
   monthlyManualSelected=new Map();
   manualPlanDate.value=monthlyActionDate?.value||monthlyActionPlanAnchor||today();
   manualPlanArea.innerHTML='<option value="all">全エリア</option>'+areaNames()
@@ -5970,8 +6008,13 @@ function openMonthlyManualBuilder(){
   window.scrollTo(0,0);
 }
 function closeMonthlyManualBuilder(){
-  switchPage('monthlyActionPlan');
-  renderMonthlyActionPlan();
+  if(monthlyManualReturnPage==='calendar'){
+    switchPage('calendar');
+    renderCalendar();
+  }else{
+    switchPage('monthlyActionPlan');
+    renderMonthlyActionPlan();
+  }
   window.scrollTo(0,0);
 }
 function monthlyManualFilteredMachines(){
@@ -6089,11 +6132,19 @@ function saveMonthlyManualBuilder(){
   monthlyActionPlanAnchor=date;
   monthlyActionDate.value=date;
   monthlyManualSelected.clear();
-  switchPage('monthlyActionPlan');
-  renderMonthlyActionPlan();
   renderRouteWeek();
   renderWorkDashboard();
-  showToast(`${entries.length}台を手動巡回に追加しました`);
+
+  if(monthlyManualReturnPage==='calendar'){
+    calendarSelectedDate=date;
+    switchPage('calendar');
+    renderCalendar();
+    showToast(`${date.slice(5).replace('-','/')}の巡回に${entries.length}台追加しました`);
+  }else{
+    switchPage('monthlyActionPlan');
+    renderMonthlyActionPlan();
+    showToast(`${entries.length}台を手動巡回に追加しました`);
+  }
   window.scrollTo(0,0);
 }
 function monthlyPlannedWorksForMachine(tasks,m){
@@ -6493,6 +6544,7 @@ function toggleMonthlyActionDone(id){
   save();
   renderMonthlyActionPlan();
   renderWorkDashboard();
+  showToast(t.done?'予定を完了にしました':'予定を未完了に戻しました');
 }
 function deleteMonthlyAction(id){
   if(!confirm('この予定を削除しますか？'))return;
@@ -6500,6 +6552,7 @@ function deleteMonthlyAction(id){
   save();
   renderMonthlyActionPlan();
   renderWorkDashboard();
+  showToast('予定を削除しました');
 }
 function clearAutoMonthlyPlan(){
   const key=monthlyActionMonthKey();
@@ -6510,6 +6563,7 @@ function clearAutoMonthlyPlan(){
   save();
   renderMonthlyActionPlan();
   renderWorkDashboard();
+  showToast(`自動作成分 ${count}件を削除しました`);
 }
 function machineAutoDueDate(m,monthEnd){
   const dates=[
@@ -6729,7 +6783,8 @@ function autoCreateMonthlyPlan(){
   save();
   renderMonthlyActionPlan();
   renderWorkDashboard();
-  showToast(`${created}日分・${totalMachines}台を自動作成しました`);
+  const monthLabel=`${ymdDate(start).getMonth()+1}月`;
+  showToast(`${monthLabel}の月間計画を作成しました｜${created}日分・${totalMachines}件`, 'success', 3200);
 }
 
 function calendarEventsForDate(date){
@@ -6744,37 +6799,146 @@ function calendarEventsForDate(date){
   if(reg)ev.push({type:'due',label:`定期 ${reg}台`});if(sup)ev.push({type:'due',label:`補充 ${sup}台`});if(col)ev.push({type:'due',label:`集金 ${col}台`});
   return ev;
 }
+function calendarPlannedMachines(date){
+  const map=new Map();
+  const add=(machineId,works=[],source='予定')=>{
+    const m=machine(machineId);if(!m)return;
+    if(!map.has(machineId))map.set(machineId,{m,works:new Set(),sources:new Set()});
+    const row=map.get(machineId);
+    (works||[]).forEach(w=>w&&row.works.add(w));
+    row.sources.add(source);
+  };
+
+  const route=db.routes?.[date];
+  (route?.stops||[]).forEach(s=>add(s.machineId,s.workTypes||[],'巡回'));
+
+  (db.tasks||[]).filter(t=>t.due===date&&!t.done).forEach(t=>{
+    const ids=Array.isArray(t.machineIds)?t.machineIds:(t.machineId?[t.machineId]:[]);
+    ids.forEach(id=>{
+      let works=[];
+      if(t.machineWorks&&Array.isArray(t.machineWorks[id]))works=t.machineWorks[id];
+      else if(Array.isArray(t.machineWorkKinds)){
+        const wk=t.machineWorkKinds.find(x=>x.machineId===id)?.work;
+        if(wk)works=[wk];
+      }
+      add(id,works,'予定');
+    });
+  });
+  return [...map.values()];
+}
+function calendarRouteDetailHtml(date){
+  const rows=calendarPlannedMachines(date);
+  if(!rows.length)return '<div class="calendar-no-machines">この日の巡回はまだありません。</div>';
+
+  const groups=new Map();
+  rows.forEach(row=>{
+    const key=machineDisplayTitle(row.m);
+    if(!groups.has(key))groups.set(key,[]);
+    groups.get(key).push(row);
+  });
+
+  return `<div class="calendar-route-detail">
+    <div class="calendar-route-detail-head"><b>この日の巡回</b><span>${rows.length}台</span></div>
+    ${[...groups.entries()].map(([facilityName,items])=>`
+      <div class="calendar-facility-group">
+        <div class="calendar-facility-name">${escapeHtml(facilityName)} <span>${items.length}台</span></div>
+        ${items.map(({m,works})=>`
+          <button type="button" class="calendar-machine-row" onclick="openMachineDetailPage('${m.id}','calendar')">
+            <div>
+              <b>${escapeHtml(m.site||machineDisplayTitle(m))}</b>
+              <div class="sub">${escapeHtml(machineDisplaySub(m)||m.area||'未設定')}</div>
+              ${works.size?`<div class="calendar-work-tags">${[...works].map(w=>`<span>${escapeHtml(w)}</span>`).join('')}</div>`:''}
+            </div>
+            <span class="calendar-machine-chevron">›</span>
+          </button>`).join('')}
+      </div>`).join('')}
+  </div>`;
+}
 function renderCalendarDetail(date){
   calendarSelectedDate=date;
   const ev=calendarEventsForDate(date);
   const holiday=japaneseHolidayName(date);
   const off=customDayOff(date);
   const d=ymdDate(date);
-  calendarDetail.innerHTML=`<div class="row">
+
+  calendarDetail.innerHTML=`<div class="calendar-detail-top">
     <div>
       <div class="section-title">${d.getMonth()+1}月${d.getDate()}日</div>
       <b>${ev.length?`${ev.length}件`:'予定なし'}</b>
       ${holiday?`<div class="holiday-label">${escapeHtml(holiday)}</div>`:''}
       ${off?`<div class="dayoff-label">${escapeHtml(dayOffTypeLabel(off.type))}${off.memo?' ・ '+escapeHtml(off.memo):''}</div>`:''}
     </div>
-    <div style="display:flex;gap:6px">
-      <button class="secondary" onclick="openDayOffPage('${date}')">休み設定</button>
-      <button class="secondary" onclick="addTaskForDate('${date}')">＋予定</button>
-    </div>
-  </div>`;
-  ev.forEach(e=>{
+    <button class="secondary" onclick="openDayOffPage('${date}')">休み設定</button>
+  </div>
+
+  <div class="calendar-quick-actions">
+    <button type="button" onclick="addTaskForDate('${date}')">＋予定</button>
+    <button type="button" onclick="openCalendarRouteBuilder('${date}')">＋巡回</button>
+    <button type="button" class="trouble" onclick="openCalendarTrouble('${date}')">＋トラブル</button>
+  </div>
+
+  ${calendarRouteDetailHtml(date)}
+  <div class="calendar-other-events"></div>`;
+
+  const host=calendarDetail.querySelector('.calendar-other-events');
+  ev.filter(e=>e.type!=='route').forEach(e=>{
+    if(e.type==='task' && (e.machineId || /^.*エリア巡回/.test(e.label||'')))return;
     const item=document.createElement('div');
     item.className='calendar-detail-item';
-    const type=e.type==='task'?'予定':e.type==='route'?'巡回':e.type==='holiday'?'祝日':e.type==='dayoff'?'休み':'期限';
+    const type=e.type==='task'?'予定':e.type==='holiday'?'祝日':e.type==='dayoff'?'休み':'期限';
     item.innerHTML=`<b>${escapeHtml(e.label)}</b><div class="sub">${type}</div>`;
-    calendarDetail.appendChild(item);
+    host.appendChild(item);
   });
+}
+function openCalendarRouteBuilder(date){
+  monthlyManualReturnPage='calendar';
+  monthlyManualSelected=new Map();
+  manualPlanDate.value=date;
+  manualPlanArea.innerHTML='<option value="all">全エリア</option>'+areaNames()
+    .map(a=>`<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
+  manualPlanArea.value='all';
+  manualPlanSearch.value='';
+  renderMonthlyManualMachines();
+  switchPage('monthlyManualBuilder');
+  window.scrollTo(0,0);
+}
+let troubleTargetDate=null;
+function openCalendarTrouble(date){
+  troubleTargetDate=date;
+  troubleReturnPage='calendar';
+  troubleForm.reset();
+  troubleAddRoute.checked=true;
+  const label=troubleAddRoute.closest('.checkrow')?.querySelector('span');
+  if(label)label.textContent='この日の巡回に追加する';
+  fillMachineSelect(troubleMachine,false);
+  if(db.machines[0]){
+    troubleMachine.value=db.machines[0].id;
+    const m=machine(troubleMachine.value);
+    troubleMachineNote.innerHTML=m?`<b>${escapeHtml(machineDisplayTitle(m))}</b><div>${escapeHtml(machineDisplaySub(m))}</div>`:'';
+    renderExistingTroubles(troubleMachine.value);
+  }
+  switchPage('trouble');
+  window.scrollTo(0,0);
+}
+function addMachineToRouteDate(machineId,date,forceTrouble=false){
+  const m=machine(machineId);if(!m)return false;
+  if(!db.routes)db.routes={};
+  const r=db.routes[date]||{date,createdAt:Date.now(),areaFilter:'manual',candidateMode:'manual',stops:[]};
+  db.routes[date]=r;
+  if(r.stops.some(s=>s.machineId===machineId))return false;
+  const works=workFor(m).length?[...workFor(m)]:['確認'];
+  if(forceTrouble&&!works.includes('トラブル'))works.push('トラブル');
+  r.stops.push({
+    id:uid(),machineId,order:r.stops.length+1,status:'pending',
+    workTypes:works,plannedMinutes:Number(m.workMinutes||25)
+  });
+  return true;
 }
 function addTaskForDate(date){openTaskModal();taskDue.value=date}
 function renderWeekCalendar(){
   const start=mondayOf(calendarAnchor),days=Array.from({length:7},(_,i)=>addDaysYmd(start,i)),d0=ymdDate(start),d6=ymdDate(days[6]),names=['月','火','水','木','金','土','日'];
   calendarTitle.textContent=`${d0.getMonth()+1}/${d0.getDate()} 〜 ${d6.getMonth()+1}/${d6.getDate()}`;
-  calendarContent.innerHTML=`<div class="week-strip">${days.map((date,i)=>{const ev=calendarEventsForDate(date);return `<button class="week-day ${date===today()?'today':''} ${japaneseHolidayName(date)?'holiday-day':''} ${customDayOff(date)?'custom-off-day':''}" onclick="renderCalendarDetail('${date}')"><div class="dow">${names[i]}</div><div class="daynum">${ymdDate(date).getDate()}</div>${ev.slice(0,3).map(e=>`<div class="cal-dot ${e.type}">${escapeHtml(e.label)}</div>`).join('')}${ev.length>3?`<div class="cal-dot">+${ev.length-3}</div>`:''}</button>`}).join('')}</div>`;
+  calendarContent.innerHTML=`<div class="week-strip">${days.map((date,i)=>{const holiday=japaneseHolidayName(date),off=customDayOff(date),routeCount=calendarPlannedMachines(date).length,hasPlan=(db.tasks||[]).some(t=>t.due===date&&!t.done&&!t.autoMonthlyPlan);return `<button class="week-day ${date===today()?'today':''} ${holiday?'holiday-day':''} ${off?'custom-off-day':''}" onclick="renderCalendarDetail('${date}')"><div class="dow">${names[i]}</div><div class="daynum">${ymdDate(date).getDate()}</div>${holiday?`<div class="cal-dot holiday">${escapeHtml(holiday)}</div>`:''}${off?`<div class="cal-dot dayoff">${escapeHtml(dayOffTypeLabel(off.type))}</div>`:''}${routeCount?`<div class="cal-dot route">巡回 ${routeCount}台</div>`:''}${hasPlan?`<div class="cal-dot task">予定</div>`:''}</button>`}).join('')}</div>`;
 }
 function renderMonthCalendar(){
   const a=ymdDate(calendarAnchor),first=new Date(a.getFullYear(),a.getMonth(),1,12),last=new Date(a.getFullYear(),a.getMonth()+1,0,12),start=new Date(first),end=new Date(last);
@@ -6782,7 +6946,7 @@ function renderMonthCalendar(){
   const days=[];for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1))days.push(localYmd(d));
   calendarTitle.textContent=`${first.getFullYear()}年 ${first.getMonth()+1}月`;
   const heads=['日','月','火','水','木','金','土'].map(x=>`<div class="month-head">${x}</div>`).join('');
-  calendarContent.innerHTML=`<div class="month-grid">${heads}${days.map(date=>{const dd=ymdDate(date),ev=calendarEventsForDate(date),other=dd.getMonth()!==first.getMonth();const holiday=!!japaneseHolidayName(date),off=customDayOff(date);return `<button class="month-day ${other?'other':''} ${date===today()?'today':''} ${holiday?'holiday-day':''} ${off?'custom-off-day':''}" onclick="renderCalendarDetail('${date}')"><div class="n">${dd.getDate()}</div>${ev.slice(0,2).map(e=>`<div class="month-event ${e.type==='holiday'?'holiday-event':''} ${e.type==='dayoff'?'dayoff-event':''}">${escapeHtml(e.label)}</div>`).join('')}${ev.length>2?`<div class="month-event">+${ev.length-2}</div>`:''}</button>`}).join('')}</div>`;
+  calendarContent.innerHTML=`<div class="month-grid">${heads}${days.map(date=>{const dd=ymdDate(date),other=dd.getMonth()!==first.getMonth(),holidayName=japaneseHolidayName(date),holiday=!!holidayName,off=customDayOff(date),routeCount=calendarPlannedMachines(date).length,hasPlan=(db.tasks||[]).some(t=>t.due===date&&!t.done&&!t.autoMonthlyPlan);return `<button class="month-day ${other?'other':''} ${date===today()?'today':''} ${holiday?'holiday-day':''} ${off?'custom-off-day':''}" onclick="renderCalendarDetail('${date}')"><div class="n">${dd.getDate()}</div>${holiday?`<div class="month-event holiday-event">${escapeHtml(holidayName)}</div>`:''}${off?`<div class="month-event dayoff-event">${escapeHtml(dayOffTypeLabel(off.type))}</div>`:''}${routeCount?`<div class="month-event route-event">巡回 ${routeCount}台</div>`:''}${hasPlan?`<div class="month-event task-event">予定</div>`:''}</button>`}).join('')}</div>`;
 }
 function renderCalendar(){
   calendarWeekBtn.classList.toggle('active',calendarMode==='week');calendarMonthBtn.classList.toggle('active',calendarMode==='month');
@@ -7255,58 +7419,53 @@ troubleForm.addEventListener('submit',e=>{
     const type=troubleType.value;
     const priority=troublePriority.value;
     const memo=troubleMemo.value.trim();
+    const status=troubleStatus.value||'open';
+    const targetDate=troubleTargetDate||today();
 
     const duplicate=status!=='done'?(db.troubles||[]).find(t=>
       t.status!=='done' &&
       t.machineId===machineId &&
       (t.type||'').trim()===type.trim()
     ):null;
-
     if(duplicate){
       alert('同じ内容の未解決トラブルがすでに登録されています。');
       return;
     }
 
-    const status=troubleStatus.value||'open';
     const item={
-      id:uid(),machineId,
-      type,
-      priority,
-      memo,
-      status,
-      createdAt:Date.now(),
-      updatedAt:Date.now(),
+      id:uid(),machineId,type,priority,memo,status,
+      createdAt:Date.now(),updatedAt:Date.now(),
       resolvedAt:status==='done'?Date.now():null,
-      date:today()
+      date:targetDate
     };
     db.troubles.push(item);
-    if(troubleAddRoute.checked)addMachineToToday(machineId,true);
+
+    if(troubleAddRoute.checked){
+      if(targetDate===today())addMachineToToday(machineId,true);
+      else addMachineToRouteDate(machineId,targetDate,true);
+    }
+
     save();
     const target=troubleReturnPage||'home';
-    switchPage(target);
-    try{renderRoute()}catch(e){console.warn('route redraw after trouble',e)}
-    try{renderWorkDashboard()}catch(e){}
-    if(target==='route'){
-      requestAnimationFrame(()=>{
-        requestAnimationFrame(()=>{
-          const card=routeWorkEditReturnStopId
-            ? document.querySelector(`#routeList .stop[data-stop-id="${CSS.escape(routeWorkEditReturnStopId)}"]`)
-            : null;
-          if(card){
-            const rect=card.getBoundingClientRect();
-            window.scrollTo({top:Math.max(0,window.scrollY+rect.top-120),behavior:'auto'});
-          }else{
-            window.scrollTo({top:routeWorkEditScrollY||0,behavior:'auto'});
-          }
-          routeWorkEditReturnStopId=null;
-          routeWorkEditScrollY=0;
-        });
-      });
+
+    if(target==='calendar'){
+      calendarSelectedDate=targetDate;
+      switchPage('calendar');
+      renderCalendar();
+      showToast(`${targetDate.slice(5).replace('-','/')}にトラブルを追加しました`);
+    }else{
+      switchPage(target);
+      try{renderRoute()}catch(e){console.warn('route redraw after trouble',e)}
+      try{renderWorkDashboard()}catch(e){}
+      showToast('トラブルを受付しました');
     }
-    showToast('トラブルを受付しました');
+
+    troubleTargetDate=null;
+    const label=troubleAddRoute.closest('.checkrow')?.querySelector('span');
+    if(label)label.textContent='今日の巡回に追加する';
   }catch(err){
     console.error(err);
-    alert('トラブルの保存に失敗しました');
+    showToast('トラブルを保存できませんでした','error',3200);
   }finally{
     troubleSaveBtn.disabled=false;
     troubleSaveBtn.textContent='受付する';
