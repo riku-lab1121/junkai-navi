@@ -1428,6 +1428,28 @@ nav.modal-blocked{
   border-color:#f5c451!important;
   background:#fffdf5!important;
 }
+
+/* Ver.9.2 巡回設定を簡略化 */
+.route-cycle-row{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:12px 0;border-bottom:1px solid #eef2f7;
+}
+.route-cycle-row>div{min-width:0}
+.route-cycle-row b{display:block;font-size:14px}
+.route-cycle-row div span{display:block;margin-top:2px;font-size:10px;color:#64748b}
+.route-cycle-row select{width:118px;flex:0 0 118px;margin:0}
+.route-cycle-custom{display:flex;align-items:center;justify-content:flex-end;gap:7px;padding:7px 0 10px}
+.route-cycle-custom input{width:90px;margin:0}
+.route-cycle-custom span{font-size:12px;color:#64748b}
+.route-other-settings,.route-history-settings{
+  margin-top:12px;border:1px solid #e5e7eb;border-radius:12px;padding:0 12px;background:#fafafa
+}
+.route-other-settings summary,.route-history-settings summary{
+  padding:12px 0;font-weight:900;cursor:pointer
+}
+.route-week-toggle{display:flex;align-items:center;gap:7px;margin:0!important}
+.route-week-toggle input{width:22px;height:22px;margin:0}
+.route-week-toggle span{font-size:12px!important;font-weight:900;color:#111827!important}
 </style>
 </head>
 <body>
@@ -2491,15 +2513,69 @@ nav.modal-blocked{
         </div>
 
         <div class="reg-section">
-          <div class="reg-title">巡回設定（任意）</div>
-          <div class="grid2">
-            <div><label>定期巡回周期</label><input id="rpRegularInterval" type="number" min="1" value="14" /></div>
-            <div><label>補充周期</label><input id="rpSupplyInterval" type="number" min="1" value="7" /></div>
+          <div class="reg-title">巡回設定</div>
+          <div class="sub" style="margin-bottom:12px">作業ごとに周期を設定します。基本巡回や原料の日は、下位の作業を重ねて表示しません。</div>
+
+          <div class="route-cycle-row">
+            <div><b>基本巡回</b><span>通常は14日ごと</span></div>
+            <select id="rpRegularInterval">
+              <option value="14">14日ごと</option>
+              <option value="7">7日ごと</option>
+              <option value="custom">カスタム</option>
+            </select>
           </div>
-          <label>最終 定期巡回日</label><input id="rpLastRegular" type="date" />
-          <label>最終 補充日</label><input id="rpLastSupply" type="date" />
-          <label>最終 集金日</label><input id="rpLastCollection" type="date" />
-          <div class="checkrow"><input id="rpWeekly" type="checkbox"><span>中間補充を自動候補にする</span></div>
+          <div id="rpRegularCustomWrap" class="route-cycle-custom hidden">
+            <input id="rpRegularCustom" type="number" min="1" inputmode="numeric" placeholder="日数"><span>日ごと</span>
+          </div>
+
+          <div class="route-cycle-row">
+            <div><b>原料補充</b><span>追加で原料を入れに行く頻度</span></div>
+            <select id="rpSupplyInterval">
+              <option value="0">なし</option>
+              <option value="7">週1</option>
+              <option value="3.5">週2</option>
+              <option value="custom">カスタム</option>
+            </select>
+          </div>
+          <div id="rpSupplyCustomWrap" class="route-cycle-custom hidden">
+            <input id="rpSupplyCustom" type="number" min="1" inputmode="numeric" placeholder="日数"><span>日ごと</span>
+          </div>
+
+          <div class="route-cycle-row">
+            <div><b>排水</b><span>排水だけで訪問が必要な頻度</span></div>
+            <select id="rpDrainInterval">
+              <option value="0">なし</option>
+              <option value="7">週1</option>
+              <option value="3.5">週2</option>
+              <option value="custom">カスタム</option>
+            </select>
+          </div>
+          <div id="rpDrainCustomWrap" class="route-cycle-custom hidden">
+            <input id="rpDrainCustom" type="number" min="1" inputmode="numeric" placeholder="日数"><span>日ごと</span>
+          </div>
+
+          <details class="route-other-settings">
+            <summary>その他</summary>
+            <div class="route-cycle-row">
+              <div><b>給水</b><span>週1で必要な場合</span></div>
+              <label class="route-week-toggle"><input id="rpWaterWeekly" type="checkbox"><span>週1</span></label>
+            </div>
+            <div class="route-cycle-row">
+              <div><b>ゴミ回収</b><span>週1で必要な場合</span></div>
+              <label class="route-week-toggle"><input id="rpGarbageWeekly" type="checkbox"><span>週1</span></label>
+            </div>
+          </details>
+
+          <details class="route-history-settings">
+            <summary>前回作業日</summary>
+            <label>最終 基本巡回日</label><input id="rpLastRegular" type="date" />
+            <label>最終 原料補充日</label><input id="rpLastSupply" type="date" />
+            <label>最終 排水日</label><input id="rpLastDrain" type="date" />
+            <label>最終 給水日</label><input id="rpLastWater" type="date" />
+            <label>最終 ゴミ回収日</label><input id="rpLastGarbage" type="date" />
+            <input id="rpLastCollection" type="hidden" />
+          </details>
+          <input id="rpWeekly" type="checkbox" class="hidden">
         </div>
 
         <div class="reg-section">
@@ -2903,7 +2979,13 @@ ensureFacilityMaster();
 db.machines.forEach(m=>{
   if(!m.area) m.area='未設定';
   if(!m.regularIntervalDays) m.regularIntervalDays=14;
-  if(!m.supplyIntervalDays) m.supplyIntervalDays=7;
+  if(m.supplyIntervalDays===undefined) m.supplyIntervalDays=m.weekly?7:0;
+  if(m.drainIntervalDays===undefined) m.drainIntervalDays=0;
+  if(m.waterWeekly===undefined) m.waterWeekly=false;
+  if(m.garbageWeekly===undefined) m.garbageWeekly=false;
+  if(m.lastDrain===undefined) m.lastDrain='';
+  if(m.lastWater===undefined) m.lastWater='';
+  if(m.lastGarbage===undefined) m.lastGarbage='';
   if(!m.lastCollection) m.lastCollection=m.lastRegular||today();
   if(m.prioritySupply===undefined) m.prioritySupply=false;
   if(m.inventoryMemo===undefined) m.inventoryMemo='';
@@ -3078,42 +3160,57 @@ function facilityAvoidLabel(f){
 }
 
 function machine(id){return db.machines.find(m=>m.id===id)}
-function regularInterval(m){return Number(m.regularIntervalDays||14)}
-function supplyInterval(m){return Number(m.supplyIntervalDays||7)}
+function regularInterval(m){return Math.max(1,Number(m.regularIntervalDays||14))}
+function supplyInterval(m){return Math.max(0,Number(m.supplyIntervalDays||0))}
+function drainInterval(m){return Math.max(0,Number(m.drainIntervalDays||0))}
 function regularDue(m){return dayDiff(m.lastRegular,today())>=regularInterval(m)}
-function supplyDue(m){return m.weekly && dayDiff(m.lastSupply||m.lastRegular,today())>=supplyInterval(m)}
-function collectionDue(m){return dayDiff(m.lastCollection||m.lastRegular,today())>=14}
+function supplyDue(m){
+  const si=supplyInterval(m);
+  return si>0&&dayDiff(m.lastSupply||m.lastRegular,today())>=si;
+}
+function drainDue(m){
+  const di=drainInterval(m);
+  return di>0&&dayDiff(m.lastDrain||m.lastRegular,today())>=di;
+}
+function waterDue(m){
+  return !!m.waterWeekly&&dayDiff(m.lastWater||m.lastRegular,today())>=7;
+}
+function garbageDue(m){
+  return !!m.garbageWeekly&&dayDiff(m.lastGarbage||m.lastRegular,today())>=7;
+}
 function urgency(m){
-  const rd=dayDiff(m.lastRegular,today()), sd=dayDiff(m.lastSupply||m.lastRegular,today()), cd=dayDiff(m.lastCollection||m.lastRegular,today());
-  const ri=regularInterval(m), si=supplyInterval(m);
+  const rd=dayDiff(m.lastRegular,today()),ri=regularInterval(m);
   let score=0;
   if(rd>=0){
-    if(rd>=ri) score += 120 + (rd-ri)*25;
-    else if(rd===ri-1) score+=70; else if(rd===ri-2) score+=45; else if(rd===ri-3) score+=25;
+    if(rd>=ri)score+=150+(rd-ri)*25;
+    else if(rd===ri-1)score+=70;
+    else if(rd===ri-2)score+=45;
   }
-  if(m.weekly && sd>=0){
-    if(sd>=si) score+=65+(sd-si)*15;
-    else if(sd===si-1) score+=30;
-  }
-  if(cd>=0){
-    if(cd>=14) score+=110+(cd-14)*20;
-    else if(cd>=12) score+=45;
-  }
-  if(m.prioritySupply) score+=100;
-  if(m.needsDrain) score+=45;
-  if(m.needsWater) score+=35;
+  const sd=dayDiff(m.lastSupply||m.lastRegular,today()),si=supplyInterval(m);
+  if(si>0&&sd>=si)score+=100+(sd-si)*15;
+  const dd=dayDiff(m.lastDrain||m.lastRegular,today()),di=drainInterval(m);
+  if(di>0&&dd>=di)score+=70+(dd-di)*10;
+  if(waterDue(m))score+=55;
+  if(garbageDue(m))score+=50;
+  if(m.prioritySupply)score+=120;
   return score;
 }
-function workFor(m){
-  let w=[];
-  if(regularDue(m)) w=['清掃','原料','集金'];
-  else{
-    if(supplyDue(m)||m.prioritySupply) w.push('原料');
-    if(collectionDue(m)) w.push('集金');
-  }
-  if(m.needsDrain && !w.includes('排水')) w.push('排水');
-  if(m.needsWater && !w.includes('水汲み')) w.push('水汲み');
+function plannedWorkFor(m){
+  // 基本巡回の日は他作業を表示しない。
+  if(regularDue(m))return ['基本巡回'];
+
+  // 原料の日も排水・給水・ゴミ回収を重ねない。
+  if(supplyDue(m)||m.prioritySupply)return ['原料'];
+
+  const w=[];
+  if(drainDue(m))w.push('排水');
+  // 給水とゴミ回収は別作業として保持する。
+  if(waterDue(m))w.push('給水');
+  if(garbageDue(m))w.push('ゴミ回収');
   return w;
+}
+function workFor(m){
+  return plannedWorkFor(m);
 }
 function hav(a,b){
   const R=6371,toRad=x=>x*Math.PI/180;
@@ -3390,23 +3487,14 @@ function cleanupDuplicateTroubles(){
   return removed;
 }
 function routeReason(m,includeTrouble=true){
-  const reasons=[];
+  const reasons=[...plannedWorkFor(m)];
   const rd=dayDiff(m.lastRegular,today()),ri=regularInterval(m);
-  const sd=dayDiff(m.lastSupply||m.lastRegular,today()),si=supplyInterval(m);
-  const cd=dayDiff(m.lastCollection||m.lastRegular,today());
+  if(!reasons.length&&rd>=ri-2&&rd>=0)reasons.push('基本巡回まもなく');
 
-  if(rd>=ri) reasons.push('定期');
-  else if(rd>=ri-2&&rd>=0) reasons.push('定期まもなく');
+  const si=supplyInterval(m),sd=dayDiff(m.lastSupply||m.lastRegular,today());
+  if(!reasons.length&&si>0&&sd>=si-1&&sd<si)reasons.push('原料まもなく');
 
-  if(m.weekly&&sd>=si) reasons.push('補充');
-  else if(m.weekly&&sd===si-1) reasons.push('補充まもなく');
-
-  if(cd>=14) reasons.push('集金');
-  else if(cd>=12) reasons.push('集金まもなく');
-
-  if(m.prioritySupply) reasons.push('在庫少');
-  if(includeTrouble&&machineTroubles(m).length) reasons.push('トラブル');
-
+  if(includeTrouble&&machineTroubles(m).length)reasons.push('トラブル');
   return reasons;
 }
 function routeScore(m,includeTrouble=true){
@@ -3667,10 +3755,10 @@ function orderRouteMachines(chosen){
 }
 
 function routeWorkTypes(m){
-  const work=workFor(m);
+  const work=[...workFor(m)];
   const troubles=machineTroubles(m);
-  if(troubles.length&&!work.includes('トラブル')) work.push('トラブル');
-  if(!work.length) work.push('原料');
+  if(troubles.length&&!work.includes('トラブル'))work.push('トラブル');
+  if(!work.length)work.push('確認');
   return work;
 }
 function renderRoutePreview(){
@@ -4616,14 +4704,36 @@ function fillRegisterArea(){
     const o=document.createElement('option');o.value=a;o.textContent=a;rpArea.appendChild(o);
   });
 }
+function cycleValue(select,custom,fallback=0){
+  if(select.value==='custom')return Math.max(1,Number(custom.value)||fallback||1);
+  return Math.max(0,Number(select.value)||0);
+}
+function setCycleSelect(select,custom,value,presets){
+  const n=Number(value||0);
+  if(presets.includes(n)){select.value=String(n);custom.value=''}
+  else{select.value='custom';custom.value=n||''}
+}
+function updateRouteCycleVisibility(){
+  if(window.rpRegularCustomWrap)rpRegularCustomWrap.classList.toggle('hidden',rpRegularInterval.value!=='custom');
+  if(window.rpSupplyCustomWrap)rpSupplyCustomWrap.classList.toggle('hidden',rpSupplyInterval.value!=='custom');
+  if(window.rpDrainCustomWrap)rpDrainCustomWrap.classList.toggle('hidden',rpDrainInterval.value!=='custom');
+}
+
 function resetRegisterPage(){
   registerMapPickMode=false;
   registerEditingId=null;
   registerPageForm.reset();
   fillRegisterArea();
   rpArea.value='未設定';
-  rpRegularInterval.value=14;
-  rpSupplyInterval.value=7;
+  rpRegularInterval.value='14';
+  rpSupplyInterval.value='0';
+  rpDrainInterval.value='0';
+  rpRegularCustom.value='';
+  rpSupplyCustom.value='';
+  rpDrainCustom.value='';
+  rpWaterWeekly.checked=false;
+  rpGarbageWeekly.checked=false;
+  updateRouteCycleVisibility();
   rpLat.value='';
   rpLng.value='';
   renderRegisterLocation();
@@ -4658,12 +4768,19 @@ function openRegisterPage(returnPage='machines',machineId=null){
     if([...rpArea.options].some(o=>o.value===(m.area||'未設定'))) rpArea.value=m.area||'未設定';
     rpLat.value=m.lat??'';
     rpLng.value=m.lng??'';
-    rpRegularInterval.value=m.regularIntervalDays||14;
-    rpSupplyInterval.value=m.supplyIntervalDays||7;
+    setCycleSelect(rpRegularInterval,rpRegularCustom,m.regularIntervalDays||14,[14,7]);
+    setCycleSelect(rpSupplyInterval,rpSupplyCustom,m.supplyIntervalDays||0,[0,7,3.5]);
+    setCycleSelect(rpDrainInterval,rpDrainCustom,m.drainIntervalDays||0,[0,7,3.5]);
     rpLastRegular.value=m.lastRegular||'';
     rpLastSupply.value=m.lastSupply||'';
+    rpLastDrain.value=m.lastDrain||'';
+    rpLastWater.value=m.lastWater||'';
+    rpLastGarbage.value=m.lastGarbage||'';
     rpLastCollection.value=m.lastCollection||'';
-    rpWeekly.checked=!!m.weekly;
+    rpWaterWeekly.checked=!!m.waterWeekly;
+    rpGarbageWeekly.checked=!!m.garbageWeekly;
+    rpWeekly.checked=false;
+    updateRouteCycleVisibility();
     rpInventoryMemo.value=m.inventoryMemo||'';
     rpMemo.value=m.memo||'';
     document.querySelector('#registerPage .section-title').textContent='編集';
@@ -4820,12 +4937,18 @@ function saveRegisterPage(){
       area:rpArea.value||'未設定',
       lat,
       lng,
-      regularIntervalDays:Number(rpRegularInterval.value)||14,
-      supplyIntervalDays:Number(rpSupplyInterval.value)||7,
+      regularIntervalDays:cycleValue(rpRegularInterval,rpRegularCustom,14),
+      supplyIntervalDays:cycleValue(rpSupplyInterval,rpSupplyCustom,0),
+      drainIntervalDays:cycleValue(rpDrainInterval,rpDrainCustom,0),
       lastRegular:rpLastRegular.value||'',
-      weekly:!!rpWeekly.checked,
+      weekly:false,
       lastSupply:rpLastSupply.value||'',
-      lastCollection:rpLastCollection.value||'',
+      lastDrain:rpLastDrain.value||'',
+      waterWeekly:!!rpWaterWeekly.checked,
+      lastWater:rpLastWater.value||'',
+      garbageWeekly:!!rpGarbageWeekly.checked,
+      lastGarbage:rpLastGarbage.value||'',
+      lastCollection:rpLastCollection.value||rpLastRegular.value||'',
       prioritySupply:false,
       inventoryMemo:(rpInventoryMemo.value||'').trim(),
       workMinutes:25,
@@ -7287,6 +7410,7 @@ if(window.facilityPageSaveBtn)facilityPageSaveBtn.addEventListener('click',saveF
 if(window.facilityPageDeleteBtn)facilityPageDeleteBtn.addEventListener('click',deleteFacilityEditorPage);
 if(window.rpFacility)rpFacility.addEventListener('change',applySelectedFacilityToRegister);
 
+[window.rpRegularInterval,window.rpSupplyInterval,window.rpDrainInterval].filter(Boolean).forEach(el=>el.addEventListener('change',updateRouteCycleVisibility));
 // Ver.8.7: 重要操作は inline onclick に依存させない。
 if(window.deletePageConfirmBtn && !deletePageConfirmBtn.dataset.bound){
   deletePageConfirmBtn.dataset.bound='1';
