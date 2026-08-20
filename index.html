@@ -1531,6 +1531,13 @@ nav.modal-blocked{
 .facility-area-list{display:flex;flex-direction:column;gap:7px}
 .facility-area-list .facility-master-item{margin:0}
 .map-info-actions{display:grid;grid-template-columns:.85fr .85fr 1.3fr;gap:10px}.map-info-actions button{min-width:0;padding-left:10px;padding-right:10px}@media(max-width:380px){.map-info-actions{grid-template-columns:1fr 1fr}.map-info-actions #mapInfoAddBtn{grid-column:1/-1}}
+
+/* Ver.10.2 週間巡回の折りたたみ */
+.week-detail-more{
+  width:100%;margin-top:8px;padding:10px;border:0;border-radius:12px;
+  background:#eef2f7;color:#334155;font-weight:850
+}
+.route-render-error{border:1px solid #fecaca;background:#fff7f7}
 </style>
 </head>
 <body>
@@ -3530,11 +3537,13 @@ function createManualRoute(){
   manualCreateBtn.disabled=true;
   manualCreateBtn.textContent='保存中…';
 
+  const chosenAreas=[...new Set(chosen.map(m=>m.area||'未設定'))];
   const route={
     date:today(),
     createdAt:Date.now(),
-    areaFilter:'manual',
+    areaFilter:chosenAreas.length===1?chosenAreas[0]:(chosenAreas.length?chosenAreas.join('|'):'all'),
     candidateMode:'manual',
+    areas:chosenAreas,
     stops:chosen.map((m,i)=>({
       id:uid(),
       machineId:m.id,
@@ -4188,6 +4197,12 @@ function routeWeekStart(date){
   d.setDate(d.getDate()-(day-1));
   return localYmd(d);
 }
+let routeWeekExpandedDates=new Set();
+function toggleRouteWeekDay(date){
+  if(routeWeekExpandedDates.has(date))routeWeekExpandedDates.delete(date);
+  else routeWeekExpandedDates.add(date);
+  renderRouteWeek();
+}
 function renderRouteWeek(){
   if(!window.routeWeekList)return;
   const start=routeWeekStart(routeWeekAnchor);
@@ -4195,10 +4210,13 @@ function renderRouteWeek(){
   const d0=ymdDate(start),d6=ymdDate(dates[6]);
   routeWeekRange.textContent=`${d0.getMonth()+1}/${d0.getDate()} 〜 ${d6.getMonth()+1}/${d6.getDate()}`;
   const dow=['日','月','火','水','木','金','土'];
+
   routeWeekList.innerHTML=dates.map(date=>{
-    const r=db.routes?.[date],stops=r?.stops||[];
+    const r=db.routes?.[date],stops=Array.isArray(r?.stops)?r.stops:[];
     const mins=stops.reduce((s,x)=>s+Number(x.plannedMinutes||25),0);
     const dd=ymdDate(date);
+    const expanded=routeWeekExpandedDates.has(date);
+
     const stopHtml=stops.length?stops.slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(s=>{
       const m=machine(s.machineId);
       return `<div class="week-route-stop">
@@ -4206,19 +4224,20 @@ function renderRouteWeek(){
         <div class="sub">${m?escapeHtml(machineDisplaySub(m)):''}</div>
       </div>`;
     }).join(''):'<div class="sub" style="padding:8px 0">巡回予定なし</div>';
+
     return `<div class="week-route-day ${date===today()?'today':''}">
       <div class="row">
         <div>
           <div class="week-date">${dd.getMonth()+1}/${dd.getDate()}（${dow[dd.getDay()]}）</div>
           <div class="sub">${stops.length}台 ・ 約${mins}分</div>
         </div>
-        ${stops.length?`<button class="secondary" type="button" onclick="openWeeklyDayDetail('${date}')">確認</button>`:''}
+        ${stops.length?`<button class="secondary" type="button" onclick="toggleRouteWeekDay('${date}')">${expanded?'閉じる':'確認'}</button>`:''}
       </div>
-      <div class="week-stops">${stopHtml}</div>
+      <div class="week-stops ${expanded?'':'hidden'}">${stopHtml}</div>
+      ${expanded&&stops.length?`<button class="week-detail-more" type="button" onclick="openWeeklyDayDetail('${date}')">詳しく確認</button>`:''}
     </div>`;
   }).join('');
 }
-
 
 let routeWorkEditStopId=null;
 let routeWorkEditScrollY=0;
@@ -4470,52 +4489,106 @@ function openTroubleForMachine(machineId){
   window.scrollTo(0,0);
 }
 
+function routeAreaDisplayLabel(r){
+  if(!r)return '全エリア';
+  if(r.candidateMode==='manual'||r.areaFilter==='manual')return '手動作成';
+  if(!r.areaFilter||r.areaFilter==='all')return '全エリア';
+  const parts=String(r.areaFilter).split('|').filter(Boolean);
+  if(parts.length>1)return parts.join(' / ');
+  return `${parts[0]||'全'}エリア`;
+}
+function safeRouteWorks(stop,m){
+  const stored=Array.isArray(stop?.workTypes)?stop.workTypes:[];
+  let current=[];
+  try{current=Array.isArray(workFor(m))?workFor(m):[]}catch(e){console.warn('workFor',m?.id,e)}
+  return [...new Set([...stored,...current])]
+    .filter(w=>w&&w!=='トラブル');
+}
 function renderRoute(){
-  const r=todaysRoute(),stops=r?.stops||[];
+  const r=todaysRoute(),stops=Array.isArray(r?.stops)?r.stops:[];
   routeCount.textContent=stops.length;
-  routeMinutes.textContent=stops.reduce((a,s)=>a+(s.status==='done'?(s.actualMinutes||s.plannedMinutes):s.plannedMinutes),0);
-  routeAreaLabel.textContent=r?.areaFilter&&r.areaFilter!=='all'?`${r.areaFilter}エリア`:'全エリア';
+  routeMinutes.textContent=stops.reduce((a,s)=>a+Number(s.status==='done'?(s.actualMinutes||s.plannedMinutes||25):(s.plannedMinutes||25)),0);
+  routeAreaLabel.textContent=routeAreaDisplayLabel(r);
   routeList.innerHTML='';
-  if(!stops.length){routeList.innerHTML='<div class="empty">今日の巡回はまだありません。</div>';return}
+  if(!stops.length){
+    routeList.innerHTML='<div class="empty">今日の巡回はまだありません。</div>';
+    return;
+  }
+
+  const sorted=stops.slice().sort((a,b)=>(a.order||0)-(b.order||0));
   let lastFacility=null;
-  stops.forEach((s,i)=>{
-    const m=machine(s.machineId);if(!m)return;
-    const facility=machineDisplayTitle(m);
-    if(facility!==lastFacility){
-      const fh=document.createElement('div');
-      const sameCount=stops.filter(x=>{const mm=machine(x.machineId);return mm&&machineDisplayTitle(mm)===facility}).length;
-      fh.className='route-facility-head';
-      fh.innerHTML=`<b>${escapeHtml(facility)}</b><span>${sameCount}台</span>`;
-      routeList.appendChild(fh);
-      lastFacility=facility;
-    }
-    const el=document.createElement('div');
-    el.className='stop '+(s.status==='current'?'current ':'')+(s.status==='done'?'done':'');
-    el.dataset.stopId=s.id;
-    const troubleRows=uniqueMachineTroubles(m);
-    const hasUrgentTrouble=troubleRows.some(t=>t.priority==='high');
-    const state=s.status==='done'?'完了':s.status==='current'?'作業中':troubleRows.length?(hasUrgentTrouble?'緊急トラブル':'トラブル'):regularDue(m)?'定期巡回':supplyDue(m)||m.prioritySupply?'補充巡回':collectionDue(m)?'集金':'巡回';
-    const memo=m.inventoryMemo?`<div class="urgent-note">在庫: ${escapeHtml(m.inventoryMemo)}</div>`:'';
-    el.innerHTML=`<div class="stop-head">
-      <div>
-        <div class="sub">${String(i+1).padStart(2,'0')} ・ ${escapeHtml(m.area||'未設定')} ・ ${state}${s.plannedArrival?` ・ ${escapeHtml(s.plannedArrival)}頃`:''}</div>
-        <div class="stop-name">${m.site?`<div class="sub">${escapeHtml(m.site)}</div>`:''}${escapeHtml(m.name)}</div>
-        <div class="worktags">${[...new Set([...(s.workTypes||[]),...workFor(m)])].filter(w=>w!=='トラブル').map(w=>`<span class="tag">${w}</span>`).join('')}</div>
-        ${memo}
-        ${s.facilityWarning?`<div class="route-window-warning">${escapeHtml(s.facilityWarning)}</div>`:''}
+  sorted.forEach((s,i)=>{
+    try{
+      const m=machine(s.machineId);
+      if(!m){
+        const missing=document.createElement('div');
+        missing.className='stop';
+        missing.innerHTML=`<div class="stop-head"><div><b>削除済み自販機</b><div class="sub">登録情報が見つかりません</div></div></div>`;
+        routeList.appendChild(missing);
+        return;
+      }
+
+      const facility=machineDisplayTitle(m);
+      if(facility!==lastFacility){
+        const fh=document.createElement('div');
+        const sameCount=sorted.filter(x=>{
+          const mm=machine(x.machineId);
+          return mm&&machineDisplayTitle(mm)===facility;
+        }).length;
+        fh.className='route-facility-head';
+        fh.innerHTML=`<b>${escapeHtml(facility)}</b><span>${sameCount}台</span>`;
+        routeList.appendChild(fh);
+        lastFacility=facility;
+      }
+
+      const el=document.createElement('div');
+      el.className='stop '+(s.status==='current'?'current ':'')+(s.status==='done'?'done':'');
+      el.dataset.stopId=s.id;
+
+      // トラブルは巡回の状態名には使わない。巡回とトラブルは別管理。
+      let state='巡回';
+      if(s.status==='done')state='完了';
+      else if(s.status==='current')state='作業中';
+      else {
+        try{
+          if(regularDue(m))state='基本巡回';
+          else if(supplyDue(m)||m.prioritySupply)state='原料';
+          else if(drainDue(m))state='排水';
+          else if(waterDue(m))state='給水';
+          else if(garbageDue(m))state='ゴミ回収';
+        }catch(e){console.warn('route state',m.id,e)}
+      }
+
+      const memo=m.inventoryMemo?`<div class="urgent-note">在庫: ${escapeHtml(m.inventoryMemo)}</div>`:'';
+      const works=safeRouteWorks(s,m);
+
+      el.innerHTML=`<div class="stop-head">
+        <div>
+          <div class="sub">${String(i+1).padStart(2,'0')} ・ ${escapeHtml(m.area||'未設定')} ・ ${escapeHtml(state)}${s.plannedArrival?` ・ ${escapeHtml(s.plannedArrival)}頃`:''}</div>
+          <div class="stop-name">${m.site?`<div class="sub">${escapeHtml(m.site)}</div>`:''}${escapeHtml(m.name||machineDisplayTitle(m))}</div>
+          <div class="worktags">${works.map(w=>`<span class="tag">${escapeHtml(w)}</span>`).join('')}</div>
+          ${memo}
+          ${s.facilityWarning?`<div class="route-window-warning">${escapeHtml(s.facilityWarning)}</div>`:''}
+        </div>
+        <div>${s.status==='done'?'<span class="pill green">✓</span>':`<button class="smallbtn" onclick="openWorkPicker('${s.id}')">開始</button>`}</div>
       </div>
-      <div>${s.status==='done'?'<span class="pill green">✓</span>':`<button class="smallbtn" onclick="openWorkPicker('${s.id}')">開始</button>`}</div>
-    </div>
-    <div class="route-actions">
-      <button class="route-order-btn" onclick="moveStop('${s.id}',-1)" ${i===0?'disabled':''}>↑</button>
-      <button class="route-order-btn" onclick="moveStop('${s.id}',1)" ${i===stops.length-1?'disabled':''}>↓</button>
-      <button class="smallbtn" onclick="openRouteWorkEdit('${s.id}')">${s.status==='done'?'実施内容':'作業変更'}</button>
-      <button class="smallbtn trouble-route-btn" onclick="openTroubleForMachine('${m.id}')">トラブル</button>
-      <button class="smallbtn navbtn" onclick="navigateToMachine('${m.id}')">ナビ</button>
-      <span class="mini">約${s.plannedMinutes}分</span>
-    </div>`;
-    routeList.appendChild(el);
-  })
+      <div class="route-actions">
+        <button class="route-order-btn" onclick="moveStop('${s.id}',-1)" ${i===0?'disabled':''}>↑</button>
+        <button class="route-order-btn" onclick="moveStop('${s.id}',1)" ${i===sorted.length-1?'disabled':''}>↓</button>
+        <button class="smallbtn" onclick="openRouteWorkEdit('${s.id}')">${s.status==='done'?'実施内容':'作業変更'}</button>
+        <button class="smallbtn trouble-route-btn" onclick="openTroubleForMachine('${m.id}')">トラブル</button>
+        <button class="smallbtn navbtn" onclick="navigateToMachine('${m.id}')">ナビ</button>
+        <span class="mini">約${Number(s.plannedMinutes||25)}分</span>
+      </div>`;
+      routeList.appendChild(el);
+    }catch(err){
+      console.error('route stop render failed',s,err);
+      const errorCard=document.createElement('div');
+      errorCard.className='stop route-render-error';
+      errorCard.innerHTML=`<b>表示できない巡回データがあります</b><div class="sub">この自販機は削除せず、表示だけスキップしました。</div>`;
+      routeList.appendChild(errorCard);
+    }
+  });
   if(routePeriod==='week')renderRouteWeek();
 }
 function navigateToMachine(machineId){
