@@ -1569,6 +1569,31 @@ nav.modal-blocked{
 .simple-map-segment #mapAllBtn.active{
   box-shadow:inset 0 0 0 2px rgba(255,255,255,.10);
 }
+
+/* Ver.10.7 MAP操作安定化 */
+.simple-map-segment.map-mode-two{grid-template-columns:1fr 1fr}
+#mapPage #mapInfoCard.simple-map-info{
+  z-index:29000!important;
+  pointer-events:auto!important;
+  isolation:isolate;
+}
+#mapPage #mapInfoCard.simple-map-info *{pointer-events:auto}
+#mapPage #mapInfoCloseBtn{
+  position:relative;z-index:29010!important;
+  touch-action:manipulation!important;
+  pointer-events:auto!important;
+  min-width:56px;min-height:56px;
+}
+#mapPage #mapInfoCard.hidden{display:none!important}
+
+/* Ver.10.8 バージョン表示 */
+.app-version-card{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.app-version-name{font-size:18px;font-weight:900;margin:2px 0 5px}
+.app-version-badge{
+  flex:0 0 auto;padding:9px 12px;border-radius:12px;background:#111827;color:#fff;
+  font-size:13px;font-weight:900;letter-spacing:.01em
+}
+.app-version-footer{text-align:center;color:#94a3b8;font-size:11px;font-weight:800;padding:16px 0 90px}
 </style>
 </head>
 <body>
@@ -1735,10 +1760,9 @@ nav.modal-blocked{
         </div>
         <div id="mapSearchResults" class="map-search-results hidden"></div>
 
-        <div class="simple-map-segment">
+        <div class="simple-map-segment map-mode-two">
           <button id="mapTodayBtn" class="active">今日の巡回</button>
           <button id="mapAllBtn">全自販機</button>
-          <button id="mapFilterBtn">エリア</button>
         </div>
         <div id="mapAreaFilters" class="simple-area-filters hidden"></div>
       </div>
@@ -2226,6 +2250,14 @@ nav.modal-blocked{
       </div>
 
 <div class="settings-panel hidden" data-settings-panel="data">
+        <div class="settings-group app-version-card">
+          <div>
+            <div class="section-title">アプリ情報</div>
+            <div class="app-version-name">自販機巡回アプリ</div>
+            <div class="sub">現在のバージョン</div>
+          </div>
+          <div class="app-version-badge">Version 10.8</div>
+        </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
           <div class="backup-actions">
@@ -2239,6 +2271,7 @@ nav.modal-blocked{
         </div>
       </div>
 
+      <div class="app-version-footer">Ver. 10.8</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -4852,24 +4885,41 @@ function setMapMode(mode){
   mapMode=mode;
   mapTodayBtn.classList.toggle('active',mode==='today');
   mapAllBtn.classList.toggle('active',mode==='all');
-  renderMapMarkers();
+
   if(mode==='today'){
+    mapArea='all';
+    if(mapAreaFilters)mapAreaFilters.classList.add('hidden');
+    renderMapMarkers();
     const count=(todaysRoute()?.stops||[]).length;
     showToast(count?`今日の巡回 ${count}台を表示しています`:'今日の巡回はまだありません','info',2200);
   }else{
-    const count=db.machines.filter(m=>mapArea==='all'||(m.area||'未設定')===mapArea).length;
-    showToast(`全自販機 ${count}台を表示しています`,'info',2200);
+    // 「全自販機」はまず全台表示。もう一度押す/初回押下で下にエリア絞り込みも表示。
+    mapArea='all';
+    fillAreaControls();
+    if(mapAreaFilters)mapAreaFilters.classList.remove('hidden');
+    renderMapMarkers();
+    const count=db.machines.length;
+    showToast(`全自販機 ${count}台を表示しています。下からエリアで絞れます`,'info',2400);
   }
+  try{if(map)map.invalidateSize(false)}catch(e){}
 }
 function setMapArea(area){
   hideMapMachineCard();
+  if(mapMode!=='all'){
+    mapMode='all';
+    mapTodayBtn.classList.remove('active');
+    mapAllBtn.classList.add('active');
+  }
   mapArea=area;
   document.querySelectorAll('#mapAreaFilters [data-maparea]').forEach(b=>{
     b.classList.toggle('active',b.dataset.maparea===area);
   });
+  if(mapAreaFilters)mapAreaFilters.classList.remove('hidden');
   try{
     renderMapMarkers();
     if(map) map.invalidateSize(false);
+    const count=db.machines.filter(m=>area==='all'||(m.area||'未設定')===area).length;
+    showToast(`${area==='all'?'全エリア':area} ${count}台を表示しています`,'info',1800);
   }catch(e){
     console.warn('map area filter',e);
   }
@@ -4931,9 +4981,12 @@ function hideMapMachineCard(){
   selectedMapSiteKey=null;
   selectedExternalPlace=null;
   clearPlaceSearchMarker();
-  mapInfoCard.classList.add('hidden');
-  mapInfoCard.classList.remove('map-info-sheet-pop');
-  mapInfoCard.style.setProperty('display','none','important');
+  if(mapInfoCard){
+    mapInfoCard.classList.add('hidden');
+    mapInfoCard.classList.remove('map-info-sheet-pop');
+    mapInfoCard.style.setProperty('display','none','important');
+    mapInfoCard.setAttribute('aria-hidden','true');
+  }
   try{renderMapMarkers()}catch(e){}
 }
 
@@ -5621,7 +5674,7 @@ function switchPage(p){
     try{hideMapMachineCard()}catch(e){console.warn(e)}
     try{closeMapSearch()}catch(e){console.warn(e)}
     try{if(mapAreaFilters) mapAreaFilters.classList.add('hidden')}catch(e){}
-    try{if(mapFilterBtn) mapFilterBtn.classList.remove('active')}catch(e){}
+    
     try{if(mapRegisterBanner) mapRegisterBanner.classList.add('hidden')}catch(e){}
   }
 
@@ -5633,6 +5686,7 @@ function switchPage(p){
   if(p==='home'){renderHome();renderShift();renderActive();renderWorkDashboard();}
 
   if(p==='map'){
+    if(!mapEditReturnState)try{hideMapMachineCard()}catch(e){}
     if(!map) mapMode=db.settings?.mapDefaultMode||'today';
     initMap();
     if(db.settings?.gpsAuto!==false) startLocationTracking(false);
@@ -5810,6 +5864,7 @@ function mapSelectionFeedback(){
 }
 function revealMapInfoSheet(){
   mapInfoCard.style.removeProperty('display');
+  mapInfoCard.removeAttribute('aria-hidden');
   mapInfoCard.classList.remove('hidden');
   mapInfoCard.classList.remove('map-info-sheet-pop');
   void mapInfoCard.offsetWidth;
@@ -8182,14 +8237,16 @@ rpChooseOnMap.addEventListener('click',chooseLocationOnMapForRegister);
 rpClearLocation.addEventListener('click',()=>{rpLat.value='';rpLng.value='';renderRegisterLocation()});
 registerPageForm.addEventListener('submit',e=>e.preventDefault());
 registerSaveBtn.addEventListener('click',saveRegisterPage);
-mapFilterBtn.addEventListener('click',e=>{
-  e.preventDefault();
-  e.stopPropagation();
-  fillAreaControls();
-  mapAreaFilters.classList.toggle('hidden');
-  mapFilterBtn.classList.toggle('active',!mapAreaFilters.classList.contains('hidden'));
-});
-if(mapInfoCloseBtn) mapInfoCloseBtn.addEventListener('click',hideMapMachineCard);
+if(mapInfoCloseBtn){
+  const closeMapInfoNow=(e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+    hideMapMachineCard();
+  };
+  mapInfoCloseBtn.addEventListener('pointerup',closeMapInfoNow,{passive:false});
+  mapInfoCloseBtn.addEventListener('click',closeMapInfoNow);
+}
 locateBtn.addEventListener('click',locateUser);
 
 mapTodayBtn.addEventListener('click',()=>setMapMode('today'));
@@ -8201,7 +8258,6 @@ mapMenuBtn.addEventListener('click',()=>{
 });
 mapRegisterMenuBtn.addEventListener('click',()=>openRegisterPage('map'));
 cancelMapRegisterBtn.addEventListener('click',()=>{setMapRegisterMode(false);clearTempRegisterMarker();});
-mapInfoCloseBtn.addEventListener('click',hideMapMachineCard);
 mapInfoNavBtn.addEventListener('click',()=>{if(selectedExternalPlace)navigateExternalPlace();else if(selectedMapMachineId)navigateToMachine(selectedMapMachineId)});
 if(window.mapInfoEditBtn)mapInfoEditBtn.addEventListener('click',editMachineFromMap);
 mapInfoAddBtn.addEventListener('click',()=>{if(selectedExternalPlace)registerAtExternalPlace();else if(selectedMapMachineId)addMachineToToday(selectedMapMachineId)});
