@@ -2016,7 +2016,7 @@ nav.modal-blocked{
         <div>
           <div class="section-title">仕事管理</div>
           <div class="flow-title">トラブル受付</div>
-          <div class="sub">受付内容を保存し、必要なら今日の巡回にも追加します。</div>
+          <div class="sub">トラブルは巡回とは別に記録します。必要な巡回は巡回画面から追加できます。</div>
         </div>
         <button class="secondary" id="troubleBackBtn">戻る</button>
       </div>
@@ -2055,10 +2055,7 @@ nav.modal-blocked{
           <label>メモ</label>
           <textarea id="troubleMemo" rows="5" placeholder="状況や対応内容を入力"></textarea>
 
-          <div class="checkrow">
-            <input id="troubleAddRoute" type="checkbox" checked>
-            <span>今日の巡回に追加する</span>
-          </div>
+          <input id="troubleAddRoute" type="checkbox" class="hidden">
         </div>
 
         <div class="page-actionbar">
@@ -3878,8 +3875,6 @@ function orderRouteMachines(chosen){
 
 function routeWorkTypes(m){
   const work=[...workFor(m)];
-  const troubles=machineTroubles(m);
-  if(troubles.length&&!work.includes('トラブル'))work.push('トラブル');
   if(!work.length)work.push('確認');
   return work;
 }
@@ -4388,7 +4383,6 @@ function deleteTroubleRecord(id,machineId){
 
 function openTroubleForMachine(machineId){
   troubleTargetDate=null;
-  const label=troubleAddRoute.closest('.checkrow')?.querySelector('span');if(label)label.textContent='今日の巡回に追加する';
   const m=machine(machineId);
   if(!m)return;
   routeWorkEditScrollY=window.scrollY||0;
@@ -4434,7 +4428,7 @@ function renderRoute(){
       <div>
         <div class="sub">${String(i+1).padStart(2,'0')} ・ ${escapeHtml(m.area||'未設定')} ・ ${state}${s.plannedArrival?` ・ ${escapeHtml(s.plannedArrival)}頃`:''}</div>
         <div class="stop-name">${m.site?`<div class="sub">${escapeHtml(m.site)}</div>`:''}${escapeHtml(m.name)}</div>
-        <div class="worktags">${[...new Set([...(s.workTypes||[]),...workFor(m)])].map(w=>`<span class="tag">${w}</span>`).join('')}</div>
+        <div class="worktags">${[...new Set([...(s.workTypes||[]),...workFor(m)])].filter(w=>w!=='トラブル').map(w=>`<span class="tag">${w}</span>`).join('')}</div>
         ${memo}
         ${s.facilityWarning?`<div class="route-window-warning">${escapeHtml(s.facilityWarning)}</div>`:''}
       </div>
@@ -4684,7 +4678,7 @@ function addMachineToToday(machineId){
   const m=machine(machineId);if(!m)return;
   const r=ensureRoute();
   if(r.stops.some(s=>s.machineId===machineId)){alert('すでに今日の巡回に入っています。');return}
-  r.stops.push({id:uid(),machineId,order:r.stops.length+1,status:'pending',workTypes:(workFor(m).length?workFor(m):['原料']),plannedMinutes:Number(m.workMinutes||25)});
+  r.stops.push({id:uid(),machineId,order:r.stops.length+1,status:'pending',workTypes:(workFor(m).length?workFor(m):['確認']).filter(w=>w!=='トラブル'),plannedMinutes:Number(m.workMinutes||25)});
   save();renderAll();showMapMachineCard(machineId);
 }
 let mapEditReturnState=null;
@@ -5108,6 +5102,131 @@ function addSameSiteMachineFromEdit(){
   rpName.focus();
 }
 
+
+function monthBoundsForKey(key){
+  const [y,m]=String(key).split('-').map(Number);
+  if(!y||!m)return null;
+  const start=`${y}-${String(m).padStart(2,'0')}-01`;
+  const last=new Date(y,m,0,12);
+  return {start,end:localYmd(last)};
+}
+function workLabelForOccurrence(kind){
+  if(kind==='原料補充')return '原料';
+  return kind||'確認';
+}
+function workdaysForMonthKey(key){
+  const b=monthBoundsForKey(key);if(!b)return [];
+  const out=[];
+  for(let d=ymdDate(b.start),e=ymdDate(b.end);d<=e;d.setDate(d.getDate()+1)){
+    const date=localYmd(d);
+    if(dayWorkCapacity(date)>0)out.push(date);
+  }
+  return out;
+}
+function normalizeAutoTaskTitle(task){
+  const ids=[...new Set((task.machineIds||[]).filter(Boolean))];
+  task.machineIds=ids;
+  task.title=`${task.area||'未設定'}エリア巡回（${ids.length}台）`;
+}
+function syncEditedMachinePlanning(machineId){
+  const m=machine(machineId);if(!m)return {months:0,routes:0};
+
+  // 既存巡回から「トラブル」を作業タグとして除去。
+  Object.values(db.routes||{}).forEach(r=>{
+    (r?.stops||[]).forEach(s=>{
+      if(Array.isArray(s.workTypes))s.workTypes=s.workTypes.filter(w=>w!=='トラブル');
+    });
+  });
+
+  // 既に月間計画/日別巡回が存在する月だけを再同期する。
+  const keys=new Set();
+  (db.tasks||[]).forEach(t=>{
+    if(t.autoMonthlyPlan&&/^\d{4}-\d{2}-\d{2}$/.test(String(t.due||'')))keys.add(String(t.due).slice(0,7));
+  });
+  Object.keys(db.routes||{}).forEach(date=>{
+    if(/^\d{4}-\d{2}-\d{2}$/.test(date))keys.add(date.slice(0,7));
+  });
+
+  let routeChanges=0;
+  for(const key of keys){
+    const bounds=monthBoundsForKey(key);if(!bounds)continue;
+    const workdays=workdaysForMonthKey(key);
+    if(!workdays.length)continue;
+
+    // この自販機だけ、既存の自動月間計画から一旦外す。
+    (db.tasks||[]).forEach(t=>{
+      if(!t.autoMonthlyPlan||!String(t.due||'').startsWith(key))return;
+      if(Array.isArray(t.machineIds))t.machineIds=t.machineIds.filter(id=>id!==machineId);
+      if(Array.isArray(t.machineWorkKinds))t.machineWorkKinds=t.machineWorkKinds.filter(x=>x.machineId!==machineId);
+      if(t.machineWorks&&t.machineWorks[machineId])delete t.machineWorks[machineId];
+      normalizeAutoTaskTitle(t);
+    });
+    db.tasks=(db.tasks||[]).filter(t=>!(t.autoMonthlyPlan&&String(t.due||'').startsWith(key)&&!(t.machineIds||[]).length));
+
+    // 新しい周期設定から、その月の全回数を再作成（過去日も含む）。
+    const occurrences=machineMonthlyOccurrences(m,bounds.start,bounds.end);
+    for(const occ of occurrences){
+      const assigned=nearestWorkday(occ.date,workdays)||occ.date;
+      const area=m.area||'未設定';
+      let task=(db.tasks||[]).find(t=>
+        t.autoMonthlyPlan&&t.due===assigned&&(t.area||'未設定')===area
+      );
+      if(!task){
+        task={
+          id:uid(),title:`${area}エリア巡回（1台）`,due:assigned,area,
+          category:'route',priority:'normal',
+          memo:'自動再反映',machineId:null,machineIds:[],
+          machineWorkKinds:[],distanceKm:0,done:false,
+          autoMonthlyPlan:true,createdAt:Date.now()
+        };
+        db.tasks.push(task);
+      }
+      if(!Array.isArray(task.machineIds))task.machineIds=[];
+      if(!task.machineIds.includes(machineId))task.machineIds.push(machineId);
+      if(!Array.isArray(task.machineWorkKinds))task.machineWorkKinds=[];
+      task.machineWorkKinds=task.machineWorkKinds.filter(x=>x.machineId!==machineId);
+      task.machineWorkKinds.push({machineId,work:occ.kind,due:occ.date});
+      normalizeAutoTaskTitle(task);
+
+      // 日別巡回にも反映。既存なら作業内容更新、なければ追加。
+      if(!db.routes)db.routes={};
+      const r=db.routes[assigned]||{
+        date:assigned,createdAt:Date.now(),areaFilter:'auto-sync',
+        candidateMode:'auto-sync',stops:[]
+      };
+      db.routes[assigned]=r;
+      let stop=(r.stops||[]).find(s=>s.machineId===machineId);
+      const works=[workLabelForOccurrence(occ.kind)];
+      if(stop){
+        if(stop.status!=='done'){
+          stop.workTypes=works;
+          stop.plannedMinutes=Number(m.workMinutes||25);
+          routeChanges++;
+        }
+      }else{
+        r.stops.push({
+          id:uid(),machineId,order:r.stops.length+1,status:'pending',
+          workTypes:works,plannedMinutes:Number(m.workMinutes||25),
+          autoSynced:true
+        });
+        routeChanges++;
+      }
+      r.stops.forEach((s,i)=>s.order=i+1);
+    }
+  }
+
+  // 今日の巡回に既に入っている場合も最新設定へ更新。
+  const todayRoute=db.routes?.[today()];
+  const todayStop=todayRoute?.stops?.find(s=>s.machineId===machineId);
+  if(todayStop&&todayStop.status!=='done'){
+    const works=workFor(m).filter(w=>w!=='トラブル');
+    todayStop.workTypes=works.length?works:['確認'];
+    routeChanges++;
+  }
+
+  return {months:keys.size,routes:routeChanges};
+}
+
 function saveRegisterPage(){
   const btn=registerSaveBtn;
   const original=btn.textContent;
@@ -5223,8 +5342,19 @@ function saveRegisterPage(){
     if(!Array.isArray(db.machines)) db.machines=[];
 
     const wasEditing=!!registerEditingId;
+    let planSyncResult={months:0,routes:0};
+    if(wasEditing){
+      planSyncResult=syncEditedMachinePlanning(id);
+      localStorage.setItem(DBKEY,JSON.stringify(db));
+    }
+
+
     const savedMachineId=id;
-    showToast(wasEditing?`${name} を保存しました`:`${name} を登録しました`);
+    showToast(
+      wasEditing
+        ? `${name} を保存しました${planSyncResult.months?`｜計画も再反映`:""}`
+        : `${name} を登録しました`
+    );
     registerEditingId=null;
 
     const saveReturnPage=registerReturnPage||'machines';
@@ -5758,7 +5888,6 @@ function openTaskModal(){
 }
 function openTroubleModal(){
   troubleTargetDate=null;
-  const label=troubleAddRoute.closest('.checkrow')?.querySelector('span');if(label)label.textContent='今日の巡回に追加する';
   troubleReturnPage=(page&&page!=='trouble')?page:'home';
   try{if(window.workManagerModal&&!workManagerModal.classList.contains('hidden'))hideModal('workManagerModal')}catch(e){}
   troubleForm.reset();
@@ -6972,7 +7101,7 @@ function calendarRouteDetailHtml(date){
             <div>
               <b>${escapeHtml(m.site||machineDisplayTitle(m))}</b>
               <div class="sub">${escapeHtml(machineDisplaySub(m)||m.area||'未設定')}</div>
-              ${works.size?`<div class="calendar-work-tags">${[...works].map(w=>`<span>${escapeHtml(w)}</span>`).join('')}</div>`:''}
+              ${[...works].filter(w=>w!=='トラブル').length?`<div class="calendar-work-tags">${[...works].filter(w=>w!=='トラブル').map(w=>`<span>${escapeHtml(w)}</span>`).join('')}</div>`:''}
             </div>
             <span class="calendar-machine-chevron">›</span>
           </button>`).join('')}
@@ -7032,9 +7161,7 @@ function openCalendarTrouble(date){
   troubleTargetDate=date;
   troubleReturnPage='calendar';
   troubleForm.reset();
-  troubleAddRoute.checked=true;
-  const label=troubleAddRoute.closest('.checkrow')?.querySelector('span');
-  if(label)label.textContent='この日の巡回に追加する';
+  troubleAddRoute.checked=false;
   fillMachineSelect(troubleMachine,false);
   if(db.machines[0]){
     troubleMachine.value=db.machines[0].id;
@@ -7045,17 +7172,16 @@ function openCalendarTrouble(date){
   switchPage('trouble');
   window.scrollTo(0,0);
 }
-function addMachineToRouteDate(machineId,date,forceTrouble=false){
+function addMachineToRouteDate(machineId,date){
   const m=machine(machineId);if(!m)return false;
   if(!db.routes)db.routes={};
   const r=db.routes[date]||{date,createdAt:Date.now(),areaFilter:'manual',candidateMode:'manual',stops:[]};
   db.routes[date]=r;
   if(r.stops.some(s=>s.machineId===machineId))return false;
   const works=workFor(m).length?[...workFor(m)]:['確認'];
-  if(forceTrouble&&!works.includes('トラブル'))works.push('トラブル');
   r.stops.push({
     id:uid(),machineId,order:r.stops.length+1,status:'pending',
-    workTypes:works,plannedMinutes:Number(m.workMinutes||25)
+    workTypes:works.filter(w=>w!=='トラブル'),plannedMinutes:Number(m.workMinutes||25)
   });
   return true;
 }
@@ -7619,11 +7745,7 @@ troubleForm.addEventListener('submit',e=>{
     };
     db.troubles.push(item);
 
-    if(troubleAddRoute.checked){
-      if(targetDate===today())addMachineToToday(machineId,true);
-      else addMachineToRouteDate(machineId,targetDate,true);
-    }
-
+    // トラブルは巡回と別管理。巡回への追加は巡回画面から行う。
     save();
     const target=troubleReturnPage||'home';
 
@@ -7640,8 +7762,6 @@ troubleForm.addEventListener('submit',e=>{
     }
 
     troubleTargetDate=null;
-    const label=troubleAddRoute.closest('.checkrow')?.querySelector('span');
-    if(label)label.textContent='今日の巡回に追加する';
   }catch(err){
     console.error(err);
     showToast('トラブルを保存できませんでした','error',3200);
