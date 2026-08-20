@@ -1538,6 +1538,37 @@ nav.modal-blocked{
   background:#eef2f7;color:#334155;font-weight:850
 }
 .route-render-error{border:1px solid #fecaca;background:#fff7f7}
+
+/* Ver.10.3 MAPピンの反応と固定ボトムシート */
+#mapPage #mapInfoCard.simple-map-info{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:86px;
+  width:min(694px,calc(100% - 24px));max-height:min(52dvh,520px);overflow:auto;
+  z-index:5000;margin:0;border-radius:24px 24px 18px 18px;
+  box-shadow:0 -4px 30px rgba(15,23,42,.18),0 12px 36px rgba(15,23,42,.16);
+  overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+}
+#mapPage #mapInfoCard.map-info-sheet-pop{
+  animation:mapInfoSheetPop .28s cubic-bezier(.22,.85,.3,1);
+}
+@keyframes mapInfoSheetPop{
+  0%{opacity:.2;transform:translate(-50%,28px) scale(.985)}
+  70%{opacity:1;transform:translate(-50%,-3px) scale(1)}
+  100%{opacity:1;transform:translate(-50%,0) scale(1)}
+}
+.site-count-marker{transition:transform .18s ease,box-shadow .18s ease,background .18s ease,opacity .18s ease}
+.site-count-marker.selected{
+  transform:scale(1.28);background:#0a84ff;
+  box-shadow:0 0 0 7px rgba(10,132,255,.20),0 5px 18px rgba(0,0,0,.30);
+  animation:mapPinSelect .26s cubic-bezier(.2,.9,.3,1)
+}
+@keyframes mapPinSelect{0%{transform:scale(.85)}65%{transform:scale(1.38)}100%{transform:scale(1.28)}}
+@media(max-height:700px){#mapPage #mapInfoCard.simple-map-info{max-height:45dvh}}
+
+/* Ver.10.6 MAP表示モード */
+.simple-map-segment #mapTodayBtn.active,
+.simple-map-segment #mapAllBtn.active{
+  box-shadow:inset 0 0 0 2px rgba(255,255,255,.10);
+}
 </style>
 </head>
 <body>
@@ -1705,8 +1736,8 @@ nav.modal-blocked{
         <div id="mapSearchResults" class="map-search-results hidden"></div>
 
         <div class="simple-map-segment">
-          <button id="mapTodayBtn" class="active">今日強調</button>
-          <button id="mapAllBtn">通常</button>
+          <button id="mapTodayBtn" class="active">今日の巡回</button>
+          <button id="mapAllBtn">全自販機</button>
           <button id="mapFilterBtn">エリア</button>
         </div>
         <div id="mapAreaFilters" class="simple-area-filters hidden"></div>
@@ -3109,7 +3140,7 @@ db.machines.forEach(m=>{
   if(m.lng!==undefined && m.lng!==null && m.lng!=='') m.lng=Number(m.lng); else m.lng=null;
 });
 save();
-let page='home', map=null, markers=[], routeLine=null, userLocationMarker=null, selectedStopId=null, mapDraft=null, tickHandle=null, pendingDeleteId=null, editingMachineId=null, mapRegisterMode=false, longPressTimer=null, longPressStart=null, suppressNextMapClick=false, mapMode='today', mapArea='all', selectedMapMachineId=null, geoWatchId=null, lastUserPosition=null, tempRegisterMarker=null, registeringFromMap=false;
+let page='home', map=null, markers=[], routeLine=null, userLocationMarker=null, selectedStopId=null, mapDraft=null, tickHandle=null, pendingDeleteId=null, editingMachineId=null, mapRegisterMode=false, longPressTimer=null, longPressStart=null, suppressNextMapClick=false, mapMode='today', mapArea='all', selectedMapMachineId=null, selectedMapSiteKey=null, geoWatchId=null, lastUserPosition=null, tempRegisterMarker=null, registeringFromMap=false;
 
 function load(){try{return {...defaults,...JSON.parse(localStorage.getItem(DBKEY)||'{}')}}catch(e){return structuredClone(defaults)}}
 function save(){localStorage.setItem(DBKEY,JSON.stringify(db));}
@@ -4042,7 +4073,7 @@ function openWorkPicker(stopId){
   if(!s){alert('巡回ルートがありません。');return}
   selectedStopId=s.id; const m=machine(s.machineId);
   document.getElementById('workModalTitle').textContent=m.name;
-  const opts=['清掃','原料','水汲み','集金','排水'];
+  const opts=['基本巡回','原料','排水','集金','水汲み'];
   const box=document.getElementById('workChoices');box.innerHTML='';
   opts.forEach(o=>{
     const row=document.createElement('label');row.className='checkrow';
@@ -4066,7 +4097,14 @@ function endWork(){
   const end=Date.now();
   db.logs.push({id:uid(),date:today(),type:'work',machineId:m.id,start:act.start,end,workTypes:act.workTypes});
   s.status='done'; s.actualMinutes=Math.max(1,Math.round((end-act.start)/60000));
-  if(act.workTypes.includes('清掃') && act.workTypes.includes('原料')) m.lastRegular=today();
+  const didRegular=act.workTypes.includes('基本巡回') || (act.workTypes.includes('清掃') && act.workTypes.includes('原料'));
+  if(didRegular){
+    m.lastRegular=today();
+    m.lastSupply=today();
+    m.lastCollection=today();
+    m.prioritySupply=false;
+    m.needsDrain=false;
+  }
   if(act.workTypes.includes('原料')){m.lastSupply=today();m.prioritySupply=false;}
   if(act.workTypes.includes('集金')) m.lastCollection=today();
   if(act.workTypes.includes('排水')) m.needsDrain=false;
@@ -4258,7 +4296,7 @@ function openRouteWorkEdit(stopId){
     ? 'この巡回で実施した作業内容を修正します。'
     : '今回行う作業を選択します。';
 
-  const all=['原料','清掃','集金','排水','水汲み'];
+  const all=['基本巡回','原料','排水','集金','水汲み'];
   const selected=new Set(stop.workTypes||[]);
   routeWorkEditChoices.innerHTML=all.map(w=>`
     <label class="route-work-choice">
@@ -4311,12 +4349,13 @@ function recomputeMachineWorkDates(machineId){
   const lastWith=(name)=>logs.find(l=>(l.workTypes||[]).includes(name));
   const regular=logs.find(l=>{
     const w=l.workTypes||[];
-    return w.includes('原料')&&w.includes('清掃');
+    return w.includes('基本巡回')||(w.includes('原料')&&w.includes('清掃'));
   });
 
   m.lastRegular=regular?.date||null;
-  m.lastSupply=lastWith('原料')?.date||m.lastRegular||null;
-  m.lastCollection=lastWith('集金')?.date||m.lastRegular||null;
+  const regularDate=regular?.date||null;
+  m.lastSupply=lastWith('原料')?.date||regularDate||null;
+  m.lastCollection=lastWith('集金')?.date||regularDate||null;
 }
 function saveRouteWorkEdit(){
   const stop=(todaysRoute()?.stops||[]).find(s=>s.id===routeWorkEditStopId);
@@ -4338,6 +4377,14 @@ function saveRouteWorkEdit(){
 
     const m=machine(stop.machineId);
     if(m){
+      const regular=works.includes('基本巡回');
+      if(regular){
+        m.lastRegular=today();
+        m.lastSupply=today();
+        m.lastCollection=today();
+        m.prioritySupply=false;
+        m.needsDrain=false;
+      }
       if(works.includes('排水'))m.needsDrain=false;
       if(works.includes('水汲み'))m.needsWater=false;
       if(works.includes('原料'))m.prioritySupply=false;
@@ -4797,6 +4844,7 @@ function routeIndexForMachine(machineId){
 }
 function mapMachineVisible(m){
   if(mapArea!=='all' && (m.area||'未設定')!==mapArea) return false;
+  if(mapMode==='today' && !routeStopForMachine(m.id)) return false;
   return true;
 }
 function setMapMode(mode){
@@ -4805,6 +4853,13 @@ function setMapMode(mode){
   mapTodayBtn.classList.toggle('active',mode==='today');
   mapAllBtn.classList.toggle('active',mode==='all');
   renderMapMarkers();
+  if(mode==='today'){
+    const count=(todaysRoute()?.stops||[]).length;
+    showToast(count?`今日の巡回 ${count}台を表示しています`:'今日の巡回はまだありません','info',2200);
+  }else{
+    const count=db.machines.filter(m=>mapArea==='all'||(m.area||'未設定')===mapArea).length;
+    showToast(`全自販機 ${count}台を表示しています`,'info',2200);
+  }
 }
 function setMapArea(area){
   hideMapMachineCard();
@@ -4845,6 +4900,9 @@ function showMapMachineCard(machineId){
   const m=machine(machineId);if(!m)return;
   selectedExternalPlace=null;
   selectedMapMachineId=machineId;
+  selectedMapSiteKey=machineSiteKey(m);
+  mapSelectionFeedback();
+
   const st=machineStatusInfo(m),stop=routeStopForMachine(machineId),idx=routeIndexForMachine(machineId);
   mapInfoTitle.textContent=machineDisplayTitle(m);
   mapInfoMeta.textContent=machineDisplaySub(m)||'機種・管理No 未設定';
@@ -4858,15 +4916,25 @@ function showMapMachineCard(machineId){
   mapInfoAddBtn.disabled=!!stop;
   mapInfoAddBtn.classList.toggle('hidden',!!stop);
   mapInfoAdded.classList.toggle('hidden',!stop);
-  mapInfoCard.classList.remove('hidden');
-  
+
+  try{
+    if(Number.isFinite(Number(m.lat))&&Number.isFinite(Number(m.lng))){
+      map.panTo([Number(m.lat),Number(m.lng)],{animate:true,duration:.2});
+    }
+  }catch(e){}
+
+  revealMapInfoSheet();
+  try{renderMapMarkers()}catch(e){}
 }
 function hideMapMachineCard(){
   selectedMapMachineId=null;
+  selectedMapSiteKey=null;
   selectedExternalPlace=null;
   clearPlaceSearchMarker();
   mapInfoCard.classList.add('hidden');
-  
+  mapInfoCard.classList.remove('map-info-sheet-pop');
+  mapInfoCard.style.setProperty('display','none','important');
+  try{renderMapMarkers()}catch(e){}
 }
 
 
@@ -4957,12 +5025,13 @@ function focusApplePlace(index){
   map.setView([lat,lng],17,{animate:true});
   selectedExternalPlace={name:place.name||mapSearchInput.value.trim(),address:place.formattedAddress||'',lat,lng};
   selectedMapMachineId=null;
+  selectedMapSiteKey=null;
   mapInfoTitle.textContent=selectedExternalPlace.name;
   mapInfoMeta.textContent='店舗・施設';mapInfoStatus.textContent='検索結果';mapInfoStatus.className='pill green';
   mapInfoWork.innerHTML='';mapInfoMemo.textContent=selectedExternalPlace.address;
   if(window.mapInfoEditBtn)mapInfoEditBtn.classList.add('hidden');
   mapInfoAddBtn.textContent='ここに自販機登録';mapInfoAddBtn.disabled=false;mapInfoAddBtn.classList.remove('hidden');
-  mapInfoAdded.classList.add('hidden');mapInfoCard.classList.remove('hidden');
+  mapInfoAdded.classList.add('hidden');revealMapInfoSheet();
   
 }
 function registerAtExternalPlace(){
@@ -5736,9 +5805,23 @@ function mapMachineGroups(){
   });
   return [...groups.values()];
 }
+function mapSelectionFeedback(){
+  try{if(navigator.vibrate)navigator.vibrate(12)}catch(e){}
+}
+function revealMapInfoSheet(){
+  mapInfoCard.style.removeProperty('display');
+  mapInfoCard.classList.remove('hidden');
+  mapInfoCard.classList.remove('map-info-sheet-pop');
+  void mapInfoCard.offsetWidth;
+  mapInfoCard.classList.add('map-info-sheet-pop');
+  setTimeout(()=>mapInfoCard.classList.remove('map-info-sheet-pop'),280);
+}
 function showMapSiteCard(key){
   const g=mapMachineGroups().find(x=>x.key===key);
   if(!g)return;
+  selectedMapSiteKey=key;
+  mapSelectionFeedback();
+
   if(g.machines.length===1){
     showMapMachineCard(g.machines[0].id);
     return;
@@ -5746,29 +5829,26 @@ function showMapSiteCard(key){
 
   selectedMapMachineId=null;
   const todayCount=g.machines.filter(m=>!!routeStopForMachine(m.id)).length;
-
   mapInfoTitle.textContent=g.site;
   mapInfoMeta.textContent=`${g.machines[0].area||'未設定'} ・ ${g.machines.length}台`;
   mapInfoStatus.textContent=todayCount?`今日 ${todayCount}台`:`${g.machines.length}台設置`;
   mapInfoStatus.className='pill '+(todayCount?'orange':'green');
-
   mapInfoWork.innerHTML=g.machines.map((m,i)=>{
     const stop=routeStopForMachine(m.id);
     const status=machineStatusInfo(m);
     return `<button class="same-location-row" onclick="showMapMachineCard('${m.id}')">
-      <span>
-        <b>${i+1}. ${escapeHtml(machineDisplayTitle(m))}</b>
-        <span class="sub">${escapeHtml(machineDisplaySub(m))} ・ ${escapeHtml(status.label)}</span>
-      </span>
+      <span><b>${i+1}. ${escapeHtml(machineDisplayTitle(m))}</b>
+      <span class="sub">${escapeHtml(machineDisplaySub(m))} ・ ${escapeHtml(status.label)}</span></span>
       <span>${stop?'巡回対象':'詳細 ›'}</span>
     </button>`;
   }).join('');
-
-  mapInfoMemo.textContent='この地点に登録されている自販機をすべて表示しています。';
+  mapInfoMemo.textContent='この地点に登録されている自販機を表示しています。';
+  if(window.mapInfoEditBtn)mapInfoEditBtn.classList.add('hidden');
   mapInfoAddBtn.classList.add('hidden');
   mapInfoAdded.classList.add('hidden');
-  mapInfoCard.classList.remove('hidden');
-  
+  try{map.panTo([Number(g.lat),Number(g.lng)],{animate:true,duration:.2})}catch(e){}
+  revealMapInfoSheet();
+  try{renderMapMarkers()}catch(e){}
 }
 function renderMapMarkers(){
   if(!map)return;
@@ -5791,7 +5871,6 @@ function renderMapMarkers(){
     if(g.lat==null||g.lng==null)return;
     const todayMachines=g.machines.filter(m=>!!routeStopForMachine(m.id));
     const isToday=todayMachines.length>0;
-    const dim=mapMode==='today'&&!isToday;
     const count=g.machines.length;
     let label;
     if(count>1){
@@ -5802,10 +5881,11 @@ function renderMapMarkers(){
     }else{
       label='●';
     }
+    const selected=g.key===selectedMapSiteKey;
     const icon=L.divIcon({
       className:'',
-      html:`<div class="site-count-marker" style="${dim?'opacity:.42;':''}">${label}</div>`,
-      iconSize:[36,32],iconAnchor:[18,16]
+      html:`<div class="site-count-marker ${selected?'selected':''}">${label}</div>`,
+      iconSize:selected?[46,42]:[36,32],iconAnchor:selected?[23,21]:[18,16]
     });
     const marker=L.marker([Number(g.lat),Number(g.lng)],{icon}).addTo(map);
     marker.on('click',()=>showMapSiteCard(g.key));
@@ -6403,7 +6483,7 @@ let monthlyManualReturnPage='monthlyActionPlan';
 
 function manualPlanDefaultWorks(m){
   const w=workFor(m);
-  return w.length?[...w]:['原料','清掃','集金'];
+  return w.length?[...w]:['基本巡回'];
 }
 function openMonthlyManualBuilder(){
   monthlyManualReturnPage='monthlyActionPlan';
@@ -8261,7 +8341,7 @@ function machineWorkBadges(m){
   if(m.needsDrain) items.push(['排水','排水']);
   if(m.needsWater) items.push(['水','水汲み']);
   if(work.includes('集金')) items.push(['集金','集金']);
-  if(work.includes('清掃')) items.push(['清掃','清掃']);
+  if(work.includes('基本巡回')||work.includes('清掃')) items.push(['基本巡回','基本巡回']);
   return items;
 }
 function machineWorkBadgesHtml(m){
@@ -8270,6 +8350,48 @@ function machineWorkBadgesHtml(m){
   return items.map(x=>`<span class="work-chip">${escapeHtml(x[0])}</span>`).join('');
 }
 
+function migrateCleaningWorkToRegularRoute(){
+  let changed=false;
+  const convert=(arr)=>{
+    if(!Array.isArray(arr))return arr;
+    const hadCleaning=arr.includes('清掃');
+    if(!hadCleaning)return arr;
+    changed=true;
+    const next=arr.filter(x=>x!=='清掃');
+    if(!next.includes('基本巡回'))next.unshift('基本巡回');
+    return [...new Set(next)];
+  };
+
+  // 今日/過去の日別巡回
+  Object.values(db.routes||{}).forEach(r=>{
+    (r?.stops||[]).forEach(s=>{s.workTypes=convert(s.workTypes)});
+  });
+
+  // 作業実績ログ（過去分も表示・再計算を新名称へ統一）
+  (db.logs||[]).forEach(l=>{
+    if(l.type==='work')l.workTypes=convert(l.workTypes);
+  });
+
+  // 月間行動計画表・手動計画
+  (db.tasks||[]).forEach(t=>{
+    if(Array.isArray(t.workTypes))t.workTypes=convert(t.workTypes);
+    if(t.machineWorks&&typeof t.machineWorks==='object'){
+      Object.keys(t.machineWorks).forEach(id=>t.machineWorks[id]=convert(t.machineWorks[id]));
+    }
+    if(Array.isArray(t.machineWorkKinds)){
+      t.machineWorkKinds.forEach(x=>{
+        if(Array.isArray(x.works))x.works=convert(x.works);
+        if(Array.isArray(x.workTypes))x.workTypes=convert(x.workTypes);
+      });
+    }
+  });
+
+  // 実行中作業
+  if(db.active?.type==='work')db.active.workTypes=convert(db.active.workTypes);
+
+  if(changed)save();
+}
+migrateCleaningWorkToRegularRoute();
 cleanupDuplicateTroubles();
 renderAll();
 </script>
