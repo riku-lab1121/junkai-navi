@@ -2281,7 +2281,7 @@ nav.modal-blocked{
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.5</div>
+          <div class="app-version-badge">Version 11.6</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2296,7 +2296,7 @@ nav.modal-blocked{
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.5</div>
+      <div class="app-version-footer">Ver. 11.6</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -4940,40 +4940,47 @@ function setMapMode(mode){
   );
 }
 function setMapArea(area){
+  // エリア切替は「値を変える → マーカー再描画」だけに絞る。
+  // iPhoneで例外になりやすい自動fitBounds等はここでは行わない。
+  const nextArea=area||'all';
+  try{hideMapMachineCard()}catch(e){console.warn('close map card',e)}
+
+  mapMode='all';
+  mapArea=nextArea;
+
   try{
-    hideMapMachineCard();
-    syncDbFromStorage();
-    if(mapMode!=='all'){
-      mapMode='all';
-      mapTodayBtn.classList.remove('active');
-      mapAllBtn.classList.add('active');
-    }
-    mapArea=area||'all';
+    mapTodayBtn.classList.remove('active');
+    mapAllBtn.classList.add('active');
+  }catch(e){}
+
+  try{
     document.querySelectorAll('#mapAreaFilters [data-maparea]').forEach(b=>{
-      b.classList.toggle('active',b.dataset.maparea===mapArea);
+      b.classList.toggle('active',b.dataset.maparea===nextArea);
     });
     if(mapAreaFilters)mapAreaFilters.classList.remove('hidden');
+  }catch(e){console.warn('area chip state',e)}
 
+  // 保存済みDBを読み直してから、該当エリアだけ描画。
+  try{syncDbFromStorage()}catch(e){console.warn('area sync',e)}
+  try{
     renderMapMarkers();
-    if(map)map.invalidateSize(true);
-
-    const filtered=(db.machines||[]).filter(m=>mapArea==='all'||(m.area||'未設定')===mapArea);
-    const located=filtered.filter(m=>Number.isFinite(Number(m.lat))&&Number.isFinite(Number(m.lng)));
-
-    if(located.length && map){
-      const bounds=L.latLngBounds(located.map(m=>[Number(m.lat),Number(m.lng)]));
-      if(bounds.isValid())map.fitBounds(bounds.pad(.15),{maxZoom:15});
-    }
-
-    if(window.mapSyncStatus){
-      const missing=filtered.length-located.length;
-      mapSyncStatus.textContent=`${mapArea==='all'?'全自販機':mapArea}：${located.length}台表示${missing?`・位置未設定${missing}台`:''}`;
-    }
-    showToast(`${mapArea==='all'?'全エリア':mapArea} ${filtered.length}台`,'info',1600);
+    if(map)map.invalidateSize(false);
   }catch(e){
-    console.warn('map area filter',e);
-    showToast('エリア切替に失敗しました');
+    console.warn('area marker render',e);
+    showToast('MAPの再表示に失敗しました');
+    return;
   }
+
+  const filtered=(db.machines||[]).filter(m=>nextArea==='all'||(m.area||'未設定')===nextArea);
+  const located=filtered.filter(m=>Number.isFinite(Number(m.lat))&&Number.isFinite(Number(m.lng)));
+  const missing=filtered.length-located.length;
+
+  try{
+    const status=document.getElementById('mapSyncStatus');
+    if(status)status.textContent=`${nextArea==='all'?'全自販機':nextArea}：${located.length}台表示${missing?`・位置未設定${missing}台`:''}`;
+  }catch(e){}
+
+  showToast(`${nextArea==='all'?'全エリア':nextArea}：${located.length}台表示`,'info',1600);
 }
 function addMachineToToday(machineId){
   const m=machine(machineId);if(!m)return;
@@ -8360,9 +8367,14 @@ mapInfoNavBtn.addEventListener('click',()=>{if(selectedExternalPlace)navigateExt
 if(window.mapInfoEditBtn)mapInfoEditBtn.addEventListener('click',editMachineFromMap);
 mapInfoAddBtn.addEventListener('click',()=>{if(selectedExternalPlace)registerAtExternalPlace();else if(selectedMapMachineId)addMachineToToday(selectedMapMachineId)});
 
-document.addEventListener('pointerup',e=>{
+let lastMapControlTap=0;
+function handleMapControlTap(e){
+  const now=Date.now();
+  if(now-lastMapControlTap<180)return;
+
   const areaBtn=e.target.closest?.('[data-maparea]');
   if(areaBtn){
+    lastMapControlTap=now;
     e.preventDefault();
     e.stopPropagation();
     setMapArea(areaBtn.dataset.maparea);
@@ -8370,6 +8382,7 @@ document.addEventListener('pointerup',e=>{
   }
   const modeBtn=e.target.closest?.('[data-map-mode]');
   if(modeBtn){
+    lastMapControlTap=now;
     e.preventDefault();
     e.stopPropagation();
     setMapMode(modeBtn.dataset.mapMode);
@@ -8377,11 +8390,14 @@ document.addEventListener('pointerup',e=>{
   }
   const refreshBtn=e.target.closest?.('[data-map-refresh]');
   if(refreshBtn){
+    lastMapControlTap=now;
     e.preventDefault();
     e.stopPropagation();
     refreshMapNow(true);
   }
-},true);
+}
+document.addEventListener('pointerup',handleMapControlTap,true);
+document.addEventListener('touchend',handleMapControlTap,{capture:true,passive:false});
 
 window.cancelDeleteMachinePage=cancelDeleteMachinePage;window.confirmDeleteMachinePage=confirmDeleteMachinePage;window.openRegisterPage=openRegisterPage;window.showMapSiteCard=showMapSiteCard;window.renameArea=renameArea;window.deleteArea=deleteArea;window.toggleTask=toggleTask;window.setTroubleStatus=setTroubleStatus;window.addMachineToToday=addMachineToToday;window.addEventListener('storage',e=>{
   if(e.key===DBKEY){
