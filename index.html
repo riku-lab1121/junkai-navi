@@ -1607,13 +1607,6 @@ nav.modal-blocked{
 }
 #mapRefreshBtn{background:#eef2f7;color:#334155}
 #mapRefreshBtn:active{transform:scale(.97)}
-
-/* Ver.11.2 MAP同期の全面修正 */
-#mapAllBtn,#mapTodayBtn,#mapRefreshBtn{
-  cursor:pointer!important;user-select:none!important;-webkit-user-select:none!important;
-  -webkit-tap-highlight-color:rgba(0,0,0,.08)!important;
-}
-.map-sync-status{margin-top:8px;color:#64748b;font-size:10px;font-weight:800;text-align:right}
 </style>
 </head>
 <body>
@@ -1782,12 +1775,11 @@ nav.modal-blocked{
         <div id="mapSearchResults" class="map-search-results hidden"></div>
 
         <div class="simple-map-segment map-mode-three">
-          <button id="mapTodayBtn" class="active" type="button" onclick="setMapMode('today');return false;">今日の巡回</button>
-          <button id="mapAllBtn" type="button" onclick="setMapMode('all');return false;">全自販機</button>
-          <button id="mapRefreshBtn" type="button" onclick="refreshMapData(true);return false;">更新</button>
+          <button id="mapTodayBtn" class="active">今日の巡回</button>
+          <button id="mapAllBtn">全自販機</button>
+          <button id="mapRefreshBtn">更新</button>
         </div>
         <div id="mapAreaFilters" class="simple-area-filters hidden"></div>
-        <div id="mapSyncStatus" class="map-sync-status"></div>
       </div>
 
       <div class="card simple-map-card">
@@ -2279,7 +2271,7 @@ nav.modal-blocked{
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.2</div>
+          <div class="app-version-badge">Version 11.1</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2294,7 +2286,7 @@ nav.modal-blocked{
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.2</div>
+      <div class="app-version-footer">Ver. 11.1</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -3199,20 +3191,7 @@ save();
 let page='home', map=null, markers=[], routeLine=null, userLocationMarker=null, selectedStopId=null, mapDraft=null, tickHandle=null, pendingDeleteId=null, editingMachineId=null, mapRegisterMode=false, longPressTimer=null, longPressStart=null, suppressNextMapClick=false, mapMode='today', mapArea='all', selectedMapMachineId=null, selectedMapSiteKey=null, geoWatchId=null, lastUserPosition=null, tempRegisterMarker=null, registeringFromMap=false;
 
 function load(){try{return {...defaults,...JSON.parse(localStorage.getItem(DBKEY)||'{}')}}catch(e){return structuredClone(defaults)}}
-let mapRefreshTimer=null;
-function scheduleMapRefresh(){
-  if(mapRefreshTimer)clearTimeout(mapRefreshTimer);
-  mapRefreshTimer=setTimeout(()=>{
-    mapRefreshTimer=null;
-    try{
-      if(map)renderMapMarkers();
-    }catch(e){console.warn('scheduled map refresh',e)}
-  },30);
-}
-function save(){
-  localStorage.setItem(DBKEY,JSON.stringify(db));
-  scheduleMapRefresh();
-}
+function save(){localStorage.setItem(DBKEY,JSON.stringify(db));}
 function syncDbFromStorage(){
   try{
     const stored=JSON.parse(localStorage.getItem(DBKEY)||'{}');
@@ -4929,25 +4908,11 @@ function refreshMapData(showMessage=true){
     syncDbFromStorage();
     ensureFacilityMaster();
     fillAreaControls();
-
-    // 古いレイヤーを一度完全に破棄してから再描画する。
-    markers.forEach(x=>{try{map?.removeLayer(x)}catch(e){}});
-    markers=[];
-    if(routeLine){try{map?.removeLayer(routeLine)}catch(e){} routeLine=null;}
-
     renderMapMarkers();
     if(map)map.invalidateSize(true);
-
     if(showMessage){
-      const visible=db.machines.filter(m=>mapMachineVisible(m));
-      const located=visible.filter(m=>Number.isFinite(Number(m.lat))&&Number.isFinite(Number(m.lng)));
-      const noLocation=visible.length-located.length;
-      showToast(
-        noLocation
-          ? `MAP更新：${located.length}台表示・位置未設定${noLocation}台`
-          : `MAP更新：${located.length}台表示`,
-        'info',2400
-      );
+      const count=db.machines.filter(m=>mapMachineVisible(m)).length;
+      showToast(`MAPを更新しました（${count}台）`,'info',1800);
     }
   }catch(e){
     console.warn('refreshMapData',e);
@@ -4971,15 +4936,10 @@ function setMapMode(mode){
     mapArea='all';
     fillAreaControls();
     if(mapAreaFilters)mapAreaFilters.classList.remove('hidden');
-    refreshMapData(false);
-    const located=db.machines.filter(m=>Number.isFinite(Number(m.lat))&&Number.isFinite(Number(m.lng))).length;
-    const noLocation=db.machines.length-located;
-    showToast(
-      noLocation
-        ? `全自販機：${located}台をMAP表示・位置未設定${noLocation}台`
-        : `全自販機 ${located}台を表示しています`,
-      'info',2600
-    );
+    renderMapMarkers();
+    try{fitMapVisible()}catch(e){}
+    const count=db.machines.length;
+    showToast(`全自販機 ${count}台を表示しています。下からエリアで絞れます`,'info',2400);
   }
   try{if(map)map.invalidateSize(true)}catch(e){}
 }
@@ -5916,8 +5876,7 @@ function machineSiteKey(m){
 }
 function mapMachineGroups(){
   const groups=new Map();
-  const source=Array.isArray(db.machines)?db.machines:[];
-  source.filter(mapMachineVisible).forEach(m=>{
+  db.machines.filter(mapMachineVisible).forEach(m=>{
     const key=machineSiteKey(m);
     if(!groups.has(key)) groups.set(key,{
       key,
@@ -5992,7 +5951,6 @@ function showMapSiteCard(key){
 }
 function renderMapMarkers(){
   if(!map)return;
-  if(page==='map')syncDbFromStorage();
   markers.forEach(x=>{try{map.removeLayer(x)}catch(e){}});
   markers=[];
   if(routeLine){map.removeLayer(routeLine);routeLine=null}
@@ -6006,13 +5964,6 @@ function renderMapMarkers(){
   if(mapMode==='today' && routePoints.length>=2){
     routeLine=L.polyline(routePoints,{weight:5,opacity:.78,color:'#2563eb',lineJoin:'round'}).addTo(map);
     routeLine.bringToBack();
-  }
-
-  const visibleMachines=(db.machines||[]).filter(mapMachineVisible);
-  const locatedMachines=visibleMachines.filter(m=>Number.isFinite(Number(m.lat))&&Number.isFinite(Number(m.lng)));
-  if(window.mapSyncStatus){
-    const missing=visibleMachines.length-locatedMachines.length;
-    mapSyncStatus.textContent=`${mapMode==='today'?'今日の巡回':'全自販機'}：MAP ${locatedMachines.length}台${missing?` ・ 位置未設定 ${missing}台`:''}`;
   }
 
   mapMachineGroups().forEach(g=>{
@@ -8384,7 +8335,9 @@ if(mapInfoCloseBtn){
 }
 locateBtn.addEventListener('click',locateUser);
 
-
+if(mapTodayBtn)mapTodayBtn.addEventListener('click',e=>{e.preventDefault();setMapMode('today')});
+if(mapAllBtn)mapAllBtn.addEventListener('click',e=>{e.preventDefault();setMapMode('all')});
+if(window.mapRefreshBtn)mapRefreshBtn.addEventListener('click',e=>{e.preventDefault();refreshMapData(true)});
 mapMenuBtn.addEventListener('click',()=>{
   mapOptionsPanel.classList.toggle('hidden');
   mapMenuBtn.classList.toggle('active',!mapOptionsPanel.classList.contains('hidden'));
