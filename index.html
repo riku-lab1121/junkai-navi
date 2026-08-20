@@ -1608,6 +1608,14 @@ nav.modal-blocked{
 }
 #mapRefreshBtn{background:#eef2f7;color:#334155}
 .map-sync-status{margin-top:8px;text-align:right;font-size:10px;font-weight:800;color:#64748b}
+
+/* Ver.11.5 エリアボタン操作修正 */
+#mapAreaFilters{position:relative;z-index:1002!important;pointer-events:auto!important}
+#mapAreaFilters button{
+  position:relative;z-index:1003!important;pointer-events:auto!important;
+  touch-action:manipulation!important;cursor:pointer!important;
+  -webkit-tap-highlight-color:rgba(0,0,0,.08);
+}
 </style>
 </head>
 <body>
@@ -2273,7 +2281,7 @@ nav.modal-blocked{
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.4</div>
+          <div class="app-version-badge">Version 11.5</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2288,7 +2296,7 @@ nav.modal-blocked{
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.4</div>
+      <div class="app-version-footer">Ver. 11.5</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -4716,27 +4724,6 @@ function fillAreaControls(){
     host.innerHTML=`<button data-maparea="all">全エリア</button>`+areaNames().map(a=>`<button data-maparea="${escapeHtml(a)}">${escapeHtml(a)}</button>`).join('')+`<button data-maparea="未設定">未設定</button>`;
     host.querySelectorAll('button').forEach(b=>{
       b.type='button';
-      let touched=false;
-      b.addEventListener('touchend',e=>{
-        touched=true;
-        e.preventDefault();
-        e.stopPropagation();
-        setMapArea(b.dataset.maparea);
-        setTimeout(()=>{touched=false},250);
-      },{passive:false});
-      b.addEventListener('pointerup',e=>{
-        if(e.pointerType!=='touch'){
-          e.preventDefault();
-          e.stopPropagation();
-          setMapArea(b.dataset.maparea);
-        }
-      });
-      b.addEventListener('click',e=>{
-        if(touched)return;
-        e.preventDefault();
-        e.stopPropagation();
-        setMapArea(b.dataset.maparea);
-      });
       b.classList.toggle('active',b.dataset.maparea===mapArea);
     });
   }
@@ -4953,24 +4940,39 @@ function setMapMode(mode){
   );
 }
 function setMapArea(area){
-  hideMapMachineCard();
-  if(mapMode!=='all'){
-    mapMode='all';
-    mapTodayBtn.classList.remove('active');
-    mapAllBtn.classList.add('active');
-  }
-  mapArea=area;
-  document.querySelectorAll('#mapAreaFilters [data-maparea]').forEach(b=>{
-    b.classList.toggle('active',b.dataset.maparea===area);
-  });
-  if(mapAreaFilters)mapAreaFilters.classList.remove('hidden');
   try{
+    hideMapMachineCard();
+    syncDbFromStorage();
+    if(mapMode!=='all'){
+      mapMode='all';
+      mapTodayBtn.classList.remove('active');
+      mapAllBtn.classList.add('active');
+    }
+    mapArea=area||'all';
+    document.querySelectorAll('#mapAreaFilters [data-maparea]').forEach(b=>{
+      b.classList.toggle('active',b.dataset.maparea===mapArea);
+    });
+    if(mapAreaFilters)mapAreaFilters.classList.remove('hidden');
+
     renderMapMarkers();
-    if(map) map.invalidateSize(false);
-    const count=db.machines.filter(m=>area==='all'||(m.area||'未設定')===area).length;
-    showToast(`${area==='all'?'全エリア':area} ${count}台を表示しています`,'info',1800);
+    if(map)map.invalidateSize(true);
+
+    const filtered=(db.machines||[]).filter(m=>mapArea==='all'||(m.area||'未設定')===mapArea);
+    const located=filtered.filter(m=>Number.isFinite(Number(m.lat))&&Number.isFinite(Number(m.lng)));
+
+    if(located.length && map){
+      const bounds=L.latLngBounds(located.map(m=>[Number(m.lat),Number(m.lng)]));
+      if(bounds.isValid())map.fitBounds(bounds.pad(.15),{maxZoom:15});
+    }
+
+    if(window.mapSyncStatus){
+      const missing=filtered.length-located.length;
+      mapSyncStatus.textContent=`${mapArea==='all'?'全自販機':mapArea}：${located.length}台表示${missing?`・位置未設定${missing}台`:''}`;
+    }
+    showToast(`${mapArea==='all'?'全エリア':mapArea} ${filtered.length}台`,'info',1600);
   }catch(e){
     console.warn('map area filter',e);
+    showToast('エリア切替に失敗しました');
   }
 }
 function addMachineToToday(machineId){
@@ -8359,6 +8361,13 @@ if(window.mapInfoEditBtn)mapInfoEditBtn.addEventListener('click',editMachineFrom
 mapInfoAddBtn.addEventListener('click',()=>{if(selectedExternalPlace)registerAtExternalPlace();else if(selectedMapMachineId)addMachineToToday(selectedMapMachineId)});
 
 document.addEventListener('pointerup',e=>{
+  const areaBtn=e.target.closest?.('[data-maparea]');
+  if(areaBtn){
+    e.preventDefault();
+    e.stopPropagation();
+    setMapArea(areaBtn.dataset.maparea);
+    return;
+  }
   const modeBtn=e.target.closest?.('[data-map-mode]');
   if(modeBtn){
     e.preventDefault();
