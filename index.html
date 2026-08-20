@@ -4369,16 +4369,88 @@ function changeTroubleStatus(id,status,machineId){
   showToast(status==='done'?'トラブルを解決にしました':status==='mechanic'?'メカニック依頼にしました':'未解決に戻しました');
 }
 
+
+function machineHasPlannedRouteReasonOnDate(machineId,date){
+  const m=machine(machineId);if(!m)return false;
+
+  // 月間行動計画表にその日の対象として存在する。
+  const hasMonthly=(db.tasks||[]).some(t=>
+    t.category==='route' &&
+    t.due===date &&
+    (
+      t.machineId===machineId ||
+      (Array.isArray(t.machineIds)&&t.machineIds.includes(machineId))
+    )
+  );
+  if(hasMonthly)return true;
+
+  // 周期設定から、その日に本来の巡回作業がある。
+  try{
+    const occ=machineMonthlyOccurrences(m,date,date)||[];
+    if(occ.length)return true;
+  }catch(e){}
+
+  return false;
+}
+function cleanupTroubleOnlyRoute(machineId,date){
+  const r=db.routes?.[date];if(!r||!Array.isArray(r.stops))return false;
+  const stop=r.stops.find(s=>s.machineId===machineId);
+  if(!stop||stop.status==='done')return false;
+
+  // 基本巡回・原料・排水など、別の予定理由があれば残す。
+  if(machineHasPlannedRouteReasonOnDate(machineId,date))return false;
+
+  // トラブル経由/確認だけで残った孤立巡回を削除する。
+  const works=(stop.workTypes||[]).filter(w=>w&&w!=='トラブル'&&w!=='確認');
+  const troubleOnly=stop.troubleOnly===true || stop.addedFromTrouble===true ||
+    (!works.length && (stop.autoSynced!==true));
+  if(!troubleOnly)return false;
+
+  r.stops=r.stops.filter(s=>s.id!==stop.id);
+  r.stops.forEach((s,i)=>s.order=i+1);
+  if(!r.stops.length)delete db.routes[date];
+  return true;
+}
+function removeMachineFromMonthlyPlanIfNoReason(machineId,date){
+  if(machineHasPlannedRouteReasonOnDate(machineId,date))return false;
+  let changed=false;
+  (db.tasks||[]).forEach(t=>{
+    if(t.category!=='route'||t.due!==date)return;
+    const before=(t.machineIds||[]).length;
+    if(Array.isArray(t.machineIds))t.machineIds=t.machineIds.filter(id=>id!==machineId);
+    if(Array.isArray(t.machineWorkKinds))t.machineWorkKinds=t.machineWorkKinds.filter(x=>x.machineId!==machineId);
+    if(t.machineWorks&&t.machineWorks[machineId])delete t.machineWorks[machineId];
+    if(before!==(t.machineIds||[]).length){normalizeAutoTaskTitle(t);changed=true;}
+  });
+  db.tasks=(db.tasks||[]).filter(t=>!(t.category==='route'&&t.due===date&&Array.isArray(t.machineIds)&&!t.machineIds.length&&!t.machineId));
+  return changed;
+}
+
 function deleteTroubleRecord(id,machineId){
   const t=(db.troubles||[]).find(x=>x.id===id);
   if(!t)return;
   if(!confirm(`「${t.type||'トラブル'}」を削除しますか？`))return;
+
+  const targetDate=t.date||t.createdDate||today();
   db.troubles=db.troubles.filter(x=>x.id!==id);
+
+  // 同じ自販機に未解決トラブルがもう無い場合だけ、トラブル由来の孤立巡回を掃除する。
+  const stillHasTrouble=(db.troubles||[]).some(x=>x.machineId===machineId&&x.status!=='done');
+  let removedRoute=false,removedPlan=false;
+  if(!stillHasTrouble){
+    removedRoute=cleanupTroubleOnlyRoute(machineId,targetDate);
+    removedPlan=removeMachineFromMonthlyPlanIfNoReason(machineId,targetDate);
+  }
+
   save();
   renderExistingTroubles(machineId);
   try{renderRoute()}catch(e){}
+  try{renderRouteWeek()}catch(e){}
+  try{renderCalendar()}catch(e){}
+  try{renderCalendarDetail()}catch(e){}
+  try{renderTasks()}catch(e){}
   try{renderWorkDashboard()}catch(e){}
-  showToast('トラブルを削除しました');
+  showToast(removedRoute||removedPlan?'トラブルと不要な巡回予定を削除しました':'トラブルを削除しました');
 }
 
 function openTroubleForMachine(machineId){
@@ -5153,7 +5225,18 @@ function syncEditedMachinePlanning(machineId){
     const workdays=workdaysForMonthKey(key);
     if(!workdays.length)continue;
 
-    // この自販機だけ、既存の自動月間計画から一旦外す。
+    // この自販機だけ、既存の自動月間計画・未完了の自動同期巡回から一旦外す。
+    Object.entries(db.routes||{}).forEach(([date,r])=>{
+      if(!date.startsWith(key)||!Array.isArray(r?.stops))return;
+      r.stops=r.stops.filter(s=>{
+        if(s.machineId!==machineId)return true;
+        if(s.status==='done')return true; // 実績は保持
+        return !(s.autoSynced===true || r.candidateMode==='auto-sync');
+      });
+      r.stops.forEach((s,i)=>s.order=i+1);
+      if(!r.stops.length)delete db.routes[date];
+    });
+
     (db.tasks||[]).forEach(t=>{
       if(!t.autoMonthlyPlan||!String(t.due||'').startsWith(key))return;
       if(Array.isArray(t.machineIds))t.machineIds=t.machineIds.filter(id=>id!==machineId);
