@@ -1676,6 +1676,37 @@ input,select,textarea{
 }
 button{transition:transform .08s ease,box-shadow .12s ease,background .12s ease}
 button:active{transform:scale(.985)}
+
+/* Ver.11.9 Bright UI - 全画面展開 / ロジック変更なし */
+:root{--ui-bg:#f7f9fc;--ui-surface:#fff;--ui-line:#e4ebf4;--ui-text:#172033;--ui-sub:#718096;--ui-blue:#2f7df6;--ui-blue-soft:#eaf3ff;--ui-green-soft:#eaf8f0;--ui-orange-soft:#fff4e5;--ui-red-soft:#fff0f0}
+body,.page{background:var(--ui-bg)!important;color:var(--ui-text)!important}
+.card,.settings-group,.panel,.sheet,.modal-card,.dialog-card,.machine-card,.facility-card,.route-card,.task-card,.list-card,.list-item,.row-card{background:#fff!important;border-color:var(--ui-line)!important}
+.card,.settings-group{box-shadow:0 5px 18px rgba(31,50,81,.05)!important}
+.section-title,h1,h2,h3{color:#26354d}.sub,.muted,.hint{color:var(--ui-sub)!important}
+button.primary,.primary{background:var(--ui-blue)!important;border-color:var(--ui-blue)!important;color:#fff!important;box-shadow:0 4px 13px rgba(47,125,246,.16)}
+button.secondary,.secondary,.smallbtn{background:#f3f7fb!important;color:#34445e!important;border-color:#e2e9f2!important}
+button:active{transform:scale(.985)}
+input,select,textarea{background:#fff!important;color:var(--ui-text)!important;border-color:#dfe7f1!important}
+input:focus,select:focus,textarea:focus{border-color:#9fc3ff!important;box-shadow:0 0 0 3px rgba(47,125,246,.09)!important}
+.segmented,.segment,.filter-row,.chip-row{background:#eef3f8!important;border-color:#e3eaf3!important}
+.segmented button.active,.segment button.active,.filter-chip.active,.chip.active{background:#fff!important;color:var(--ui-blue)!important;border-color:#d8e7ff!important;box-shadow:0 2px 7px rgba(31,50,81,.07)!important}
+.calendar,.calendar-grid,.calendar-wrap{background:#fff!important}.calendar-day,.cal-day{border-color:#edf1f6!important}
+.calendar-day.today,.cal-day.today{background:var(--ui-blue-soft)!important;color:#155fc8!important}
+.done,.done-row,.status-done{background:var(--ui-green-soft)!important}.warning,.status-warning{background:var(--ui-orange-soft)!important}.danger,.trouble,.status-danger{background:var(--ui-red-soft)!important}
+.settings-tabs,.settings-tabbar{background:#eef3f8!important}.settings-tabs button.active,.settings-tabbar button.active{background:#fff!important;color:var(--ui-blue)!important}
+.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{background:rgba(255,255,255,.97)!important;border-top-color:#e5ebf3!important;box-shadow:0 -5px 18px rgba(31,50,81,.05)!important}
+.bottom-nav button.active,.bottomNav button.active,.tabbar button.active,.bottom-tabs button.active,.bottom-nav .active,.bottomNav .active,.tabbar .active,.bottom-tabs .active{color:var(--ui-blue)!important}
+#mapPage{background:var(--ui-bg)!important}
+#mapPage .simple-map-tools{background:rgba(255,255,255,.97)!important;border-color:var(--ui-line)!important;box-shadow:0 5px 18px rgba(31,50,81,.06)!important}
+#mapPage .simple-map-segment{background:#edf2f7!important}
+#mapPage .simple-map-segment button{background:transparent!important;color:#64748b!important}
+#mapPage .simple-map-segment button.active{background:#fff!important;color:var(--ui-blue)!important;box-shadow:0 2px 7px rgba(31,50,81,.08)!important}
+#mapRefreshBtn{background:#f4f7fb!important;color:#40516c!important}
+#mapAreaFilters button{background:#fff!important;color:#53647d!important;border-color:#e1e8f1!important}
+#mapAreaFilters button.active{background:var(--ui-blue-soft)!important;color:#1764cc!important;border-color:#bfd8ff!important}
+.map-sync-status{color:#7a8799!important}
+table{background:#fff}th{background:#f5f8fc!important;color:#53647d!important}td,th{border-color:#e9eef5!important}
+button.danger,.danger-btn,.delete-btn{background:var(--ui-red-soft)!important;color:#c43d3d!important;border-color:#ffd7d7!important}
 </style>
 </head>
 <body>
@@ -2341,7 +2372,7 @@ button:active{transform:scale(.985)}
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.8</div>
+          <div class="app-version-badge">Version 11.9</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2356,7 +2387,7 @@ button:active{transform:scale(.985)}
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.8</div>
+      <div class="app-version-footer">Ver. 11.9</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
