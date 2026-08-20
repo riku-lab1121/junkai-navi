@@ -1504,6 +1504,32 @@ nav.modal-blocked{
   55%{background:#eff6ff}
   100%{background:transparent}
 }
+
+/* Ver.9.7 検索・施設マスターのエリア分け */
+.machine-search-wrap,.facility-search-wrap{
+  position:relative;display:flex;align-items:center;margin:10px 0 2px;
+}
+.machine-search-wrap input,.facility-search-wrap input{
+  width:100%;margin:0;padding-left:42px;padding-right:42px;
+  min-height:48px;border-radius:14px;background:#fff;
+}
+.machine-search-icon{
+  position:absolute;left:14px;z-index:1;color:#64748b;font-size:20px;font-weight:800;pointer-events:none;
+}
+.search-clear{
+  position:absolute;right:8px;width:34px;height:34px;border:0;border-radius:50%;
+  background:#eef2f7;color:#475569;font-size:20px;font-weight:700;
+}
+.facility-area-group{margin:0 0 18px}
+.facility-area-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:10px 12px;margin-bottom:7px;border-radius:12px;background:#eaf2fb;color:#334155;
+}
+.facility-area-head>div{display:flex;align-items:baseline;gap:8px}
+.facility-area-head b{font-size:16px}
+.facility-area-head span{font-size:11px;font-weight:850;color:#64748b}
+.facility-area-list{display:flex;flex-direction:column;gap:7px}
+.facility-area-list .facility-master-item{margin:0}
 </style>
 </head>
 <body>
@@ -1792,6 +1818,11 @@ nav.modal-blocked{
         <div class="table-toolbar">
           <div class="section-title" style="margin:0">自販機一覧</div>
           <select id="areaFilter" class="compact-select"><option value="all">全エリア</option></select>
+        </div>
+        <div class="machine-search-wrap">
+          <span class="machine-search-icon">⌕</span>
+          <input id="machineListSearch" type="search" placeholder="施設名・中分類・管理番号で検索" autocomplete="off">
+          <button id="machineListSearchClear" class="search-clear hidden" type="button">×</button>
         </div>
         <div class="table-wrap">
           <table class="machine-table">
@@ -2134,6 +2165,11 @@ nav.modal-blocked{
               <div class="sub">訪問時間・休業日・駐車・搬入口などを施設単位で管理</div>
             </div>
             <button class="secondary" type="button" id="addFacilityBtn">＋追加</button>
+          </div>
+          <div class="facility-search-wrap">
+            <span class="machine-search-icon">⌕</span>
+            <input id="facilityMasterSearch" type="search" placeholder="施設名・中分類・管理番号で検索" autocomplete="off">
+            <button id="facilityMasterSearchClear" class="search-clear hidden" type="button">×</button>
           </div>
           <div id="facilityMasterList" class="facility-master-list" style="margin-top:12px"></div>
         </div>
@@ -2537,7 +2573,11 @@ nav.modal-blocked{
           <div class="sub" style="margin-top:-6px;margin-bottom:8px">選ぶと施設名・エリアを自動入力します。</div>
 <label>設置先施設 *</label>
           <div class="sub" style="margin-top:-6px;margin-bottom:8px">自販機を設置している建物・施設・店舗などの名前です。機種とは別に管理します。</div>
-          <input id="rpName" required placeholder="例：丸亀市役所、中部市場" />
+          <input id="rpName" required placeholder="例：香川トヨタ、丸亀市役所" />
+
+          <label>中分類（任意）</label>
+          <div class="sub" style="margin-top:-6px;margin-bottom:8px">支店・店舗・棟など、施設の中を分けたい場合に使います。</div>
+          <input id="rpMiddleCategory" placeholder="例：坂出店、本館、外来棟" />
 
           <label>設置場所 *</label>
           <input id="rpSite" placeholder="例：3F、1Fロビー、2F食堂" />
@@ -3189,6 +3229,7 @@ function machineDisplayTitle(m){
 }
 function machineDisplaySub(m){
   const parts=[];
+  if(m?.middleCategory)parts.push(m.middleCategory);
   if(m?.site && m.site!==m.name)parts.push(m.site);
   if(m?.modelName)parts.push(`機種 ${m.modelName}`);
   if(m?.number)parts.push(`#${m.number}`);
@@ -4498,8 +4539,17 @@ function renderMachines(){
     .map(a=>`<button class="area-chip" onclick="setAreaFilter('${a}')">${escapeHtml(a)} ${counts[a]}台</button>`).join('');
 
   const filter=areaFilter.value||'all';
+  const search=(window.machineListSearch?.value||'').trim().toLowerCase();
+  if(window.machineListSearchClear)machineListSearchClear.classList.toggle('hidden',!search);
   let rows=db.machines.slice()
     .filter(m=>filter==='all'||(m.area||'未設定')===filter)
+    .filter(m=>{
+      if(!search)return true;
+      const facilityName=String(machineDisplayTitle(m)||'').toLowerCase();
+      const middle=String(m.middleCategory||'').toLowerCase();
+      const number=String(m.number||'').toLowerCase();
+      return facilityName.includes(search)||middle.includes(search)||number.includes(search);
+    })
     .sort((a,b)=>{
       const order=Object.fromEntries([...areaNames(),'未設定'].map((x,i)=>[x,i]));
       const ao=order[a.area||'未設定']??99, bo=order[b.area||'未設定']??99;
@@ -4511,6 +4561,7 @@ function renderMachines(){
 
   machineTableBody.innerHTML='';
   machineEmpty.classList.toggle('hidden',rows.length>0);
+  machineEmpty.textContent=search?'検索結果がありません。':'自販機を登録してください。';
   document.querySelector('.table-wrap').classList.toggle('hidden',rows.length===0);
 
   rows.forEach(m=>{
@@ -4852,6 +4903,7 @@ function resetRegisterPage(){
   registerPageForm.reset();
   fillRegisterArea();
   rpArea.value='未設定';
+  if(window.rpMiddleCategory)rpMiddleCategory.value='';
   rpRegularInterval.value='14';
   rpSupplyInterval.value='0';
   rpDrainInterval.value='0';
@@ -4897,6 +4949,7 @@ function openRegisterPage(returnPage='machines',machineId=null){
     rpName.value=m.name||'';
     fillModelSelect();
     rpModel.value=m.modelId||'';
+    if(window.rpMiddleCategory)rpMiddleCategory.value=m.middleCategory||'';
     rpSite.value=m.site||'';
     rpNumber.value=m.number||'';
     if([...rpArea.options].some(o=>o.value===(m.area||'未設定'))) rpArea.value=m.area||'未設定';
@@ -5009,6 +5062,7 @@ function addSameSiteMachineFromEdit(){
   fillRegisterFacilitySelect(m.facilityId||'');
   fillModelSelect();
   rpModel.value=m.modelId||'';
+  if(window.rpMiddleCategory)rpMiddleCategory.value=m.middleCategory||'';
   rpNumber.value='';
   rpSite.value=m.site||'';
   if([...rpArea.options].some(o=>o.value===(m.area||'未設定'))) rpArea.value=m.area||'未設定';
@@ -5092,6 +5146,7 @@ function saveRegisterPage(){
       facilityId,
       modelId:rpModel?.value||'',
       modelName:rpModel?.value?(modelById(rpModel.value)?.name||''):'',
+      middleCategory:(window.rpMiddleCategory?.value||'').trim(),
       site,
       number:(rpNumber.value||'').trim(),
       area:rpArea.value||'未設定',
@@ -7164,33 +7219,87 @@ function fillFacilityAreaSelect(){
   facilityPageArea.value=[...facilityPageArea.options].some(o=>o.value===current)?current:'未設定';
 }
 
+function facilityMachineNumbers(f){
+  return (db.machines||[])
+    .filter(m=>facilityForMachine(m)?.id===f.id)
+    .map(m=>String(m.number||'').trim())
+    .filter(Boolean);
+}
 function renderFacilityMaster(){
   const host=document.getElementById('facilityMasterList');
   if(!host)return;
   ensureFacilityMaster();
-  const list=(db.facilities||[]).slice().sort((a,b)=>
-    String(a.area||'').localeCompare(String(b.area||''),'ja')||
-    String(a.name||'').localeCompare(String(b.name||''),'ja')
-  );
+
+  const search=(window.facilityMasterSearch?.value||'').trim().toLowerCase();
+  if(window.facilityMasterSearchClear)facilityMasterSearchClear.classList.toggle('hidden',!search);
+
+  const list=(db.facilities||[])
+    .filter(f=>{
+      if(!search)return true;
+      const name=String(f.name||'').toLowerCase();
+      const linked=(db.machines||[]).filter(m=>facilityForMachine(m)?.id===f.id);
+      const numbers=linked.map(m=>String(m.number||'')).join(' ').toLowerCase();
+      const middles=linked.map(m=>String(m.middleCategory||'')).join(' ').toLowerCase();
+      return name.includes(search)||middles.includes(search)||numbers.includes(search);
+    })
+    .sort((a,b)=>
+      String(a.area||'未設定').localeCompare(String(b.area||'未設定'),'ja')||
+      String(a.name||'').localeCompare(String(b.name||''),'ja')
+    );
+
   if(!list.length){
-    host.innerHTML='<div class="empty">施設はまだありません。</div>';
+    host.innerHTML=`<div class="empty">${search?'検索結果がありません。':'施設はまだありません。'}</div>`;
     return;
   }
-  host.innerHTML=list.map(f=>`
-    <button type="button" class="facility-master-item" onclick="openFacilityEditorPage('${f.id}')">
-      <div>
-        <b>${escapeHtml(f.name||'施設名未設定')}</b>
-        <div class="sub">${escapeHtml(f.area||'未設定')} ・ ${facilityMachineCount(f)}台</div>
-        <div class="facility-master-meta">
-          <span>訪問 ${escapeHtml(facilityVisitLabel(f))}</span>
-          ${f.avoidStart&&f.avoidEnd?`<span>避ける ${escapeHtml(facilityAvoidLabel(f))}</span>`:''}
-          ${(f.closedWeekdays||[]).length?`<span>休 ${escapeHtml(facilityClosedLabel(f))}</span>`:''}
-        </div>
-      </div>
-      <span class="facility-chevron">›</span>
-    </button>`).join('');
-}
 
+  const groups=new Map();
+  list.forEach(f=>{
+    const area=f.area||'未設定';
+    if(!groups.has(area))groups.set(area,[]);
+    groups.get(area).push(f);
+  });
+
+  const preferred=[...areaNames(),'未設定'];
+  const areas=[...groups.keys()].sort((a,b)=>{
+    const ai=preferred.indexOf(a),bi=preferred.indexOf(b);
+    if(ai>=0||bi>=0)return (ai<0?999:ai)-(bi<0?999:bi);
+    return String(a).localeCompare(String(b),'ja');
+  });
+
+  host.innerHTML=areas.map(area=>{
+    const facilities=groups.get(area);
+    const machineTotal=facilities.reduce((s,f)=>s+facilityMachineCount(f),0);
+    return `<section class="facility-area-group">
+      <div class="facility-area-head">
+        <div><b>${escapeHtml(area)}</b><span>${facilities.length}施設</span></div>
+        <span>${machineTotal}台</span>
+      </div>
+      <div class="facility-area-list">
+        ${facilities.map(f=>{
+          const nums=facilityMachineNumbers(f);
+          const middles=[...new Set((db.machines||[]).filter(m=>facilityForMachine(m)?.id===f.id).map(m=>(m.middleCategory||'').trim()).filter(Boolean))];
+          const middleText=middles.length?`中分類 ${middles.slice(0,3).map(x=>escapeHtml(x)).join('・')}${middles.length>3?` ほか${middles.length-3}件`:''}`:'';
+          const numberText=nums.length
+            ? `管理No ${nums.slice(0,3).map(n=>'#'+escapeHtml(n)).join('・')}${nums.length>3?` ほか${nums.length-3}台`:''}`
+            : '管理No 未登録';
+          return `<button type="button" class="facility-master-item" onclick="openFacilityEditorPage('${f.id}')">
+            <div>
+              <b>${escapeHtml(f.name||'施設名未設定')}</b>
+              <div class="sub">${facilityMachineCount(f)}台${middleText?` ・ ${middleText}`:''}</div>
+              <div class="sub">${numberText}</div>
+              <div class="facility-master-meta">
+                <span>訪問 ${escapeHtml(facilityVisitLabel(f))}</span>
+                ${f.avoidStart&&f.avoidEnd?`<span>避ける ${escapeHtml(facilityAvoidLabel(f))}</span>`:''}
+                ${(f.closedWeekdays||[]).length?`<span>休 ${escapeHtml(facilityClosedLabel(f))}</span>`:''}
+              </div>
+            </div>
+            <span class="facility-chevron">›</span>
+          </button>`;
+        }).join('')}
+      </div>
+    </section>`;
+  }).join('');
+}
 function openFacilityEditorPage(id=null){
   facilityEditorReturnPage='settings';
   fillFacilityAreaSelect();
@@ -7748,6 +7857,14 @@ if(window.routeWorkEditCancelBtn)routeWorkEditCancelBtn.addEventListener('click'
 if(window.routeWorkEditSaveBtn)routeWorkEditSaveBtn.addEventListener('click',saveRouteWorkEdit);
 
 
+if(window.machineListSearch)machineListSearch.addEventListener('input',renderMachines);
+if(window.machineListSearchClear)machineListSearchClear.addEventListener('click',()=>{
+  machineListSearch.value='';renderMachines();machineListSearch.focus();
+});
+if(window.facilityMasterSearch)facilityMasterSearch.addEventListener('input',renderFacilityMaster);
+if(window.facilityMasterSearchClear)facilityMasterSearchClear.addEventListener('click',()=>{
+  facilityMasterSearch.value='';renderFacilityMaster();facilityMasterSearch.focus();
+});
 if(window.addFacilityBtn)addFacilityBtn.addEventListener('click',()=>openFacilityEditorPage());
 if(window.facilityPageBackBtn)facilityPageBackBtn.addEventListener('click',closeFacilityEditorPage);
 if(window.facilityPageCancelBtn)facilityPageCancelBtn.addEventListener('click',closeFacilityEditorPage);
