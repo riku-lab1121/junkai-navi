@@ -1594,6 +1594,10 @@ nav.modal-blocked{
   font-size:13px;font-weight:900;letter-spacing:.01em
 }
 .app-version-footer{text-align:center;color:#94a3b8;font-size:11px;font-weight:800;padding:16px 0 90px}
+
+/* Ver.10.9 今日の巡回を安全に編集 */
+.home-route-edit-hint{text-align:center;margin-top:8px;font-size:10px}
+.monthly-day-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.monthly-day-actions .primary,.monthly-day-actions .secondary{width:auto}
 </style>
 </head>
 <body>
@@ -1625,6 +1629,7 @@ nav.modal-blocked{
         </div>
         <div class="progress"><div id="homeProgress"></div></div>
         <button class="primary" id="generateRouteBtn" style="margin-top:14px">今日の巡回を作る</button>
+        <div id="homeRouteEditHint" class="sub home-route-edit-hint">作成後は追加・順番・作業内容を個別に変更できます</div>
       </div>
 
       
@@ -1827,7 +1832,7 @@ nav.modal-blocked{
             <div class="section-title">今日のルート</div>
             <div><b><span id="routeCount">0</span>台</b>・予定 <span id="routeMinutes">0</span>分</div><div class="route-filter-note" id="routeAreaLabel">全エリア</div>
           </div>
-          <button class="smallbtn" id="regenBtn">作成</button>
+          <button class="smallbtn" id="regenBtn">自動作成</button>
         </div>
       </div>
       <div class="route-create-buttons">
@@ -2256,7 +2261,7 @@ nav.modal-blocked{
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 10.8</div>
+          <div class="app-version-badge">Version 11.0</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2271,7 +2276,7 @@ nav.modal-blocked{
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 10.8</div>
+      <div class="app-version-footer">Ver. 11.0</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -2486,7 +2491,7 @@ nav.modal-blocked{
         <div class="section-title">その日の巡回</div>
         <div class="sub">エリア・自販機・順番を確認できます</div>
       </div>
-      <button class="secondary" type="button" id="monthlyDayEditToggle" onclick="toggleMonthlyDayEdit()">編集</button>
+      <div class="monthly-day-actions"><button class="primary hidden" type="button" id="monthlyDayToTodayBtn" onclick="bringMonthlyDayToToday()">今日の巡回へ</button><button class="secondary" type="button" id="monthlyDayEditToggle" onclick="toggleMonthlyDayEdit()">編集</button></div>
     </div>
   </div>
 
@@ -3990,6 +3995,14 @@ function renderRoutePreview(){
 }
 function generateRoute(){
   if(confirmGenerateRoute.disabled)return;
+  const existing=todaysRoute();
+  if(existing?.stops?.length){
+    const doneCount=existing.stops.filter(s=>s.status==='done').length;
+    const msg=doneCount
+      ? `今日の巡回には完了済み${doneCount}台を含む${existing.stops.length}台があります。自動作成で置き換えると現在の巡回内容が変わります。\n\n本当に自動作成し直しますか？`
+      : `今日の巡回はすでに${existing.stops.length}台作成されています。自動作成で現在の巡回を置き換えますか？`;
+    if(!confirm(msg))return;
+  }
   const originalLabel=confirmGenerateRoute.textContent;
   confirmGenerateRoute.disabled=true;
   confirmGenerateRoute.textContent='作成中…';
@@ -4187,7 +4200,7 @@ function renderHome(){
   homeProgress.style.width=stops.length?`${Math.round(done/stops.length*100)}%`:'0%';
   routeState.textContent=!r?'未作成':rem===0&&stops.length?'完了':'作成済み';
   routeState.className='pill '+(!r?'blue':rem===0&&stops.length?'green':'orange');
-  generateRouteBtn.textContent=r?'今日の巡回を作り直す':'今日の巡回を作る';
+  generateRouteBtn.textContent=r?'今日の巡回を編集':'今日の巡回を作る';
   const s=currentStop();
   if(!s){nextStopBox.className='empty';nextStopBox.innerHTML=stops.length&&done===stops.length?'今日の巡回は完了です ✓':'巡回ルートを作成してください'}
   else{
@@ -6925,7 +6938,13 @@ function renderMonthlyDayDetail(){
   const detailHead=document.querySelector('#monthlyDayDetailPage .section-title');
   if(detailHead)detailHead.textContent=detailSectionTitle;
   monthlyDayMoveDate.value=monthlyDayDetailDate;
-
+  if(window.monthlyDayToTodayBtn){
+    monthlyDayToTodayBtn.classList.toggle('hidden',monthlyDayDetailSource!=='monthly');
+    const existingRoute=db.routes?.[today()];
+    const planIds=new Set(monthlyDayMachines(tasks).map(m=>m.id));
+    const already=existingRoute?.stops?.filter(s=>planIds.has(s.machineId)).length||0;
+    monthlyDayToTodayBtn.textContent=monthlyDayDetailDate===today()?(already?`今日の巡回へ追加（${already}台反映済み）`:'今日の巡回へ'):'この計画を今日の巡回へ';
+  }
   const grouped=new Map();
   for(const m of machines){
     const a=m.area||'未設定';
@@ -6964,6 +6983,28 @@ function renderMonthlyDayDetail(){
   monthlyDayEditPanel.classList.add('hidden');
   monthlyDayEditToggle.textContent='編集';
   monthlyDayEditToggle.classList.toggle('hidden',monthlyDayDetailSource==='week');
+}
+function bringMonthlyDayToToday(){
+  if(!monthlyDayDetailDate)return;
+  const tasks=(db.tasks||[]).filter(t=>t.due===monthlyDayDetailDate);
+  const plannedMachines=monthlyDayMachines(tasks);
+  if(!plannedMachines.length){showToast('この日の計画に自販機がありません');return}
+  const r=ensureRoute();
+  if(!Array.isArray(r.stops))r.stops=[];
+  const existingIds=new Set(r.stops.map(s=>s.machineId));
+  const additions=plannedMachines.filter(m=>!existingIds.has(m.id));
+  if(!additions.length){showToast('この計画の自販機はすべて今日の巡回に入っています');return}
+  const startOrder=r.stops.length;
+  additions.forEach((m,i)=>r.stops.push({
+    id:uid(),machineId:m.id,order:startOrder+i+1,status:'pending',
+    workTypes:routeWorkTypes(m),plannedMinutes:Number(m.workMinutes||25),
+    source:'monthlyPlan',sourcePlanDate:monthlyDayDetailDate,addedToDailyAt:Date.now()
+  }));
+  r.areas=[...new Set(r.stops.map(s=>machine(s.machineId)?.area||'未設定'))];
+  r.areaFilter=r.areas.length===1?r.areas[0]:(r.areas.join('|')||'all');
+  tasks.forEach(t=>{t.lastTransferredTo=today();t.lastTransferredAt=Date.now()});
+  save();renderMonthlyDayDetail();renderMonthlyActionPlan();renderHome();renderRoute();
+  showToast(`${additions.length}台を今日の巡回へ追加しました`);
 }
 function toggleMonthlyDayEdit(){
   const hidden=monthlyDayEditPanel.classList.toggle('hidden');
@@ -7005,14 +7046,19 @@ function renderMonthlyActionPlan(){
     const mins=monthlyDayMinutes(machines,tasks);
     const dist=monthlyDayDistance(tasks);
     const done=tasks.length>0&&tasks.every(t=>t.done);
-    return `<tr class="${done?'done-row':''}">
+    const ids=new Set(machines.map(m=>m.id));
+    const linked=Object.values(db.routes||{}).flatMap(r=>(r?.stops||[]).map(s=>({...s,actualDate:r.date}))).filter(s=>ids.has(s.machineId)&&s.sourcePlanDate===date);
+    const transferred=new Set(linked.map(s=>s.machineId)).size;
+    const actualDone=new Set(linked.filter(s=>s.status==='done').map(s=>s.machineId)).size;
+    const state=machines.length&&actualDone>=machines.length?'実施済み':machines.length&&transferred>=machines.length?'今日へ反映':transferred>0?`一部反映 ${transferred}/${machines.length}`:done?'完了':'予定';
+    return `<tr class="${done||state==='実施済み'?'done-row':''}">
       <td><b>${dd.getMonth()+1}/${dd.getDate()}</b></td>
       <td>${dow[dd.getDay()]}</td>
       <td><b>${machines.length}台</b></td>
       <td>約${mins}分</td>
       <td class="monthly-summary-areas">${escapeHtml(areas.join('・')||'-')}</td>
       <td>${dist>0?`約${dist.toFixed(1)}km`:'-'}</td>
-      <td>${done?'完了':'予定'}</td>
+      <td>${escapeHtml(state)}</td>
       <td><button class="primary" type="button" onclick="openMonthlyDayDetail('${date}')" style="padding:8px 12px">確認</button></td>
     </tr>`;
   }).join('');
@@ -7104,7 +7150,7 @@ function clearAutoMonthlyPlan(){
   const count=(db.tasks||[]).filter(t=>t.autoMonthlyPlan&&String(t.due||'').startsWith(key)).length;
   if(!count){showToast('自動作成分はありません');return}
   if(!confirm(`この月の自動作成分 ${count}件を削除しますか？\\n手動で追加した予定は残ります。`))return;
-  db.tasks=(db.tasks||[]).filter(t=>!(t.autoMonthlyPlan&&String(t.due||'').startsWith(key)));
+  db.tasks=(db.tasks||[]).filter(t=>!(t.autoMonthlyPlan&&String(t.due||'').startsWith(key)&&!t.lastTransferredAt));
   save();
   renderMonthlyActionPlan();
   renderWorkDashboard();
@@ -7956,7 +8002,16 @@ if(window.routeWeekTodayBtn)routeWeekTodayBtn.addEventListener('click',()=>{
 });
 if(window.openMonthlyPlanFromRouteBtn)openMonthlyPlanFromRouteBtn.addEventListener('click',openMonthlyActionPlan);
 
-generateRouteBtn.addEventListener('click',openRouteOptions);regenBtn.addEventListener('click',openRouteOptions);
+generateRouteBtn.addEventListener('click',()=>{
+  if(todaysRoute()){
+    switchPage('route');
+    routePeriodSet('today');
+    showToast('現在の巡回を残したまま編集できます','info',1800);
+  }else{
+    openRouteOptions();
+  }
+});
+regenBtn.addEventListener('click',openRouteOptions);
 breakBtn.addEventListener('click',()=>db.active?.type==='break'?endBreak():startBreak());
 workBtn.addEventListener('click',()=>db.active?.type==='work'?endWork():openWorkPicker(currentStop()?.id));
 confirmWorkStart.addEventListener('click',startWork);
