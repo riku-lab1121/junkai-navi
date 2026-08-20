@@ -1616,6 +1616,66 @@ nav.modal-blocked{
   touch-action:manipulation!important;cursor:pointer!important;
   -webkit-tap-highlight-color:rgba(0,0,0,.08);
 }
+
+/* Ver.11.8 Bright UI refresh — behavior/data untouched */
+:root{
+  --v118-bg:#f7f9fc;
+  --v118-surface:#ffffff;
+  --v118-line:#e7edf5;
+  --v118-text:#172033;
+  --v118-sub:#738095;
+  --v118-blue:#2f7df6;
+  --v118-blue-soft:#eaf3ff;
+  --v118-green-soft:#eaf8f0;
+  --v118-orange-soft:#fff4e5;
+  --v118-red-soft:#fff0f0;
+}
+body{background:var(--v118-bg);color:var(--v118-text)}
+#homePage .card,
+#homePage .settings-group,
+#homePage .task-item{
+  background:var(--v118-surface)!important;
+  border-color:var(--v118-line)!important;
+  box-shadow:0 5px 18px rgba(31,50,81,.055)!important;
+}
+#homePage .card{border-radius:18px!important}
+#homePage .sub{color:var(--v118-sub)!important}
+#homePage .section-title{color:#26354d!important}
+#homePage .primary,
+#homePage button.primary{
+  background:var(--v118-blue)!important;
+  border-color:var(--v118-blue)!important;
+  box-shadow:0 5px 14px rgba(47,125,246,.18)!important;
+}
+#homePage .secondary,
+#homePage button.secondary,
+#homePage .smallbtn{
+  background:#f4f7fb!important;
+  color:#33435d!important;
+  border-color:#e5ebf3!important;
+}
+#homePage .pill.green,#homePage .tag.green{background:var(--v118-green-soft)!important}
+#homePage .pill.orange,#homePage .tag.orange{background:var(--v118-orange-soft)!important}
+#homePage .pill.red,#homePage .tag.red{background:var(--v118-red-soft)!important}
+
+/* shared bottom navigation: brighter, lighter and less "business system" */
+.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
+  background:rgba(255,255,255,.96)!important;
+  border-top-color:#e8edf4!important;
+  box-shadow:0 -6px 20px rgba(31,50,81,.055)!important;
+}
+.bottom-nav button.active,.bottomNav button.active,.tabbar button.active,.bottom-tabs button.active,
+.bottom-nav .active,.bottomNav .active,.tabbar .active,.bottom-tabs .active{
+  color:var(--v118-blue)!important;
+}
+
+/* shared controls get a slightly cleaner light treatment without changing layout */
+input,select,textarea{
+  border-color:#e1e8f1!important;
+  background:#fff!important;
+}
+button{transition:transform .08s ease,box-shadow .12s ease,background .12s ease}
+button:active{transform:scale(.985)}
 </style>
 </head>
 <body>
@@ -2281,7 +2341,7 @@ nav.modal-blocked{
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.7</div>
+          <div class="app-version-badge">Version 11.8</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2296,7 +2356,7 @@ nav.modal-blocked{
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.7</div>
+      <div class="app-version-footer">Ver. 11.8</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
