@@ -2281,7 +2281,7 @@ nav.modal-blocked{
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.6</div>
+          <div class="app-version-badge">Version 11.7</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2296,7 +2296,7 @@ nav.modal-blocked{
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.6</div>
+      <div class="app-version-footer">Ver. 11.7</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -4892,14 +4892,22 @@ function mapMachineVisible(m){
   if(mapMode==='today' && !routeStopForMachine(m.id)) return false;
   return true;
 }
+function safeRenderMap(){
+  if(!map)return false;
+  try{
+    renderMapMarkers();
+    map.invalidateSize(false);
+    return true;
+  }catch(e){
+    console.warn('safeRenderMap',e);
+    return false;
+  }
+}
 function refreshMapNow(showMessage=false){
   try{
     syncDbFromStorage();
     ensureFacilityMaster();
-    if(map){
-      renderMapMarkers();
-      map.invalidateSize(true);
-    }
+    if(map)safeRenderMap();
     const visible=(db.machines||[]).filter(mapMachineVisible);
     const located=visible.filter(m=>Number.isFinite(Number(m.lat))&&Number.isFinite(Number(m.lng)));
     const missing=visible.length-located.length;
@@ -4962,11 +4970,7 @@ function setMapArea(area){
 
   // 保存済みDBを読み直してから、該当エリアだけ描画。
   try{syncDbFromStorage()}catch(e){console.warn('area sync',e)}
-  try{
-    renderMapMarkers();
-    if(map)map.invalidateSize(false);
-  }catch(e){
-    console.warn('area marker render',e);
+  if(!safeRenderMap()){
     showToast('MAPの再表示に失敗しました');
     return;
   }
@@ -8371,8 +8375,10 @@ let lastMapControlTap=0;
 function handleMapControlTap(e){
   const now=Date.now();
   if(now-lastMapControlTap<180)return;
+  const target=e.target instanceof Element?e.target:null;
+  if(!target)return;
 
-  const areaBtn=e.target.closest?.('[data-maparea]');
+  const areaBtn=target.closest?.('[data-maparea]');
   if(areaBtn){
     lastMapControlTap=now;
     e.preventDefault();
@@ -8380,7 +8386,7 @@ function handleMapControlTap(e){
     setMapArea(areaBtn.dataset.maparea);
     return;
   }
-  const modeBtn=e.target.closest?.('[data-map-mode]');
+  const modeBtn=target.closest?.('[data-map-mode]');
   if(modeBtn){
     lastMapControlTap=now;
     e.preventDefault();
@@ -8388,7 +8394,7 @@ function handleMapControlTap(e){
     setMapMode(modeBtn.dataset.mapMode);
     return;
   }
-  const refreshBtn=e.target.closest?.('[data-map-refresh]');
+  const refreshBtn=target.closest?.('[data-map-refresh]');
   if(refreshBtn){
     lastMapControlTap=now;
     e.preventDefault();
@@ -8587,6 +8593,14 @@ function migrateCleaningWorkToRegularRoute(){
 migrateCleaningWorkToRegularRoute();
 cleanupDuplicateTroubles();
 renderAll();
+
+// Ver.11.7 stability diagnostics
+window.addEventListener('error',e=>{
+  try{console.warn('app runtime error',e.error||e.message)}catch(_){}
+});
+window.addEventListener('unhandledrejection',e=>{
+  try{console.warn('app promise rejection',e.reason)}catch(_){}
+});
 </script>
 </body>
 </html>
