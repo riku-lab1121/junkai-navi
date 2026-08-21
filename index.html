@@ -1998,7 +1998,7 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
         <div class="simple-map-segment map-mode-three">
           <button id="mapTodayBtn" type="button" class="active" data-map-mode="today">今日の巡回</button>
           <button id="mapAllBtn" type="button" data-map-mode="all">全自販機</button>
-          <button id="mapRefreshBtn" type="button" data-map-refresh="1">更新</button>
+          <button id="mapRefreshBtn" type="button" data-map-refresh="1">再読込</button>
         </div>
         <div id="mapAreaFilters" class="simple-area-filters hidden"></div>
         <div id="mapSyncStatus" class="map-sync-status"></div>
@@ -2493,7 +2493,7 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.11.0</div>
+          <div class="app-version-badge">Version 11.12.0</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2508,7 +2508,7 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.11.0</div>
+      <div class="app-version-footer">Ver. 11.12.0</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -3471,6 +3471,38 @@ db.machines.forEach(m=>{if(m.site===undefined)m.site='';});
   }
 }
 function todaysRoute(){return db.routes[today()]||null}
+
+function machineNeedsToday(m){
+  if(!m)return false;
+  // A machine explicitly in today's route always belongs on today's MAP.
+  if(routeStopForMachine(m.id))return true;
+
+  // Otherwise derive today's eligibility directly from the current machine master.
+  // This removes the old dependency on saving through the Machines tab first.
+  try{
+    const d=today();
+    const work=workFor(m)||[];
+    if(work.length)return true;
+
+    // Fallback for older data whose workFor() does not expose a due item.
+    const regularDays=Math.max(1,Number(m.regularIntervalDays||14));
+    if(m.lastRegular){
+      const due=new Date(String(m.lastRegular)+'T00:00:00');
+      due.setDate(due.getDate()+regularDays);
+      if(localYmd(due)<=d)return true;
+    }
+    if(m.weekly||m.prioritySupply){
+      const supplyDays=Math.max(1,Number(m.supplyIntervalDays||7));
+      const base=m.lastSupply||m.lastRegular;
+      if(base){
+        const due=new Date(String(base)+'T00:00:00');
+        due.setDate(due.getDate()+supplyDays);
+        if(localYmd(due)<=d)return true;
+      }
+    }
+  }catch(e){}
+  return false;
+}
 function ensureRoute(){if(!db.routes[today()]) db.routes[today()]={date:today(),stops:[],createdAt:Date.now()};return db.routes[today()]}
 function todaysShift(){
   if(!db.shifts) db.shifts={};
@@ -5121,8 +5153,9 @@ function routeIndexForMachine(machineId){
   return i>=0?i+1:null;
 }
 function mapMachineVisible(m){
-  if(mapArea!=='all' && (m.area||'未設定')!==mapArea) return false;
-  if(mapMode==='today' && !routeStopForMachine(m.id)) return false;
+  if(!m)return false;
+  if(mapMode==='today')return machineNeedsToday(m);
+  if(mapArea!=='all'&&(m.area||'未設定')!==mapArea)return false;
   return true;
 }
 function safeRenderMap(){
@@ -5140,17 +5173,29 @@ function refreshMapNow(showMessage=false){
   try{
     syncDbFromStorage();
     ensureFacilityMaster();
+
+    // Recalculate planning from the current master so edits from any screen are visible immediately.
+    syncAllMachinesToPlanning({persist:true,refresh:false});
+    syncDbFromStorage();
+
+    try{renderHome()}catch(e){}
+    try{renderRoute()}catch(e){}
+    try{renderRouteWeek()}catch(e){}
+    try{renderCalendar()}catch(e){}
+    try{renderMonthlyActionPlan()}catch(e){}
+    try{renderMachines()}catch(e){}
     if(map)safeRenderMap();
+
     const visible=(db.machines||[]).filter(mapMachineVisible);
     const located=visible.filter(m=>Number.isFinite(Number(m.lat))&&Number.isFinite(Number(m.lng)));
     const missing=visible.length-located.length;
     if(window.mapSyncStatus){
-      mapSyncStatus.textContent=`${mapMode==='today'?'今日の巡回':'全自販機'}：${located.length}台表示${missing?`・位置未設定${missing}台`:''}`;
+      mapSyncStatus.textContent=`${mapMode==='today'?'今日の巡回候補':'全自販機'}：${located.length}台表示${missing?`・位置未設定${missing}台`:''}`;
     }
-    if(showMessage)showToast(`MAPを更新しました（${located.length}台表示）`,'info',1800);
+    if(showMessage)showToast(`最新データに更新しました（${located.length}台表示）`,'info',1800);
   }catch(e){
     console.warn('refreshMapNow',e);
-    if(showMessage)showToast('MAPを更新できませんでした');
+    if(showMessage)showToast('更新できませんでした');
   }
 }
 function setMapMode(mode){
@@ -5949,7 +5994,10 @@ function saveRegisterPage(){
     const saveReturnPage=registerReturnPage||'machines';
     page='register';
     switchPage(saveReturnPage);
-    if(saveReturnPage==='map')restoreMapAfterEdit();
+    if(saveReturnPage==='map'){
+      restoreMapAfterEdit();
+      setTimeout(()=>refreshMapNow(false),80);
+    }
     else setTimeout(()=>{
       syncDbFromStorage();renderMachines();
       if(wasEditing)restoreMachineListPosition(savedMachineId,true);
@@ -8636,7 +8684,7 @@ machineForm.addEventListener('submit',e=>{
   renderMachines();
 
   if(wasMapRegistration && savedId && data.lat!==null && data.lng!==null){
-    renderMapMarkers();
+    refreshMapNow(false);
     map.setView([data.lat,data.lng],17,{animate:true});
     setTimeout(()=>showMapMachineCard(savedId),250);
   }
