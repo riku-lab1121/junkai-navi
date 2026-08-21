@@ -1828,6 +1828,16 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
   grid-template-columns:1fr 1fr;
   gap:10px;
 }
+
+
+/* Ver.11.16.0 出発後の巡回モード */
+#fieldOperationMenu{border:1px solid #e4eaf2}
+#fieldOperationMenu .field-operation-grid button{min-height:86px;font-size:19px;font-weight:850}
+#fieldOperationMenu>button{min-height:62px;font-size:17px;font-weight:800}
+body.field-mode #homePage .hero{order:1}
+body.field-mode #homePage .shift-card{order:2}
+body.field-mode #fieldOperationMenu{order:3}
+
 </style>
 </head>
 <body>
@@ -1887,6 +1897,18 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
         <button class="primary departbtn" id="departureBtn" style="margin-top:14px">出発</button>
         <button class="primary returnbtn hidden" id="returnBtn" style="margin-top:10px">外回りを終了する</button>
         <button class="secondary hidden" id="shiftReportBtn" style="margin-top:10px;width:100%">今日の日報を見る</button>
+      </div>
+
+      <div class="card hidden" id="fieldOperationMenu">
+        <div class="section-title">巡回メニュー</div>
+        <div class="sub" style="margin-bottom:12px">外回り中に使う機能をまとめています</div>
+        <div class="grid2 field-operation-grid">
+          <button class="primary" type="button" onclick="go('route')">今日の巡回</button>
+          <button class="secondary" type="button" onclick="go('map')">MAP</button>
+          <button class="secondary" type="button" onclick="go('machines')">自販機情報</button>
+          <button class="secondary" type="button" id="fieldCheckBtn">チェック</button>
+        </div>
+        <button class="secondary" type="button" id="fieldMemoBtn" style="width:100%;margin-top:10px">次回補充メモを確認</button>
       </div>
 
 <div class="card daily-report-card hidden" id="returnedReportCard">
@@ -2493,7 +2515,7 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.15.1</div>
+          <div class="app-version-badge">Version 11.16.0</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2508,7 +2530,7 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.15.1</div>
+      <div class="app-version-footer">Ver. 11.16.0</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -4476,7 +4498,23 @@ function renderShift(){
 
   shiftReportBtn.classList.toggle('hidden',!returned);
   returnedReportCard.classList.toggle('hidden',!returned);
+  const fieldMenu=document.getElementById('fieldOperationMenu');
+  if(fieldMenu)fieldMenu.classList.toggle('hidden',!departed||returned);
+  document.body.classList.toggle('field-mode',departed&&!returned);
 }
+
+function openFieldCheck(){
+  go('route');
+  setTimeout(()=>showToast('未完了の巡回を確認できます'),50);
+}
+function openFieldMemo(){
+  go('machines');
+  setTimeout(()=>showToast('自販機を開くと次回補充メモを確認・編集できます'),50);
+}
+document.addEventListener('click',e=>{
+  if(e.target?.id==='fieldCheckBtn')openFieldCheck();
+  if(e.target?.id==='fieldMemoBtn')openFieldMemo();
+});
 
 function renderHeader(){
   const titles={home:'ホーム',map:'MAP',route:'今日の巡回',calendar:'カレンダー',machines:'自販機',register:'自販機登録',report:'日報',manualRoute:'手動巡回作成',autoRoute:'巡回作成',trouble:'トラブル受付',settings:'設定',monthlyActionPlan:'月間行動計画表',monthlyDayDetail:'巡回詳細',deleteMachine:'自販機を削除',machineDetail:'自販機詳細',dayOff:'休み設定',monthlyManualBuilder:'手動巡回作成',returnConfirm:'外回り終了',routeWorkEdit:'作業内容変更'};
@@ -4497,7 +4535,7 @@ function renderHome(){
     const m=machine(s.machineId);nextStopBox.className='';
     const sameFacilityRemaining=stops.filter(x=>x.status!=='done'&&machine(x.machineId)&&machineDisplayTitle(machine(x.machineId))===machineDisplayTitle(m)).length;
     const currentWork=[...new Set([...(s.workTypes||[]),...workFor(m)])];
-    nextStopBox.innerHTML=`<div class="row"><div><b style="font-size:18px">${escapeHtml(machineDisplayTitle(m))}</b><div class="sub">${escapeHtml(m.site||'')} ・ この施設 残り${sameFacilityRemaining}台 ・ 約${s.plannedMinutes}分</div><div class="worktags">${currentWork.map(w=>`<span class="tag">${w}</span>`).join('')}</div>${m.inventoryMemo?`<div class="urgent-note">在庫: ${escapeHtml(m.inventoryMemo)}</div>`:''}</div><button class="secondary" onclick="openWorkPicker('${s.id}')">作業開始</button></div>`;
+    nextStopBox.innerHTML=`<div class="row"><div><b style="font-size:18px">${escapeHtml(machineDisplayTitle(m))}</b><div class="sub">${escapeHtml(m.site||'')} ・ この施設 残り${sameFacilityRemaining}台 ・ 約${s.plannedMinutes}分</div><div class="worktags">${currentWork.map(w=>`<span class="tag">${w}</span>`).join('')}</div>${m.inventoryMemo?`<div class="urgent-note">次回: ${escapeHtml(m.inventoryMemo)}</div>`:''}</div><button class="secondary" onclick="openWorkPicker('${s.id}')">作業開始</button></div>`;
   }
   const b=Math.round(getBreakSeconds()/60),goal=db.settings.breakGoal||60;
   breakTotal.textContent=b;breakGoal.textContent=goal;breakRemain.textContent=`残り${Math.max(0,goal-b)}分`;
@@ -4944,7 +4982,7 @@ function renderRoute(){
         }catch(e){console.warn('route state',m.id,e)}
       }
 
-      const memo=m.inventoryMemo?`<div class="urgent-note">在庫: ${escapeHtml(m.inventoryMemo)}</div>`:'';
+      const memo=m.inventoryMemo?`<div class="urgent-note">次回: ${escapeHtml(m.inventoryMemo)}</div>`:'';
       const works=safeRouteWorks(s,m);
 
       el.innerHTML=`<div class="stop-head">
