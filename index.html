@@ -1737,6 +1737,27 @@ button.danger,.danger-btn,.delete-btn{background:var(--ui-red-soft)!important;co
   transform:scale(.94)!important;
   background:#e8eef6!important;
 }
+
+/* Ver.11.9.2 MAP情報カードのタップ層を完全分離 */
+#mapPage .map-info-backdrop{
+  position:fixed!important;
+  inset:0!important;
+  z-index:38990!important;
+  background:rgba(15,23,42,.08)!important;
+  pointer-events:auto!important;
+  touch-action:none!important;
+}
+#mapPage .map-info-backdrop.hidden{display:none!important}
+#mapPage #mapInfoCard.simple-map-info{
+  z-index:39000!important;
+  pointer-events:auto!important;
+  isolation:isolate!important;
+}
+#mapPage #mapInfoCard.simple-map-info *{pointer-events:auto!important}
+#mapPage #mapInfoCloseBtn{
+  z-index:39020!important;
+  pointer-events:auto!important;
+}
 </style>
 </head>
 <body>
@@ -1918,6 +1939,7 @@ button.danger,.danger-btn,.delete-btn{background:var(--ui-red-soft)!important;co
         <button id="locateBtn" class="simple-locate" title="現在地">⌖</button>
       </div>
 
+      <div id="mapInfoBackdrop" class="map-info-backdrop hidden" aria-hidden="true"></div>
       <div id="mapInfoCard" class="card simple-map-info hidden">
         <div class="row">
           <div>
@@ -2402,7 +2424,7 @@ button.danger,.danger-btn,.delete-btn{background:var(--ui-red-soft)!important;co
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.9.1</div>
+          <div class="app-version-badge">Version 11.9.2</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2417,7 +2439,7 @@ button.danger,.danger-btn,.delete-btn{background:var(--ui-red-soft)!important;co
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.9.1</div>
+      <div class="app-version-footer">Ver. 11.9.2</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -3319,7 +3341,7 @@ db.machines.forEach(m=>{
   if(m.lng!==undefined && m.lng!==null && m.lng!=='') m.lng=Number(m.lng); else m.lng=null;
 });
 save();
-let page='home', map=null, markers=[], routeLine=null, userLocationMarker=null, selectedStopId=null, mapDraft=null, tickHandle=null, pendingDeleteId=null, editingMachineId=null, mapRegisterMode=false, longPressTimer=null, longPressStart=null, suppressNextMapClick=false, mapMode='today', mapArea='all', selectedMapMachineId=null, selectedMapSiteKey=null, geoWatchId=null, lastUserPosition=null, tempRegisterMarker=null, registeringFromMap=false;
+let page='home', map=null, markers=[], routeLine=null, userLocationMarker=null, selectedStopId=null, mapDraft=null, tickHandle=null, pendingDeleteId=null, editingMachineId=null, mapRegisterMode=false, longPressTimer=null, longPressStart=null, suppressNextMapClick=false, mapMode='today', mapArea='all', selectedMapMachineId=null, selectedMapSiteKey=null, suppressMapInfoUntil=0, geoWatchId=null, lastUserPosition=null, tempRegisterMarker=null, registeringFromMap=false;
 
 function load(){try{return {...defaults,...JSON.parse(localStorage.getItem(DBKEY)||'{}')}}catch(e){return structuredClone(defaults)}}
 function save(){localStorage.setItem(DBKEY,JSON.stringify(db));}
@@ -5130,6 +5152,7 @@ function restoreMapAfterEdit(){
   }catch(e){console.warn(e)}},200);
 }
 function showMapMachineCard(machineId){
+  if(Date.now()<suppressMapInfoUntil)return;
   const m=machine(machineId);if(!m)return;
   selectedExternalPlace=null;
   selectedMapMachineId=machineId;
@@ -5160,17 +5183,21 @@ function showMapMachineCard(machineId){
   try{renderMapMarkers()}catch(e){}
 }
 function hideMapMachineCard(){
+  suppressMapInfoUntil=Date.now()+600;
   selectedMapMachineId=null;
   selectedMapSiteKey=null;
   selectedExternalPlace=null;
   clearPlaceSearchMarker();
+  if(window.mapInfoBackdrop){
+    mapInfoBackdrop.classList.add('hidden');
+    mapInfoBackdrop.setAttribute('aria-hidden','true');
+  }
   if(mapInfoCard){
     mapInfoCard.classList.add('hidden');
     mapInfoCard.classList.remove('map-info-sheet-pop');
     mapInfoCard.style.setProperty('display','none','important');
     mapInfoCard.setAttribute('aria-hidden','true');
   }
-  try{renderMapMarkers()}catch(e){}
 }
 
 
@@ -6047,6 +6074,11 @@ function mapSelectionFeedback(){
   try{if(navigator.vibrate)navigator.vibrate(12)}catch(e){}
 }
 function revealMapInfoSheet(){
+  if(Date.now()<suppressMapInfoUntil)return;
+  if(window.mapInfoBackdrop){
+    mapInfoBackdrop.classList.remove('hidden');
+    mapInfoBackdrop.removeAttribute('aria-hidden');
+  }
   mapInfoCard.style.removeProperty('display');
   mapInfoCard.removeAttribute('aria-hidden');
   mapInfoCard.classList.remove('hidden');
@@ -6056,6 +6088,7 @@ function revealMapInfoSheet(){
   setTimeout(()=>mapInfoCard.classList.remove('map-info-sheet-pop'),280);
 }
 function showMapSiteCard(key){
+  if(Date.now()<suppressMapInfoUntil)return;
   const g=mapMachineGroups().find(x=>x.key===key);
   if(!g)return;
   selectedMapSiteKey=key;
@@ -6133,7 +6166,10 @@ function renderMapMarkers(){
       iconSize:selected?[46,42]:[36,32],iconAnchor:selected?[23,21]:[18,16]
     });
     const marker=L.marker([Number(g.lat),Number(g.lng)],{icon}).addTo(map);
-    marker.on('click',()=>showMapSiteCard(g.key));
+    marker.on('click',()=>{
+      if(Date.now()<suppressMapInfoUntil)return;
+      showMapSiteCard(g.key);
+    });
     markers.push(marker);
   });
 }
@@ -8491,6 +8527,17 @@ if(mapInfoCloseBtn){
     hideMapMachineCard();
   },{capture:true,passive:false});
 });
+
+
+if(window.mapInfoBackdrop){
+  ['touchstart','touchend','pointerdown','pointerup','click'].forEach(type=>{
+    mapInfoBackdrop.addEventListener(type,e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      if(type==='touchend'||type==='pointerup'||type==='click')hideMapMachineCard();
+    },{passive:false});
+  });
+}
 
 locateBtn.addEventListener('click',locateUser);
 
