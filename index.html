@@ -2138,7 +2138,7 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
                 <th>最終集金</th>
                 <th>定期周期</th>
                 <th>補充周期</th>
-                <th>在庫メモ</th>
+                <th>次回補充メモ</th>
                 <th>作業目安</th>
                 <th>操作</th>
               </tr>
@@ -2299,7 +2299,7 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
     <div id="routeWorkEditChoices" class="route-work-edit-choices"></div>
 
     <div id="routeWorkEditMemoWrap" class="hidden" style="margin-top:16px">
-      <div class="sub">原料・在庫メモ</div>
+      <div class="sub">次回補充メモ</div>
       <div id="routeWorkEditMemo" class="machine-detail-note"></div>
     </div>
   </div>
@@ -2493,7 +2493,7 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.14.0</div>
+          <div class="app-version-badge">Version 11.15.0</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2508,7 +2508,7 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.14.0</div>
+      <div class="app-version-footer">Ver. 11.15.0</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -2701,7 +2701,7 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
     <div class="section-title">必要作業</div>
     <div id="machineDetailWorkChips" class="work-chips" style="margin-top:10px"></div>
     <div id="machineDetailInventoryWrap" class="hidden" style="margin-top:14px">
-      <div class="sub">原料・在庫メモ</div>
+      <div class="sub">次回補充メモ</div>
       <div id="machineDetailInventory" class="machine-detail-note"></div>
     </div>
   </div>
@@ -3020,7 +3020,8 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
 
         <div class="reg-section">
           <div class="reg-title">メモ（任意）</div>
-          <label>原料・在庫メモ</label>
+          <label>次回補充メモ</label>
+<div class="muted" style="font-size:13px;margin:-4px 0 8px">次回持っていく原料・部材などをメモできます。</div>
           <textarea id="rpInventoryMemo" rows="2" placeholder="例：紙コップ少ない"></textarea>
           <label>その他メモ</label>
           <textarea id="rpMemo" rows="2"></textarea>
@@ -3217,7 +3218,7 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
       <label>最終 補充日</label><input id="mLastSupply" type="date" />
       <label>最終 集金日</label><input id="mLastCollection" type="date" />
       <div class="checkrow"><input id="mPrioritySupply" type="checkbox"><span>原料が必要・在庫が少ない</span></div>
-      <label>原料・在庫メモ</label><textarea id="mInventoryMemo" rows="2" placeholder="例：コーヒー、紙コップ、砂糖"></textarea>
+      <label>次回補充メモ</label><textarea id="mInventoryMemo" rows="2" placeholder="例：コーヒー、紙コップ、砂糖"></textarea>
       <div class="checkrow"><input id="mNeedsDrain" type="checkbox"><span>排水が必要</span></div>
       <div class="checkrow"><input id="mNeedsWater" type="checkbox"><span>水汲みが必要</span></div>
       <label>標準作業時間（分）</label><input id="mWorkMinutes" type="number" min="1" value="25" />
@@ -6399,7 +6400,7 @@ function downloadText(filename,text,type='text/plain;charset=utf-8'){
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 function exportMachinesCsv(){
-  const headers=['管理No','自販機名','設置場所','エリア','緯度','経度','定期周期','補充周期','中間補充','最終定期','最終補充','最終集金','早め補充','在庫メモ','作業時間','メモ'];
+  const headers=['管理No','自販機名','設置場所','エリア','緯度','経度','定期周期','補充周期','中間補充','最終定期','最終補充','最終集金','早め補充','次回補充メモ','作業時間','メモ'];
   const rows=db.machines.map(m=>[
     m.number,m.name,m.site||'',m.area,m.lat,m.lng,regularInterval(m),supplyInterval(m),m.weekly?'1':'0',
     m.lastRegular,m.lastSupply,m.lastCollection,m.prioritySupply?'1':'0',m.inventoryMemo,m.workMinutes,m.memo
@@ -6447,7 +6448,7 @@ function importMachinesCsv(file){
         lastSupply:r[idx('最終補充')]||today(),
         lastCollection:r[idx('最終集金')]||r[idx('最終定期')]||today(),
         prioritySupply:(r[idx('早め補充')]||'0')==='1',
-        inventoryMemo:r[idx('在庫メモ')]||'',
+        inventoryMemo:r[idx('次回補充メモ')]||'',
         workMinutes:Number(r[idx('作業時間')])||25,
         memo:r[idx('メモ')]||''
       }));
@@ -8344,7 +8345,7 @@ function fillRegisterFacilitySelect(selectedId=''){
     (db.facilities||[]).slice().sort((a,b)=>
       String(a.area||'').localeCompare(String(b.area||''),'ja')||
       String(a.name||'').localeCompare(String(b.name||''),'ja')
-    ).map(f=>`<option value="${f.id}">${escapeHtml(f.name)}（${escapeHtml(f.area||'未設定')}）</option>`).join('');
+    ).map(f=>`<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('');
   rpFacility.value=[...rpFacility.options].some(o=>o.value===selectedId)?selectedId:'';
 }
 
