@@ -2493,7 +2493,7 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.10.0</div>
+          <div class="app-version-badge">Version 11.11.0</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2508,7 +2508,7 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.10.0</div>
+      <div class="app-version-footer">Ver. 11.11.0</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -5224,7 +5224,11 @@ function addMachineToToday(machineId){
   const r=ensureRoute();
   if(r.stops.some(s=>s.machineId===machineId)){alert('すでに今日の巡回に入っています。');return}
   r.stops.push({id:uid(),machineId,order:r.stops.length+1,status:'pending',workTypes:(workFor(m).length?workFor(m):['確認']).filter(w=>w!=='トラブル'),plannedMinutes:Number(m.workMinutes||25)});
-  save();renderAll();showMapMachineCard(machineId);
+  save();
+  renderAll();
+  try{renderCalendar()}catch(e){}
+  try{renderMonthlyActionPlan()}catch(e){}
+  showMapMachineCard(machineId);
 }
 let mapEditReturnState=null;
 function editMachineFromMap(){
@@ -5779,6 +5783,44 @@ function syncEditedMachinePlanning(machineId){
   return {months:keys.size,routes:routeChanges};
 }
 
+function syncMachinesToPlanning(machineIds,{persist=true,refresh=true}={}){
+  const ids=[...new Set((Array.isArray(machineIds)?machineIds:[machineIds]).filter(Boolean))];
+  let months=0,routes=0,changed=0;
+
+  ids.forEach(id=>{
+    if(!machine(id))return;
+    try{
+      const r=syncEditedMachinePlanning(id)||{};
+      months=Math.max(months,Number(r.months||0));
+      routes+=Number(r.routes||0);
+      changed++;
+    }catch(e){
+      console.warn('machine planning sync failed',id,e);
+    }
+  });
+
+  if(persist){
+    try{localStorage.setItem(DBKEY,JSON.stringify(db))}catch(e){console.warn('planning persist failed',e)}
+  }
+
+  if(refresh){
+    try{renderHome()}catch(e){}
+    try{renderRoute()}catch(e){}
+    try{renderRouteWeek()}catch(e){}
+    try{renderCalendar()}catch(e){}
+    try{renderMonthlyActionPlan()}catch(e){}
+    try{renderWorkDashboard()}catch(e){}
+    try{if(map)renderMapMarkers()}catch(e){}
+  }
+
+  return {machines:changed,months,routes};
+}
+
+function syncAllMachinesToPlanning(options={}){
+  return syncMachinesToPlanning((db.machines||[]).map(m=>m.id),options);
+}
+
+
 function saveRegisterPage(){
   const btn=registerSaveBtn;
   const original=btn.textContent;
@@ -5894,18 +5936,13 @@ function saveRegisterPage(){
     if(!Array.isArray(db.machines)) db.machines=[];
 
     const wasEditing=!!registerEditingId;
-    let planSyncResult={months:0,routes:0};
-    if(wasEditing){
-      planSyncResult=syncEditedMachinePlanning(id);
-      localStorage.setItem(DBKEY,JSON.stringify(db));
-    }
-
+    const planSyncResult=syncMachinesToPlanning(id,{persist:true,refresh:false});
 
     const savedMachineId=id;
     showToast(
       wasEditing
-        ? `${name} を保存しました${planSyncResult.months?`｜計画も再反映`:""}`
-        : `${name} を登録しました`
+        ? `${name} を保存しました${planSyncResult.months?`｜巡回・月間計画も更新`:""}`
+        : `${name} を登録しました${planSyncResult.months?`｜巡回・月間計画にも反映`:""}`
     );
     registerEditingId=null;
 
@@ -6365,7 +6402,11 @@ function importMachinesCsv(file){
         workMinutes:Number(r[idx('作業時間')])||25,
         memo:r[idx('メモ')]||''
       }));
-      db.machines.push(...imported);save();renderAll();alert(`${imported.length}台を読み込みました。`);
+      db.machines.push(...imported);
+      syncMachinesToPlanning(imported.map(m=>m.id),{persist:false,refresh:false});
+      save();
+      renderAll();
+      alert(`${imported.length}台を読み込み、巡回・月間計画にも反映しました。`);
     }catch(e){alert('CSVを読み込めませんでした: '+e.message)}
   };
   reader.readAsText(file,'UTF-8');
@@ -6379,7 +6420,10 @@ function importFullBackup(file){
     try{
       const d=JSON.parse(reader.result);
       if(!d||!Array.isArray(d.machines)) throw new Error('巡回ナビのバックアップではありません');
-      db=d;save();location.reload();
+      db=d;
+      syncAllMachinesToPlanning({persist:false,refresh:false});
+      save();
+      location.reload();
     }catch(e){alert('復元できませんでした: '+e.message)}
   };
   reader.readAsText(file);
@@ -7107,6 +7151,8 @@ function addMachineToTodayFromDetail(){
     });
     save();
     renderAll();
+    try{renderCalendar()}catch(e){}
+    try{renderMonthlyActionPlan()}catch(e){}
     showToast('今日の巡回に追加しました');
   }
 
@@ -8199,15 +8245,21 @@ function saveFacilityEditorPage(){
   };
 
   if(!Array.isArray(db.facilities))db.facilities=[];
+  let affectedMachineIds=[];
   if(existing){
     Object.assign(existing,data);
     (db.machines||[]).forEach(m=>{
-      if(m.facilityId===id){m.name=name;m.area=area}
+      if(m.facilityId===id){
+        m.name=name;
+        m.area=area;
+        affectedMachineIds.push(m.id);
+      }
     });
   }else{
     db.facilities.push(data);
   }
 
+  if(affectedMachineIds.length)syncMachinesToPlanning(affectedMachineIds,{persist:false,refresh:false});
   save();
   closeFacilityEditorPage();
   showToast('施設情報を保存しました');
@@ -8564,11 +8616,13 @@ machineForm.addEventListener('submit',e=>{
     db.machines.push({id:savedId,...data});
   }
 
+  const planningSyncId=savedId;
   editingMachineId=null;
   registeringFromMap=false;
   clearTempRegisterMarker();
 
   try{
+    syncMachinesToPlanning(planningSyncId,{persist:false,refresh:false});
     save();
   }catch(err){
     console.error(err);
