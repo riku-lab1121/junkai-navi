@@ -2493,7 +2493,7 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.12.0</div>
+          <div class="app-version-badge">Version 11.14.0</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2508,7 +2508,7 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.12.0</div>
+      <div class="app-version-footer">Ver. 11.14.0</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -3005,8 +3005,10 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
           </details>
 
           <details class="route-history-settings">
-            <summary>前回作業日</summary>
-            <label>最終 基本巡回日</label><input id="rpLastRegular" type="date" />
+            <summary>前回作業日・次回予定</summary>
+            <label>前回 基本巡回日</label><input id="rpLastRegular" type="date" />
+            <label>次回 基本巡回予定日</label><input id="rpNextRegular" type="date" />
+            <div class="muted" style="font-size:13px;margin:-4px 0 10px">空欄なら前回日＋基本巡回周期から自動計算します。</div>
             <label>最終 原料補充日</label><input id="rpLastSupply" type="date" />
             <label>最終 排水日</label><input id="rpLastDrain" type="date" />
             <label>最終 給水日</label><input id="rpLastWater" type="date" />
@@ -3209,7 +3211,8 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
         <div><label>定期巡回周期（日）</label><input id="mRegularInterval" type="number" min="1" value="14" /></div>
         <div><label>補充周期（日）</label><input id="mSupplyInterval" type="number" min="1" value="7" /></div>
       </div>
-      <label>最終 定期巡回日</label><input id="mLastRegular" type="date" />
+      <label>前回 定期巡回日</label><input id="mLastRegular" type="date" />
+      <label>次回 定期巡回予定日</label><input id="mNextRegular" type="date" />
       <div class="checkrow"><input id="mWeekly" type="checkbox"><span>中間補充を自動候補にする</span></div>
       <label>最終 補充日</label><input id="mLastSupply" type="date" />
       <label>最終 集金日</label><input id="mLastCollection" type="date" />
@@ -3415,6 +3418,10 @@ function ensureFacilityMaster(){
 }
 ensureFacilityMaster();
 db.machines.forEach(m=>{
+  if(m.nextRegular===undefined){
+    const workedToday=(db.logs||[]).some(l=>l.type==='work'&&l.machineId===m.id&&l.date===today()&&l.end);
+    m.nextRegular=(m.lastRegular===today()&&!workedToday)?today():'';
+  }
   if(!m.area) m.area='未設定';
   if(!m.regularIntervalDays) m.regularIntervalDays=14;
   if(m.supplyIntervalDays===undefined) m.supplyIntervalDays=m.weekly?7:0;
@@ -3474,32 +3481,11 @@ function todaysRoute(){return db.routes[today()]||null}
 
 function machineNeedsToday(m){
   if(!m)return false;
-  // A machine explicitly in today's route always belongs on today's MAP.
   if(routeStopForMachine(m.id))return true;
-
-  // Otherwise derive today's eligibility directly from the current machine master.
-  // This removes the old dependency on saving through the Machines tab first.
   try{
-    const d=today();
+    if(regularDue(m))return true;
     const work=workFor(m)||[];
     if(work.length)return true;
-
-    // Fallback for older data whose workFor() does not expose a due item.
-    const regularDays=Math.max(1,Number(m.regularIntervalDays||14));
-    if(m.lastRegular){
-      const due=new Date(String(m.lastRegular)+'T00:00:00');
-      due.setDate(due.getDate()+regularDays);
-      if(localYmd(due)<=d)return true;
-    }
-    if(m.weekly||m.prioritySupply){
-      const supplyDays=Math.max(1,Number(m.supplyIntervalDays||7));
-      const base=m.lastSupply||m.lastRegular;
-      if(base){
-        const due=new Date(String(base)+'T00:00:00');
-        due.setDate(due.getDate()+supplyDays);
-        if(localYmd(due)<=d)return true;
-      }
-    }
   }catch(e){}
   return false;
 }
@@ -3634,7 +3620,15 @@ function machine(id){return db.machines.find(m=>m.id===id)}
 function regularInterval(m){return Math.max(1,Number(m.regularIntervalDays||14))}
 function supplyInterval(m){return Math.max(0,Number(m.supplyIntervalDays||0))}
 function drainInterval(m){return Math.max(0,Number(m.drainIntervalDays||0))}
-function regularDue(m){return dayDiff(m.lastRegular,today())>=regularInterval(m)}
+function nextRegularDate(m){
+  if(m?.nextRegular)return m.nextRegular;
+  if(m?.lastRegular)return addDaysYmd(m.lastRegular,regularInterval(m));
+  return '';
+}
+function regularDue(m){
+  const next=nextRegularDate(m);
+  return !!next&&next<=today();
+}
 function weekdayDue(days){
   if(!Array.isArray(days)||!days.length)return false;
   const d=new Date(today()+'T12:00:00').getDay();
@@ -4431,6 +4425,7 @@ function endWork(){
   const didRegular=act.workTypes.includes('基本巡回') || (act.workTypes.includes('清掃') && act.workTypes.includes('原料'));
   if(didRegular){
     m.lastRegular=today();
+    m.nextRegular=addDaysYmd(today(),regularInterval(m));
     m.lastSupply=today();
     m.lastCollection=today();
     m.prioritySupply=false;
@@ -4685,6 +4680,7 @@ function recomputeMachineWorkDates(machineId){
 
   m.lastRegular=regular?.date||null;
   const regularDate=regular?.date||null;
+  if(regularDate)m.nextRegular=addDaysYmd(regularDate,regularInterval(m));
   m.lastSupply=lastWith('原料')?.date||regularDate||null;
   m.lastCollection=lastWith('集金')?.date||regularDate||null;
 }
@@ -4711,6 +4707,7 @@ function saveRouteWorkEdit(){
       const regular=works.includes('基本巡回');
       if(regular){
         m.lastRegular=today();
+        m.nextRegular=addDaysYmd(today(),regularInterval(m));
         m.lastSupply=today();
         m.lastCollection=today();
         m.prioritySupply=false;
@@ -5576,6 +5573,7 @@ function openRegisterPage(returnPage='machines',machineId=null){
       rpDrainCustomMode.value='days'; setSelectedWeekdays(rpDrainWeekdays,[]);
     }
     rpLastRegular.value=m.lastRegular||'';
+    rpNextRegular.value=m.nextRegular||nextRegularDate(m)||'';
     rpLastSupply.value=m.lastSupply||'';
     rpLastDrain.value=m.lastDrain||'';
     rpLastWater.value=m.lastWater||'';
@@ -5678,6 +5676,7 @@ function addSameSiteMachineFromEdit(){
   rpRegularInterval.value=m.regularIntervalDays||14;
   rpSupplyInterval.value=m.supplyIntervalDays||7;
   rpLastRegular.value='';
+  rpNextRegular.value='';
   rpLastSupply.value='';
   rpLastCollection.value='';
   rpWeekly.checked=!!m.weekly;
@@ -5941,6 +5940,7 @@ function saveRegisterPage(){
       drainScheduleMode:(rpDrainInterval.value==='custom'&&rpDrainCustomMode.value==='weekdays')?'weekdays':'days',
       drainWeekdays:(rpDrainInterval.value==='custom'&&rpDrainCustomMode.value==='weekdays')?selectedWeekdays(rpDrainWeekdays):[],
       lastRegular:rpLastRegular.value||'',
+      nextRegular:rpNextRegular.value||'',
       weekly:false,
       lastSupply:rpLastSupply.value||'',
       lastDrain:rpLastDrain.value||'',
@@ -6377,6 +6377,7 @@ function openMachineModal(lat='',lng=''){
   mRegularInterval.value=14;
   mSupplyInterval.value=7;
   mLastRegular.value='';
+  mNextRegular.value='';
   mWeekly.checked=false;
   mLastSupply.value='';
   mLastCollection.value='';
@@ -7630,8 +7631,16 @@ function machineMonthlyOccurrences(m,start,end){
     if(!prev||rank<prev.rank)map.set(date,{date,kind,rank});
   };
 
-  monthlyDatesByInterval(m.lastRegular||'',regularInterval(m)||14,start,end)
-    .forEach(d=>put(d,'基本巡回',1));
+  const regularStart=nextRegularDate(m);
+  if(regularStart){
+    let d=regularStart,guard=0;
+    while(d<start&&guard++<500)d=addDaysYmd(d,regularInterval(m)||14);
+    guard=0;
+    while(d<=end&&guard++<500){
+      put(d,'基本巡回',1);
+      d=addDaysYmd(d,regularInterval(m)||14);
+    }
+  }
 
   const supplyDates=m.supplyScheduleMode==='weekdays'
     ? monthlyDatesByWeekdays(m.supplyWeekdays,start,end)
@@ -8639,6 +8648,7 @@ machineForm.addEventListener('submit',e=>{
     regularIntervalDays:+mRegularInterval.value||14,
     supplyIntervalDays:+mSupplyInterval.value||7,
     lastRegular:mLastRegular.value||'',
+    nextRegular:mNextRegular.value||'',
     weekly:mWeekly.checked,
     lastSupply:mLastSupply.value||'',
     lastCollection:mLastCollection.value||'',
