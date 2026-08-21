@@ -1842,6 +1842,10 @@ body.field-mode #fieldOperationMenu{order:3}
 /* Ver.11.17.0 テストモード */
 .test-mode-banner{position:sticky;top:0;z-index:9000;margin:0 0 12px;padding:11px 14px;border-radius:14px;background:#fff4cc;border:1px solid #f2cc5c;color:#7a4b00;font-size:14px;font-weight:900;text-align:center;box-shadow:0 4px 14px rgba(80,55,0,.08)}
 body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-left:7px;padding:3px 6px;border-radius:999px;background:#fff1bf;color:#8a5700;vertical-align:middle}
+
+/* Ver.11.17.1 */
+#appToast{z-index:2147483647!important;font-size:15px!important;font-weight:900!important;padding:14px 18px!important;box-shadow:0 10px 30px rgba(0,0,0,.18)!important}
+#fieldOperationMenu button{touch-action:manipulation;pointer-events:auto!important}
 </style>
 </head>
 <body>
@@ -1908,9 +1912,9 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         <div class="section-title">巡回メニュー</div>
         <div class="sub" style="margin-bottom:12px">外回り中に使う機能をまとめています</div>
         <div class="grid2 field-operation-grid">
-          <button class="primary" type="button" onclick="go('route')">今日の巡回</button>
-          <button class="secondary" type="button" onclick="go('map')">MAP</button>
-          <button class="secondary" type="button" onclick="go('machines')">自販機情報</button>
+          <button class="primary" type="button" data-field-page="route">今日の巡回</button>
+          <button class="secondary" type="button" data-field-page="map">MAP</button>
+          <button class="secondary" type="button" data-field-page="machines">自販機情報</button>
           <button class="secondary" type="button" id="fieldCheckBtn">チェック</button>
         </div>
         <button class="secondary" type="button" id="fieldMemoBtn" style="width:100%;margin-top:10px">次回補充メモを確認</button>
@@ -2525,7 +2529,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.17.0</div>
+          <div class="app-version-badge">Version 11.17.1</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2540,7 +2544,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.17.0</div>
+      <div class="app-version-footer">Ver. 11.17.1</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -4565,16 +4569,22 @@ function renderShift(){
 }
 
 function openFieldCheck(){
-  go('route');
-  setTimeout(()=>showToast('未完了の巡回を確認できます'),50);
+  switchPage('route');
+  setTimeout(()=>showToast('未完了の巡回を確認できます','info'),80);
 }
 function openFieldMemo(){
-  go('machines');
-  setTimeout(()=>showToast('自販機を開くと次回補充メモを確認・編集できます'),50);
+  switchPage('machines');
+  setTimeout(()=>showToast('自販機を開くと次回補充メモを確認・編集できます','info'),80);
 }
 document.addEventListener('click',e=>{
-  if(e.target?.id==='fieldCheckBtn')openFieldCheck();
-  if(e.target?.id==='fieldMemoBtn')openFieldMemo();
+  const pageBtn=e.target.closest?.('[data-field-page]');
+  if(pageBtn){
+    haptic();
+    switchPage(pageBtn.dataset.fieldPage);
+    return;
+  }
+  if(e.target.closest?.('#fieldCheckBtn')){haptic();openFieldCheck();return}
+  if(e.target.closest?.('#fieldMemoBtn')){haptic();openFieldMemo();return}
 });
 
 function deleteTodayWorkRecord(){
@@ -8763,8 +8773,11 @@ saveSettings.addEventListener('click',()=>{
   applyAppSettings();
   save();
   renderAll();
+  const savedTestMode=!!db.settings.testMode;
   switchPage(settingsReturnPage||'home');
-  showToast('設定を保存しました');
+  requestAnimationFrame(()=>setTimeout(()=>{
+    showToast(savedTestMode?'✓ 設定を保存しました　テストモード：ON':'✓ 設定を保存しました','success',3400);
+  },120));
 });
 machineForm.addEventListener('submit',e=>{
   e.preventDefault();
