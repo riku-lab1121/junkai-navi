@@ -1707,6 +1707,36 @@ input:focus,select:focus,textarea:focus{border-color:#9fc3ff!important;box-shado
 .map-sync-status{color:#7a8799!important}
 table{background:#fff}th{background:#f5f8fc!important;color:#53647d!important}td,th{border-color:#e9eef5!important}
 button.danger,.danger-btn,.delete-btn{background:var(--ui-red-soft)!important;color:#c43d3d!important;border-color:#ffd7d7!important}
+
+/* Ver.11.9.1 MAP情報シート × 操作修正 */
+#mapPage #mapInfoCloseBtn.map-info-close-btn{
+  position:relative!important;
+  z-index:40010!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:58px!important;
+  min-width:58px!important;
+  height:58px!important;
+  min-height:58px!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:18px!important;
+  background:#f2f6fb!important;
+  color:#40516c!important;
+  font-size:28px!important;
+  font-weight:800!important;
+  line-height:1!important;
+  pointer-events:auto!important;
+  touch-action:manipulation!important;
+  -webkit-user-select:none!important;
+  user-select:none!important;
+  -webkit-tap-highlight-color:transparent;
+}
+#mapPage #mapInfoCloseBtn.map-info-close-btn:active{
+  transform:scale(.94)!important;
+  background:#e8eef6!important;
+}
 </style>
 </head>
 <body>
@@ -1894,7 +1924,7 @@ button.danger,.danger-btn,.delete-btn{background:var(--ui-red-soft)!important;co
             <div id="mapInfoMeta" class="sub"></div>
             <h3 id="mapInfoTitle" style="margin:2px 0 0"></h3>
           </div>
-          <button class="secondary" id="mapInfoCloseBtn">×</button>
+          <button class="map-info-close-btn" id="mapInfoCloseBtn" type="button" aria-label="自販機情報を閉じる" onclick="hideMapMachineCard();return false;">×</button>
         </div>
         <div id="mapInfoStatus" class="pill green" style="margin-top:10px;display:inline-block"></div>
         <div id="mapInfoWork" style="margin-top:10px"></div>
@@ -2372,7 +2402,7 @@ button.danger,.danger-btn,.delete-btn{background:var(--ui-red-soft)!important;co
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.9</div>
+          <div class="app-version-badge">Version 11.9.1</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2387,7 +2417,7 @@ button.danger,.danger-btn,.delete-btn{background:var(--ui-red-soft)!important;co
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.9</div>
+      <div class="app-version-footer">Ver. 11.9.1</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -8449,6 +8479,19 @@ if(mapInfoCloseBtn){
   mapInfoCloseBtn.addEventListener('pointerup',closeMapInfoNow,{passive:false});
   mapInfoCloseBtn.addEventListener('click',closeMapInfoNow);
 }
+
+// Ver.11.9.1: Leaflet/iOS側にタップを吸われてもMAP情報の×を最優先で閉じる。
+['touchend','pointerup'].forEach(type=>{
+  document.addEventListener(type,(e)=>{
+    const btn=e.target?.closest?.('#mapInfoCloseBtn');
+    if(!btn)return;
+    e.preventDefault();
+    e.stopPropagation();
+    if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+    hideMapMachineCard();
+  },{capture:true,passive:false});
+});
+
 locateBtn.addEventListener('click',locateUser);
 
 mapMenuBtn.addEventListener('click',()=>{
