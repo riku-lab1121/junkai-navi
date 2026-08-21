@@ -1838,6 +1838,10 @@ body.field-mode #homePage .hero{order:1}
 body.field-mode #homePage .shift-card{order:2}
 body.field-mode #fieldOperationMenu{order:3}
 
+
+/* Ver.11.17.0 テストモード */
+.test-mode-banner{position:sticky;top:0;z-index:9000;margin:0 0 12px;padding:11px 14px;border-radius:14px;background:#fff4cc;border:1px solid #f2cc5c;color:#7a4b00;font-size:14px;font-weight:900;text-align:center;box-shadow:0 4px 14px rgba(80,55,0,.08)}
+body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-left:7px;padding:3px 6px;border-radius:999px;background:#fff1bf;color:#8a5700;vertical-align:middle}
 </style>
 </head>
 <body>
@@ -1854,6 +1858,7 @@ body.field-mode #fieldOperationMenu{order:3}
 
   <main class="content">
     <section id="homePage">
+      <div id="testModeBanner" class="test-mode-banner hidden">🧪 テストモード中 — 実績には保存されません</div>
       <div class="card hero">
         <div class="row">
           <div>
@@ -2412,6 +2417,11 @@ body.field-mode #fieldOperationMenu{order:3}
           <label>勤務開始</label><input id="sStart" type="time" />
           <label>帰社目標</label><input id="sReturn" type="time" />
           <label>休憩目標（分）</label><input id="sBreak" type="number" min="0" />
+          <div class="checkrow" style="margin-top:14px">
+            <input id="sTestMode" type="checkbox">
+            <span><b>テストモード</b><br><span class="sub">動作確認用。実績・日報・前回作業日には反映しません。</span></span>
+          </div>
+          <button class="secondary danger" type="button" id="deleteTodayWorkBtn" style="width:100%;margin-top:12px">今日の勤務記録を削除</button>
         </div>
       </div>
 
@@ -2515,7 +2525,7 @@ body.field-mode #fieldOperationMenu{order:3}
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.16.0</div>
+          <div class="app-version-badge">Version 11.17.0</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2530,7 +2540,7 @@ body.field-mode #fieldOperationMenu{order:3}
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.16.0</div>
+      <div class="app-version-footer">Ver. 11.17.0</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -3484,6 +3494,7 @@ if(db.settings.mapDefaultMode===undefined)db.settings.mapDefaultMode='today';
 if(db.settings.gpsAuto===undefined)db.settings.gpsAuto=true;
 if(db.settings.density===undefined)db.settings.density='standard';
 if(db.settings.haptics===undefined)db.settings.haptics=true;
+if(db.settings.testMode===undefined)db.settings.testMode=false;
 if(!Array.isArray(db.areas)||!db.areas.length) db.areas=['高松','坂出','丸亀','宇多津','与島'];
 db.machines.forEach(m=>{if(m.site===undefined)m.site='';});
       db.machines.forEach(m=>{
@@ -3500,6 +3511,11 @@ db.machines.forEach(m=>{if(m.site===undefined)m.site='';});
     console.warn('syncDbFromStorage failed',err);
   }
 }
+function isTestMode(){return !!db.settings?.testMode}
+function testSession(){
+  if(!db.testSession||db.testSession.date!==today())return null;
+  return db.testSession;
+}
 function todaysRoute(){return db.routes[today()]||null}
 
 function machineNeedsToday(m){
@@ -3514,6 +3530,7 @@ function machineNeedsToday(m){
 }
 function ensureRoute(){if(!db.routes[today()]) db.routes[today()]={date:today(),stops:[],createdAt:Date.now()};return db.routes[today()]}
 function todaysShift(){
+  if(isTestMode())return testSession();
   if(!db.shifts) db.shifts={};
   return db.shifts[today()]||null;
 }
@@ -3547,6 +3564,13 @@ function officeElapsedSeconds(){
 }
 function startDeparture(){
   if(hasDeparted())return;
+  if(isTestMode()){
+    db.testSession={date:today(),departureAt:Date.now(),returnAt:null,logs:[]};
+    db.active=null;
+    save();renderAll();
+    showToast('テスト出発を開始しました');
+    return;
+  }
   if(!db.shifts) db.shifts={};
   db.shifts[today()]={date:today(),departureAt:Date.now(),returnAt:null};
   save();
@@ -3563,6 +3587,17 @@ function requestReturn(){
 }
 function finishReturn(){
   const key=today();
+  if(isTestMode()){
+    if(!db.testSession||db.testSession.date!==key||db.testSession.returnAt)return;
+    db.testSession.returnAt=Date.now();
+    db.active=null;
+    save();
+    page='home';
+    try{renderAll()}catch(e){console.warn(e)}
+    window.scrollTo(0,0);
+    showToast('テスト外回りを終了しました（実績には保存されません）');
+    return;
+  }
   if(!db.shifts)db.shifts={};
   if(!db.shifts[key])return;
   if(db.shifts[key].returnAt)return;
@@ -4389,12 +4424,14 @@ function currentStop(){
 }
 function getBreakSeconds(){
   const t=today();
-  return db.logs.filter(l=>l.date===t && l.type==='break' && l.end).reduce((sum,l)=>sum+Math.max(0,(l.end-l.start)/1000),0) +
+  const logs=isTestMode()?(testSession()?.logs||[]):db.logs;
+  return logs.filter(l=>l.date===t && l.type==='break' && l.end).reduce((sum,l)=>sum+Math.max(0,(l.end-l.start)/1000),0) +
     (db.active?.type==='break'?Math.max(0,(Date.now()-db.active.start)/1000):0);
 }
 function getWorkSeconds(){
   const t=today();
-  return db.logs.filter(l=>l.date===t && l.type==='work' && l.end)
+  const logs=isTestMode()?(testSession()?.logs||[]):db.logs;
+  return logs.filter(l=>l.date===t && l.type==='work' && l.end)
     .reduce((sum,l)=>sum+Math.max(0,(l.end-l.start)/1000),0) +
     (db.active?.type==='work'?Math.max(0,(Date.now()-db.active.start)/1000):0);
 }
@@ -4402,9 +4439,10 @@ function getTravelSeconds(){
   if(!hasDeparted()) return 0;
   const s=todaysShift();
   const outsideEnd=s?.returnAt||Date.now();
-  const works=(db.logs||[]).filter(l=>l.date===today()&&l.type==='work'&&l.end&&l.start<outsideEnd)
+  const activityLogs=isTestMode()?(testSession()?.logs||[]):(db.logs||[]);
+  const works=activityLogs.filter(l=>l.date===today()&&l.type==='work'&&l.end&&l.start<outsideEnd)
     .reduce((a,l)=>a+Math.max(0,(Math.min(l.end,outsideEnd)-l.start)/1000),0);
-  const breaks=(db.logs||[]).filter(l=>l.date===today()&&l.type==='break'&&l.end&&l.start<outsideEnd)
+  const breaks=activityLogs.filter(l=>l.date===today()&&l.type==='break'&&l.end&&l.start<outsideEnd)
     .reduce((a,l)=>a+Math.max(0,(Math.min(l.end,outsideEnd)-l.start)/1000),0);
   return Math.max(0, outsideElapsedSeconds() - works - breaks);
 }
@@ -4419,7 +4457,12 @@ function startBreak(){
 }
 function endBreak(){
   if(db.active?.type!=='break')return;
-  db.logs.push({id:uid(),date:today(),type:'break',start:db.active.start,end:Date.now()});
+  const log={id:uid(),date:today(),type:'break',start:db.active.start,end:Date.now()};
+  if(isTestMode()){
+    if(!db.testSession)db.testSession={date:today(),departureAt:Date.now(),returnAt:null,logs:[]};
+    if(!Array.isArray(db.testSession.logs))db.testSession.logs=[];
+    db.testSession.logs.push(log);
+  }else db.logs.push(log);
   db.active=null;save();renderAll();
 }
 function openWorkPicker(stopId){
@@ -4442,16 +4485,27 @@ function openWorkPicker(stopId){
 function startWork(){
   const s=(todaysRoute()?.stops||[]).find(x=>x.id===selectedStopId);
   if(!s)return;
-  s.workTypes=[...document.querySelectorAll('#workChoices input:checked')].map(x=>x.value);
-  (todaysRoute()?.stops||[]).forEach(x=>{if(x.status==='current')x.status='pending'});
-  s.status='current';
-  db.active={type:'work',start:Date.now(),stopId:s.id,machineId:s.machineId,workTypes:s.workTypes};
+  const chosen=[...document.querySelectorAll('#workChoices input:checked')].map(x=>x.value);
+  if(!isTestMode()){
+    s.workTypes=chosen;
+    (todaysRoute()?.stops||[]).forEach(x=>{if(x.status==='current')x.status='pending'});
+    s.status='current';
+  }
+  db.active={type:'work',start:Date.now(),stopId:s.id,machineId:s.machineId,workTypes:chosen,test:isTestMode()};
   save();hideModal('workModal');renderAll();
 }
 function endWork(){
   if(db.active?.type!=='work')return;
-  const act=db.active,r=todaysRoute(),s=r.stops.find(x=>x.id===act.stopId),m=machine(act.machineId);
+  const act=db.active,r=todaysRoute(),s=r?.stops?.find(x=>x.id===act.stopId),m=machine(act.machineId);
   const end=Date.now();
+  if(isTestMode()||act.test){
+    if(!db.testSession)db.testSession={date:today(),departureAt:Date.now(),returnAt:null,logs:[]};
+    if(!Array.isArray(db.testSession.logs))db.testSession.logs=[];
+    db.testSession.logs.push({id:uid(),date:today(),type:'work',machineId:m?.id,start:act.start,end,workTypes:act.workTypes});
+    db.active=null;save();renderAll();
+    showToast('テスト作業を終了しました');
+    return;
+  }
   db.logs.push({id:uid(),date:today(),type:'work',machineId:m.id,start:act.start,end,workTypes:act.workTypes});
   s.status='done'; s.actualMinutes=Math.max(1,Math.round((end-act.start)/60000));
   const didRegular=act.workTypes.includes('基本巡回') || (act.workTypes.includes('清掃') && act.workTypes.includes('原料'));
@@ -4501,6 +4555,13 @@ function renderShift(){
   const fieldMenu=document.getElementById('fieldOperationMenu');
   if(fieldMenu)fieldMenu.classList.toggle('hidden',!departed||returned);
   document.body.classList.toggle('field-mode',departed&&!returned);
+  document.body.classList.toggle('test-mode-active',isTestMode());
+  const banner=document.getElementById('testModeBanner');
+  if(banner)banner.classList.toggle('hidden',!isTestMode());
+  if(isTestMode()){
+    shiftReportBtn.classList.add('hidden');
+    returnedReportCard.classList.add('hidden');
+  }
 }
 
 function openFieldCheck(){
@@ -4514,6 +4575,43 @@ function openFieldMemo(){
 document.addEventListener('click',e=>{
   if(e.target?.id==='fieldCheckBtn')openFieldCheck();
   if(e.target?.id==='fieldMemoBtn')openFieldMemo();
+});
+
+function deleteTodayWorkRecord(){
+  if(isTestMode()){
+    if(!db.testSession){showToast('今日のテスト記録はありません');return}
+    if(!confirm('今日のテスト記録を削除しますか？'))return;
+    db.testSession=null;db.active=null;save();renderAll();
+    showToast('今日のテスト記録を削除しました');
+    return;
+  }
+
+  const date=today();
+  const workLogs=(db.logs||[]).filter(l=>l.date===date&&l.type==='work'&&l.end);
+  const affected=[...new Set(workLogs.map(l=>l.machineId).filter(Boolean))];
+  const hasAny=!!db.shifts?.[date]||(db.logs||[]).some(l=>l.date===date)||!!db.active;
+  if(!hasAny){showToast('今日の勤務記録はありません');return}
+  if(!confirm('今日の出発・外回り終了・作業・休憩の実績を削除しますか？\n巡回予定そのものは残します。'))return;
+
+  if(db.shifts)delete db.shifts[date];
+  db.logs=(db.logs||[]).filter(l=>l.date!==date);
+  db.active=null;
+
+  const r=db.routes?.[date];
+  if(r?.stops){
+    r.stops.forEach(s=>{
+      if(affected.includes(s.machineId)&&s.status==='done'){
+        s.status='pending';
+        delete s.actualMinutes;
+      }
+    });
+  }
+  affected.forEach(id=>{try{recomputeMachineWorkDates(id)}catch(e){console.warn(e)}});
+  save();renderAll();
+  showToast('今日の勤務記録を削除しました');
+}
+document.addEventListener('click',e=>{
+  if(e.target?.id==='deleteTodayWorkBtn')deleteTodayWorkRecord();
 });
 
 function renderHeader(){
@@ -4551,7 +4649,7 @@ function renderHome(){
   shiftTotal.textContent=`${shiftM}分`;
 
   reportStops.textContent=`${done}台`;
-  reportJobs.textContent=`${db.logs.filter(l=>l.date===today()&&l.type==='work'&&l.end).length}件`;
+  reportJobs.textContent=`${(isTestMode()?(testSession()?.logs||[]):db.logs).filter(l=>l.date===today()&&l.type==='work'&&l.end).length}件`;
   reportShift.textContent=`${shiftM}分`;
   reportBreak.textContent=`${breakM}分`;
 }
@@ -8433,6 +8531,7 @@ function setSettingsFields(){
   sMapKitToken.value=db.settings.mapKitToken||'';
   sDensity.value=db.settings.density||'standard';
   sHaptics.checked=db.settings.haptics!==false;
+  if(window.sTestMode)sTestMode.checked=!!db.settings.testMode;
   mapKitTokenStatus.textContent=db.settings.mapKitToken?'店舗・施設検索：設定済み':'未設定の場合は登録済み自販機検索＋Apple Maps外部検索を使います。';
   renderSettingsAreaSummary();
   renderFacilityMaster();
@@ -8657,7 +8756,8 @@ saveSettings.addEventListener('click',()=>{
     gpsAuto:sGpsAuto.checked,
     mapKitToken:sMapKitToken.value.trim(),
     density:sDensity.value,
-    haptics:sHaptics.checked
+    haptics:sHaptics.checked,
+    testMode:!!sTestMode.checked
   };
   mapKitLoadingPromise=null;
   applyAppSettings();
