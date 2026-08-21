@@ -2493,7 +2493,7 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.15.0</div>
+          <div class="app-version-badge">Version 11.15.1</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2508,7 +2508,7 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.15.0</div>
+      <div class="app-version-footer">Ver. 11.15.1</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -3100,14 +3100,14 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
     <div>
       <div class="section-title">今日の勤務</div>
       <div class="flow-title">外回りを終了</div>
-      <div class="sub">会社へ戻った時刻を記録します。業務自体はまだ終了しません。</div>
+      <div class="sub">会社へ戻った時刻を記録します。</div>
     </div>
     <button class="secondary" id="returnConfirmBackBtn" type="button">戻る</button>
   </div>
   <div class="flow-card">
     <div style="font-size:22px;font-weight:900">外回り終了を記録しますか？</div>
     <div class="notice" style="margin-top:14px">
-      帰社後の事務作業などは引き続き勤務時間として計測します。最後に「業務を終了する」を押してください。
+      「外回り終了」を記録すると、ホームに終了時刻と巡回時間を表示します。
     </div>
   </div>
   <div class="flow-card">
@@ -3260,7 +3260,7 @@ nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
     <h2>帰社を記録しますか？</h2>
     <div class="card" style="background:#f9fafb;margin-bottom:14px">
       <div style="font-weight:850;font-size:18px">今日の巡回を終了</div>
-      <div class="sub" style="margin-top:4px">帰社時刻を記録し、今日の勤務時間を確定します。</div>
+      <div class="sub" style="margin-top:4px">帰社時刻を記録します。</div>
     </div>
     <div class="grid2">
       <button class="secondary" id="cancelReturnBtn">キャンセル</button>
@@ -3547,9 +3547,17 @@ function finishReturn(){
 
   const endedAt=Date.now();
   db.shifts[key].returnAt=endedAt;
+  save();
 
-  // 保存を先に確定し、画面遷移で古い状態に戻らないようにする
-  localStorage.setItem(DBKEY,JSON.stringify(db));
+  // iOSでも終了時刻を即時反映。ほかの描画処理でエラーが起きても時刻表示を失わない。
+  const rt=document.getElementById('returnTime');
+  const se=document.getElementById('shiftElapsed');
+  const ss=document.getElementById('shiftState');
+  const sd=document.getElementById('shiftDetail');
+  if(rt)rt.textContent=timeLabel(endedAt);
+  if(se)se.textContent=fmtTime(shiftElapsedSeconds());
+  if(ss)ss.textContent='外回り終了';
+  if(sd)sd.textContent=`巡回記録 ${timeLabel(db.shifts[key].departureAt)}〜${timeLabel(endedAt)}`;
 
   page='home';
   document.querySelectorAll('main > section').forEach(el=>{
@@ -3557,11 +3565,12 @@ function finishReturn(){
   });
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.page==='home'));
 
-  renderHeader();
-  renderHome();
-  renderShift();
-  renderActive();
-  renderWorkDashboard();
+  // 個別描画は安全に実行し、一部で失敗しても終了時刻は保持する。
+  try{renderShift();}catch(e){console.error('renderShift',e);}
+  try{renderHome();}catch(e){console.error('renderHome',e);}
+  try{renderActive();}catch(e){console.error('renderActive',e);}
+  try{renderWorkDashboard();}catch(e){console.error('renderWorkDashboard',e);}
+  try{renderHeader();}catch(e){console.error('renderHeader',e);}
   window.scrollTo(0,0);
   showToast('外回り終了を記録しました');
 }
@@ -4454,7 +4463,7 @@ function renderShift(){
 
   if(!departed){
     shiftState.textContent='未出発';
-    shiftDetail.textContent='出発すると巡回時間を記録します';
+    shiftDetail.textContent='出発時刻を記録します';
     departureBtn.classList.remove('hidden');
   }else if(!returned){
     shiftState.textContent='外回り中';
