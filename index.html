@@ -1758,6 +1758,76 @@ button.danger,.danger-btn,.delete-btn{background:var(--ui-red-soft)!important;co
   z-index:39020!important;
   pointer-events:auto!important;
 }
+
+/* Ver.11.9.3 MAP情報カード非モーダル化 */
+#mapPage .map-info-backdrop{display:none!important}
+#mapPage #mapInfoCard.simple-map-info{
+  z-index:2147483000!important;
+  pointer-events:auto!important;
+  isolation:isolate!important;
+}
+#mapPage #mapInfoCard.simple-map-info .row:first-child{
+  position:relative!important;
+  padding-right:76px!important;
+}
+#mapPage #mapInfoCloseBtn.map-info-close-btn{
+  position:absolute!important;top:14px!important;right:14px!important;
+  z-index:2147483646!important;width:64px!important;min-width:64px!important;
+  height:64px!important;min-height:64px!important;display:flex!important;
+  align-items:center!important;justify-content:center!important;border:0!important;
+  border-radius:20px!important;background:#eef3f9!important;color:#40516c!important;
+  font-size:30px!important;font-weight:900!important;pointer-events:auto!important;
+  touch-action:manipulation!important;
+}
+nav,.bottom-nav,.bottomNav,.tabbar,.bottom-tabs{
+  z-index:2147483500!important;
+  pointer-events:auto!important;
+}
+
+/* Ver.11.10.0 MAP詳細を別画面化 */
+#mapInfoCard,
+#mapInfoBackdrop{
+  display:none!important;
+}
+.map-site-detail-list{
+  display:grid;
+  gap:10px;
+  margin-top:14px;
+}
+.map-site-machine-row{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  text-align:left;
+  padding:16px;
+  border:1px solid #dbe3ee;
+  border-radius:18px;
+  background:#f8fbff;
+  color:#172033;
+}
+.map-site-machine-row span{
+  display:grid;
+  gap:4px;
+  min-width:0;
+}
+.map-site-machine-row b{font-size:17px}
+.map-site-machine-row small{
+  display:block;
+  color:#718096;
+  font-size:14px;
+  line-height:1.35;
+}
+.map-site-machine-row strong{
+  color:#1677ff;
+  white-space:nowrap;
+}
+.machine-detail-map-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
 </style>
 </head>
 <body>
@@ -1939,14 +2009,13 @@ button.danger,.danger-btn,.delete-btn{background:var(--ui-red-soft)!important;co
         <button id="locateBtn" class="simple-locate" title="現在地">⌖</button>
       </div>
 
-      <div id="mapInfoBackdrop" class="map-info-backdrop hidden" aria-hidden="true"></div>
       <div id="mapInfoCard" class="card simple-map-info hidden">
         <div class="row">
           <div>
             <div id="mapInfoMeta" class="sub"></div>
             <h3 id="mapInfoTitle" style="margin:2px 0 0"></h3>
           </div>
-          <button class="map-info-close-btn" id="mapInfoCloseBtn" type="button" aria-label="自販機情報を閉じる" onclick="hideMapMachineCard();return false;">×</button>
+          <button class="map-info-close-btn" id="mapInfoCloseBtn" type="button" data-map-sheet-close="1" aria-label="自販機情報を閉じる">×</button>
         </div>
         <div id="mapInfoStatus" class="pill green" style="margin-top:10px;display:inline-block"></div>
         <div id="mapInfoWork" style="margin-top:10px"></div>
@@ -2424,7 +2493,7 @@ button.danger,.danger-btn,.delete-btn{background:var(--ui-red-soft)!important;co
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.9.2</div>
+          <div class="app-version-badge">Version 11.10.0</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2439,7 +2508,7 @@ button.danger,.danger-btn,.delete-btn{background:var(--ui-red-soft)!important;co
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.9.2</div>
+      <div class="app-version-footer">Ver. 11.10.0</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -2571,6 +2640,23 @@ button.danger,.danger-btn,.delete-btn{background:var(--ui-red-soft)!important;co
   </div>
 </section>
 
+<section id="mapSiteDetailPage" class="hidden flow-page">
+  <div class="flow-head">
+    <div>
+      <div class="section-title">MAP</div>
+      <div class="flow-title" id="mapSiteDetailTitle">設置場所</div>
+      <div class="sub" id="mapSiteDetailSub"></div>
+    </div>
+    <button class="secondary" type="button" onclick="closeMapSiteDetailPage()">MAPへ戻る</button>
+  </div>
+
+  <div class="flow-card">
+    <div class="section-title">この場所の自販機</div>
+    <div class="sub" id="mapSiteDetailSummary"></div>
+    <div id="mapSiteDetailList" class="map-site-detail-list"></div>
+  </div>
+</section>
+
 <section id="machineDetailPage" class="hidden flow-page">
   <div class="flow-head">
     <div>
@@ -2633,7 +2719,11 @@ button.danger,.danger-btn,.delete-btn{background:var(--ui-red-soft)!important;co
   </div>
 
   <div class="flow-card">
-    <button class="primary" type="button" onclick="editMachineFromDetail()" style="width:100%">編集する</button>
+    <div id="machineDetailMapActions" class="hidden machine-detail-map-actions">
+      <button class="secondary" type="button" onclick="navigateToMachine(machineDetailId)">ナビ</button>
+      <button class="primary" type="button" id="machineDetailAddRouteBtn" onclick="addMachineToTodayFromDetail()">巡回に追加</button>
+    </div>
+    <button class="primary" type="button" onclick="editMachineFromDetail()" style="width:100%;margin-top:10px">編集する</button>
     <button class="secondary danger" type="button" onclick="deleteMachineFromDetail()" style="width:100%;margin-top:10px">削除する</button>
   </div>
 </section>
@@ -5152,46 +5242,20 @@ function restoreMapAfterEdit(){
   }catch(e){console.warn(e)}},200);
 }
 function showMapMachineCard(machineId){
-  if(Date.now()<suppressMapInfoUntil)return;
   const m=machine(machineId);if(!m)return;
   selectedExternalPlace=null;
   selectedMapMachineId=machineId;
   selectedMapSiteKey=machineSiteKey(m);
   mapSelectionFeedback();
-
-  const st=machineStatusInfo(m),stop=routeStopForMachine(machineId),idx=routeIndexForMachine(machineId);
-  mapInfoTitle.textContent=machineDisplayTitle(m);
-  mapInfoMeta.textContent=machineDisplaySub(m)||'機種・管理No 未設定';
-  mapInfoStatus.textContent=st.label;
-  mapInfoStatus.className='pill '+(st.dot==='red'?'red':st.dot==='orange'?'orange':'green');
-  const works=stop?.workTypes||workFor(m);
-  mapInfoWork.innerHTML=works.map(w=>`<span class="tag">${escapeHtml(w)}</span>`).join('');
-  mapInfoMemo.textContent=m.inventoryMemo||m.memo||'';
-  mapInfoAddBtn.textContent='巡回に追加';
-  if(window.mapInfoEditBtn)mapInfoEditBtn.classList.remove('hidden');
-  mapInfoAddBtn.disabled=!!stop;
-  mapInfoAddBtn.classList.toggle('hidden',!!stop);
-  mapInfoAdded.classList.toggle('hidden',!stop);
-
-  try{
-    if(Number.isFinite(Number(m.lat))&&Number.isFinite(Number(m.lng))){
-      map.panTo([Number(m.lat),Number(m.lng)],{animate:true,duration:.2});
-    }
-  }catch(e){}
-
-  revealMapInfoSheet();
-  try{renderMapMarkers()}catch(e){}
+  openMachineDetailPage(machineId,'map');
 }
+
 function hideMapMachineCard(){
   suppressMapInfoUntil=Date.now()+600;
   selectedMapMachineId=null;
   selectedMapSiteKey=null;
   selectedExternalPlace=null;
   clearPlaceSearchMarker();
-  if(window.mapInfoBackdrop){
-    mapInfoBackdrop.classList.add('hidden');
-    mapInfoBackdrop.setAttribute('aria-hidden','true');
-  }
   if(mapInfoCard){
     mapInfoCard.classList.add('hidden');
     mapInfoCard.classList.remove('map-info-sheet-pop');
@@ -5871,7 +5935,7 @@ function switchPage(p){
   page=p;
 
   // まず画面そのものを切り替える。MAPの後処理で失敗しても遷移は止めない。
-  ['home','map','route','calendar','machines','register','report','manualRoute','autoRoute','trouble','settings','modelEditor','facilityEditor','monthlyActionPlan','monthlyDayDetail','deleteMachine','machineDetail','dayOff','monthlyManualBuilder','returnConfirm','routeWorkEdit'].forEach(x=>{
+  ['home','map','route','calendar','machines','register','report','manualRoute','autoRoute','trouble','settings','modelEditor','facilityEditor','monthlyActionPlan','monthlyDayDetail','deleteMachine','mapSiteDetail','machineDetail','dayOff','monthlyManualBuilder','returnConfirm','routeWorkEdit'].forEach(x=>{
     const el=document.getElementById(x+'Page');
     if(el) el.classList.toggle('hidden',x!==p);
   });
@@ -6075,10 +6139,6 @@ function mapSelectionFeedback(){
 }
 function revealMapInfoSheet(){
   if(Date.now()<suppressMapInfoUntil)return;
-  if(window.mapInfoBackdrop){
-    mapInfoBackdrop.classList.remove('hidden');
-    mapInfoBackdrop.removeAttribute('aria-hidden');
-  }
   mapInfoCard.style.removeProperty('display');
   mapInfoCard.removeAttribute('aria-hidden');
   mapInfoCard.classList.remove('hidden');
@@ -6088,7 +6148,6 @@ function revealMapInfoSheet(){
   setTimeout(()=>mapInfoCard.classList.remove('map-info-sheet-pop'),280);
 }
 function showMapSiteCard(key){
-  if(Date.now()<suppressMapInfoUntil)return;
   const g=mapMachineGroups().find(x=>x.key===key);
   if(!g)return;
   selectedMapSiteKey=key;
@@ -6100,28 +6159,12 @@ function showMapSiteCard(key){
   }
 
   selectedMapMachineId=null;
-  const todayCount=g.machines.filter(m=>!!routeStopForMachine(m.id)).length;
-  mapInfoTitle.textContent=g.site;
-  mapInfoMeta.textContent=`${g.machines[0].area||'未設定'} ・ ${g.machines.length}台`;
-  mapInfoStatus.textContent=todayCount?`今日 ${todayCount}台`:`${g.machines.length}台設置`;
-  mapInfoStatus.className='pill '+(todayCount?'orange':'green');
-  mapInfoWork.innerHTML=g.machines.map((m,i)=>{
-    const stop=routeStopForMachine(m.id);
-    const status=machineStatusInfo(m);
-    return `<button class="same-location-row" onclick="showMapMachineCard('${m.id}')">
-      <span><b>${i+1}. ${escapeHtml(machineDisplayTitle(m))}</b>
-      <span class="sub">${escapeHtml(machineDisplaySub(m))} ・ ${escapeHtml(status.label)}</span></span>
-      <span>${stop?'巡回対象':'詳細 ›'}</span>
-    </button>`;
-  }).join('');
-  mapInfoMemo.textContent='この地点に登録されている自販機を表示しています。';
-  if(window.mapInfoEditBtn)mapInfoEditBtn.classList.add('hidden');
-  mapInfoAddBtn.classList.add('hidden');
-  mapInfoAdded.classList.add('hidden');
-  try{map.panTo([Number(g.lat),Number(g.lng)],{animate:true,duration:.2})}catch(e){}
-  revealMapInfoSheet();
-  try{renderMapMarkers()}catch(e){}
+  mapSiteDetailKey=key;
+  renderMapSiteDetailPage();
+  switchPage('mapSiteDetail');
+  window.scrollTo(0,0);
 }
+
 function renderMapMarkers(){
   if(!map)return;
   const visibleForStatus=(db.machines||[]).filter(mapMachineVisible);
@@ -7006,6 +7049,70 @@ function nextDateFrom(last,days){
   d.setDate(d.getDate()+Number(days||0));
   return localYmd(d);
 }
+let mapSiteDetailKey=null;
+
+function renderMapSiteDetailPage(){
+  const g=mapMachineGroups().find(x=>x.key===mapSiteDetailKey);
+  if(!g){
+    switchPage('map');
+    return;
+  }
+
+  const todayCount=g.machines.filter(m=>!!routeStopForMachine(m.id)).length;
+  mapSiteDetailTitle.textContent=g.site||'同じ設置場所';
+  mapSiteDetailSub.textContent=`${g.machines[0]?.area||'未設定'} ・ ${g.machines.length}台`;
+  mapSiteDetailSummary.textContent=todayCount
+    ? `${g.machines.length}台中 ${todayCount}台が今日の巡回対象`
+    : `${g.machines.length}台登録されています`;
+
+  mapSiteDetailList.innerHTML=g.machines.map((m,i)=>{
+    const stop=routeStopForMachine(m.id);
+    const st=machineStatusInfo(m);
+    return `<button type="button" class="map-site-machine-row" onclick="openMachineDetailPage('${m.id}','mapSiteDetail')">
+      <span>
+        <b>${i+1}. ${escapeHtml(machineDisplayTitle(m))}</b>
+        <small>${escapeHtml(machineDisplaySub(m))}</small>
+        <small>${escapeHtml(st.label)}</small>
+      </span>
+      <strong>${stop?'巡回対象':'詳細 ›'}</strong>
+    </button>`;
+  }).join('');
+}
+
+function closeMapSiteDetailPage(){
+  switchPage('map');
+  setTimeout(()=>{
+    if(page==='map'&&map){
+      try{
+        map.invalidateSize(true);
+        renderMapMarkers();
+      }catch(e){}
+    }
+  },80);
+}
+
+function addMachineToTodayFromDetail(){
+  if(!machineDetailId)return;
+  const m=machine(machineDetailId);if(!m)return;
+  const r=ensureRoute();
+
+  if(!r.stops.some(s=>s.machineId===machineDetailId)){
+    r.stops.push({
+      id:uid(),
+      machineId:machineDetailId,
+      order:r.stops.length+1,
+      status:'pending',
+      workTypes:(workFor(m).length?workFor(m):['確認']).filter(w=>w!=='トラブル'),
+      plannedMinutes:Number(m.workMinutes||25)
+    });
+    save();
+    renderAll();
+    showToast('今日の巡回に追加しました');
+  }
+
+  openMachineDetailPage(machineDetailId,machineDetailReturnPage);
+}
+
 function openMachineDetailPage(id,returnPage='machines'){
   const m=machine(id);
   if(!m)return;
@@ -7021,6 +7128,15 @@ function openMachineDetailPage(id,returnPage='machines'){
   machineDetailNumber.textContent=m.number?`#${m.number}`:'-';
   machineDetailArea.textContent=m.area||'未設定';
   machineDetailMinutes.textContent=`約${Number(m.workMinutes||25)}分`;
+
+  const fromMap=machineDetailReturnPage==='map'||machineDetailReturnPage==='mapSiteDetail';
+  if(window.machineDetailMapActions)machineDetailMapActions.classList.toggle('hidden',!fromMap);
+
+  if(window.machineDetailAddRouteBtn){
+    const inRoute=!!routeStopForMachine(id);
+    machineDetailAddRouteBtn.disabled=inRoute;
+    machineDetailAddRouteBtn.textContent=inRoute?'巡回に追加済み':'巡回に追加';
+  }
 
   const f=facilityForMachine(m);
   machineFacilityVisit.textContent=facilityVisitLabel(f);
@@ -7053,12 +7169,26 @@ function closeMachineDetailPage(){
   switchPage(target);
   if(target==='monthlyDayDetail')renderMonthlyDayDetail();
   if(target==='machines')renderMachines();
-  window.scrollTo(0,0);
+  if(target==='mapSiteDetail')renderMapSiteDetailPage();
+
+  if(target==='map'){
+    setTimeout(()=>{
+      if(page==='map'&&map){
+        try{
+          map.invalidateSize(true);
+          renderMapMarkers();
+        }catch(e){}
+      }
+    },80);
+  }else{
+    window.scrollTo(0,0);
+  }
 }
 function editMachineFromDetail(){
   if(!machineDetailId)return;
   const id=machineDetailId;
-  openRegisterPage('machines',id);
+  const ret=machineDetailReturnPage||'machines';
+  openRegisterPage(ret==='mapSiteDetail'?'mapSiteDetail':ret,id);
 }
 function deleteMachineFromDetail(){
   if(!machineDetailId)return;
@@ -8538,6 +8668,8 @@ if(window.mapInfoBackdrop){
     },{passive:false});
   });
 }
+
+
 
 locateBtn.addEventListener('click',locateUser);
 
