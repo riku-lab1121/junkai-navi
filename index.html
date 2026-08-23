@@ -2731,7 +2731,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.18.8</div>
+          <div class="app-version-badge">Version 11.18.9</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2746,7 +2746,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.18.8</div>
+      <div class="app-version-footer">Ver. 11.18.9</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -3739,6 +3739,7 @@ if(!Array.isArray(db.areas)||!db.areas.length) db.areas=['高松','坂出','丸�
 db.machines.forEach(m=>{if(m.site===undefined)m.site='';});
       db.machines.forEach(m=>{
         if(!m.area) m.area='未設定';
+        if(m.nextRegularManual===undefined)m.nextRegularManual=false;
         if(!m.regularIntervalDays) m.regularIntervalDays=14;
         if(m.supplyIntervalDays===undefined||m.supplyIntervalDays===null||m.supplyIntervalDays==='') m.supplyIntervalDays=m.weekly?7:0;
         if(m.prioritySupply===undefined) m.prioritySupply=false;
@@ -4205,7 +4206,9 @@ function createManualRoute(){
       order:i+1,
       status:'pending',
       workTypes:routeWorkTypes(m),
-      plannedMinutes:Number(m.workMinutes||25)
+      plannedMinutes:Number(m.workMinutes||25),
+      manualLocked:true,
+      userAdjusted:true
     }))
   };
 
@@ -4629,7 +4632,8 @@ function generateRoute(){
         plannedArrival:minutesToTime(item.arrivalMinutes),
         plannedTravelMinutes:item.travelMinutes||0,
         plannedWaitMinutes:item.waitingMinutes||0,
-        facilityWarning:item.warning||''
+        facilityWarning:item.warning||'',
+        autoManaged:true
       }))
     };
 
@@ -6604,7 +6608,12 @@ function syncEditedMachinePlanning(machineId){
       r.stops=r.stops.filter(s=>{
         if(s.machineId!==machineId)return true;
         if(s.status==='done')return true; // 実績は保持
-        return !(s.autoSynced===true || r.candidateMode==='auto-sync');
+        if(s.manualLocked||s.userAdjusted)return true; // 手動調整は保護
+        const routeIsManual=r.candidateMode==='manual';
+        // 自動同期・おすすめ作成・自動作成由来の未完了予定は再判定対象。
+        const managed=s.autoSynced===true || !routeIsManual;
+        if(managed){routeChanges++;return false}
+        return true;
       });
       r.stops.forEach((s,i)=>s.order=i+1);
       if(!r.stops.length)delete db.routes[date];
@@ -6671,13 +6680,32 @@ function syncEditedMachinePlanning(machineId){
     }
   }
 
-  // 今日の巡回に既に入っている場合も最新設定へ更新。
+  // 今日の巡回も保存直後に即時再反映。
   const todayRoute=db.routes?.[today()];
-  const todayStop=todayRoute?.stops?.find(s=>s.machineId===machineId);
-  if(todayStop&&todayStop.status!=='done'){
-    const works=workFor(m).filter(w=>w!=='トラブル');
-    todayStop.workTypes=works.length?works:['確認'];
-    routeChanges++;
+  if(todayRoute){
+    todayRoute.stops=(todayRoute.stops||[]).filter(Boolean);
+    todayRoute.stops.forEach((s,i)=>s.order=i+1);
+    if(!todayRoute.stops.length)delete db.routes[today()];
+    else if(todayRoute.candidateMode!=='manual'){
+      // 自動/おすすめ巡回なら、追加・削除後にエリア・距離順も再計算。
+      try{
+        const done=todayRoute.stops.filter(s=>s.status==='done');
+        const pending=todayRoute.stops.filter(s=>s.status!=='done');
+        const stopMap=new Map(pending.map(s=>[s.machineId,s]));
+        const plan=buildTimedRoutePlan(pending.map(s=>machine(s.machineId)).filter(Boolean));
+        const ordered=plan.map(item=>{
+          const s=stopMap.get(item.machine.id);
+          return s?{...s,
+            plannedArrival:minutesToTime(item.arrivalMinutes),
+            plannedTravelMinutes:item.travelMinutes||0,
+            plannedWaitMinutes:item.waitingMinutes||0,
+            facilityWarning:item.warning||''
+          }:null;
+        }).filter(Boolean);
+        todayRoute.stops=[...done,...ordered];
+        todayRoute.stops.forEach((s,i)=>s.order=i+1);
+      }catch(e){console.warn('today route reorder after machine edit',e)}
+    }
   }
 
   return {months:keys.size,routes:routeChanges};
@@ -6780,6 +6808,11 @@ function saveRegisterPage(){
 
     const id=registerEditingId||uid();
     const previousMachine=registerEditingId?db.machines.find(m=>m.id===registerEditingId):null;
+    const enteredNextRegular=rpNextRegular.value||'';
+    const previousNextRegular=previousMachine?.nextRegular||'';
+    const nextRegularChanged=previousMachine
+      ? enteredNextRegular!==previousNextRegular
+      : !!enteredNextRegular;
     const data={
       id,
       name,
@@ -6800,7 +6833,8 @@ function saveRegisterPage(){
       drainScheduleMode:(rpDrainInterval.value==='custom'&&rpDrainCustomMode.value==='weekdays')?'weekdays':'days',
       drainWeekdays:(rpDrainInterval.value==='custom'&&rpDrainCustomMode.value==='weekdays')?selectedWeekdays(rpDrainWeekdays):[],
       lastRegular:rpLastRegular.value||'',
-      nextRegular:rpNextRegular.value||'',
+      nextRegular:enteredNextRegular,
+      nextRegularManual:nextRegularChanged ? !!enteredNextRegular : !!previousMachine?.nextRegularManual,
       weekly:false,
       lastSupply:rpLastSupply.value||'',
       lastDrain:rpLastDrain.value||'',
@@ -6825,6 +6859,9 @@ function saveRegisterPage(){
       const formNext=data.nextRegular||'';
       if(oldInterval!==newInterval && (!formNext || formNext===oldNext)){
         data.nextRegular=addDaysYmd(data.lastRegular,newInterval);
+        data.nextRegularManual=false;
+      }else if(nextRegularChanged){
+        data.nextRegularManual=!!data.nextRegular;
       }
     }
 
@@ -6857,11 +6894,12 @@ function saveRegisterPage(){
 
     const savedMachineId=id;
     const correctedNote=(supplyDayCorrected||drainDayCorrected)?'｜1日以下の指定は週1に補正':'';
+    const nextDateNote=(wasEditing&&nextRegularChanged)?'｜次回日を巡回へ再反映':'';
     showToast(
       (wasEditing
         ? `${name} を保存しました${planSyncResult.months?`｜巡回・月間計画も更新`:""}`
         : `${name} を登録しました${planSyncResult.months?`｜巡回・月間計画にも反映`:""}`)
-      + correctedNote
+      + nextDateNote + correctedNote
     );
     registerEditingId=null;
 
@@ -8753,9 +8791,9 @@ function monthlyDatesByInterval(lastDate,interval,start,end){
 }
 function regularOccurrenceStart(m){
   const interval=regularInterval(m);
-  // 月間計画は「現在の周期設定」を最優先する。
-  // 週1へ変更した後に古い nextRegular(14日周期時代など) が残っていても、
-  // 最終基本巡回日 + 現在周期 から正しく再計算する。
+  // ユーザーが「次回基本巡回予定日」を明示変更した場合はその日を最優先。
+  if(m?.nextRegularManual && m?.nextRegular)return m.nextRegular;
+  // それ以外は古い nextRegular に引っ張られず、最終巡回日＋現在周期で計算。
   if(m?.lastRegular)return addDaysYmd(m.lastRegular,interval);
   if(m?.nextRegular)return m.nextRegular;
   return '';
