@@ -2731,7 +2731,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.18.7</div>
+          <div class="app-version-badge">Version 11.18.8</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2746,7 +2746,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.18.7</div>
+      <div class="app-version-footer">Ver. 11.18.8</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -7956,21 +7956,23 @@ function fillMonthlyActionAreas(){
 }
 function openMonthlyActionPlan(){
   monthlyActionPlanAnchor=today();
-  fillMonthlyActionAreas();
-  const d=ymdDate(monthlyActionPlanAnchor);
-  monthlyActionDate.value=localYmd(new Date(d.getFullYear(),d.getMonth(),1,12));
-  monthlyActionTitleInput.value='';
-  monthlyActionType.value='route';
-  monthlyActionPriority.value='normal';
-  monthlyActionMemo.value='';
-  monthlyActionEditId.value='';
-  monthlyActionCancelEdit.classList.add('hidden');
-  monthlyActionFormTitle.textContent='手動で予定を追加';
-  monthlyActionSaveLabel.textContent='表に追加';
-  monthlyAutoMaxStops.value=Number(db.settings?.maxStops||15);
-  monthlyAutoBudget.value=Number(db.settings?.workBudget||360);
+  try{fillMonthlyActionAreas();}catch(e){console.warn('monthly areas init',e)}
+  try{
+    const d=ymdDate(monthlyActionPlanAnchor);
+    if(window.monthlyActionDate)monthlyActionDate.value=localYmd(new Date(d.getFullYear(),d.getMonth(),1,12));
+    if(window.monthlyActionTitleInput)monthlyActionTitleInput.value='';
+    if(window.monthlyActionType)monthlyActionType.value='route';
+    if(window.monthlyActionPriority)monthlyActionPriority.value='normal';
+    if(window.monthlyActionMemo)monthlyActionMemo.value='';
+    if(window.monthlyActionEditId)monthlyActionEditId.value='';
+    if(window.monthlyActionCancelEdit)monthlyActionCancelEdit.classList.add('hidden');
+    if(window.monthlyActionFormTitle)monthlyActionFormTitle.textContent='手動で予定を追加';
+    if(window.monthlyActionSaveLabel)monthlyActionSaveLabel.textContent='表に追加';
+    if(window.monthlyAutoMaxStops)monthlyAutoMaxStops.value=Number(db.settings?.maxStops||15);
+    if(window.monthlyAutoBudget)monthlyAutoBudget.value=Number(db.settings?.workBudget||360);
+  }catch(e){console.warn('monthly form init',e)}
   switchPage('monthlyActionPlan');
-  renderMonthlyActionPlan();
+  try{renderMonthlyActionPlan();}catch(e){console.error('monthly render',e)}
   window.scrollTo(0,0);
 }
 function closeMonthlyActionPlan(){
@@ -9753,7 +9755,30 @@ if(window.routeWeekTodayBtn)routeWeekTodayBtn.addEventListener('click',()=>{
   routeWeekAnchor=today();
   renderRouteWeek();
 });
-if(window.openMonthlyPlanFromRouteBtn)openMonthlyPlanFromRouteBtn.addEventListener('click',openMonthlyActionPlan);
+{
+  const monthlyOpenBtn=document.getElementById('openMonthlyPlanFromRouteBtn');
+  if(monthlyOpenBtn){
+    const openMonthlySafely=(e)=>{
+      if(e){e.preventDefault();e.stopPropagation();}
+      try{openMonthlyActionPlan();}
+      catch(err){
+        console.error('monthly plan open failed',err);
+        // 初期化の一部で失敗しても表そのものは必ず開く。
+        try{
+          monthlyActionPlanAnchor=today();
+          switchPage('monthlyActionPlan');
+          renderMonthlyActionPlan();
+          window.scrollTo(0,0);
+        }catch(err2){
+          console.error('monthly plan fallback failed',err2);
+          showToast('月間行動計画表を開けませんでした');
+        }
+      }
+    };
+    monthlyOpenBtn.addEventListener('click',openMonthlySafely);
+    monthlyOpenBtn.addEventListener('touchend',openMonthlySafely,{passive:false});
+  }
+}
 
 generateRouteBtn.addEventListener('click',()=>{
   if(todaysRoute()){
