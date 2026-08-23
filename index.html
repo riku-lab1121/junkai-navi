@@ -1846,6 +1846,21 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
 /* Ver.11.17.1 */
 #appToast{z-index:2147483647!important;font-size:15px!important;font-weight:900!important;padding:14px 18px!important;box-shadow:0 10px 30px rgba(0,0,0,.18)!important}
 #fieldOperationMenu button{touch-action:manipulation;pointer-events:auto!important}
+
+/* Ver.11.17.2 登録画面 戻る・新規周期修正 */
+#registerCancelBtn{
+  position:relative!important;
+  z-index:5000!important;
+  pointer-events:auto!important;
+  touch-action:manipulation!important;
+}
+
+/* Ver.11.17.4 巡回周期の可視化 */
+.machine-filter-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.cycle-cell{min-width:210px;white-space:normal!important}
+.cycle-chip{display:inline-block;margin:2px 4px 2px 0;padding:4px 7px;border-radius:999px;background:#eef2f7;color:#52637c;font-size:11px;font-weight:850}
+.cycle-chip.main{background:#e7f1ff;color:#156fd6}
+.cycle-edit-btn{display:block;margin-top:6px;padding:6px 9px;border-radius:9px;background:#eef4ff;color:#245cbf;font-size:11px;font-weight:900}
 </style>
 </head>
 <body>
@@ -2149,7 +2164,16 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
       <div class="card">
         <div class="table-toolbar">
           <div class="section-title" style="margin:0">自販機一覧</div>
-          <select id="areaFilter" class="compact-select"><option value="all">全エリア</option></select>
+          <div class="machine-filter-row">
+            <select id="areaFilter" class="compact-select"><option value="all">全エリア</option></select>
+            <select id="cycleFilter" class="compact-select">
+              <option value="all">全巡回周期</option>
+              <option value="weekly">基本巡回：週1</option>
+              <option value="custom">基本巡回：カスタム</option>
+              <option value="standard">基本巡回：14日</option>
+              <option value="extra">追加作業あり</option>
+            </select>
+          </div>
         </div>
         <div class="machine-search-wrap">
           <span class="machine-search-icon">⌕</span>
@@ -2164,6 +2188,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
                 <th>管理No</th>
                 <th>設置先施設 / 設置場所・機種</th>
                 <th>状態</th>
+                <th>巡回設定</th>
                 <th>最終定期</th>
                 <th>最終補充</th>
                 <th>最終集金</th>
@@ -2529,7 +2554,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.17.1</div>
+          <div class="app-version-badge">Version 11.17.4</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2544,7 +2569,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.17.1</div>
+      <div class="app-version-footer">Ver. 11.17.4</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -2934,7 +2959,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
 
           <label>登録済み施設から選ぶ</label>
           <select id="rpFacility"><option value="">新しい施設を入力</option></select>
-          <div class="sub" style="margin-top:-6px;margin-bottom:8px">選ぶと施設名・エリアを自動入力します。</div>
+          <div class="sub" style="margin-top:-6px;margin-bottom:8px">選ぶと施設名だけ入力します。エリアは下で個別に選べます。</div>
 <label>設置先施設 *</label>
           <div class="sub" style="margin-top:-6px;margin-bottom:8px">自販機を設置している建物・施設・店舗などの名前です。機種とは別に管理します。</div>
           <input id="rpName" required placeholder="例：香川トヨタ、丸亀市役所" />
@@ -2970,7 +2995,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
           <button class="secondary danger hidden" type="button" id="rpClearLocation" style="width:100%;margin-top:8px">位置情報を外す</button>
         </div>
 
-        <div class="reg-section">
+        <div class="reg-section" id="registerRouteSettings">
           <div class="reg-title">巡回設定</div>
           <div class="sub" style="margin-bottom:12px">作業ごとに周期を設定します。基本巡回や原料の日は、下位の作業を重ねて表示しません。</div>
 
@@ -3504,7 +3529,7 @@ db.machines.forEach(m=>{if(m.site===undefined)m.site='';});
       db.machines.forEach(m=>{
         if(!m.area) m.area='未設定';
         if(!m.regularIntervalDays) m.regularIntervalDays=14;
-        if(!m.supplyIntervalDays) m.supplyIntervalDays=7;
+        if(m.supplyIntervalDays===undefined||m.supplyIntervalDays===null||m.supplyIntervalDays==='') m.supplyIntervalDays=m.weekly?7:0;
         if(m.prioritySupply===undefined) m.prioritySupply=false;
         if(m.inventoryMemo===undefined) m.inventoryMemo='';
         if(m.lat!==undefined && m.lat!==null && m.lat!=='') m.lat=Number(m.lat); else m.lat=null;
@@ -5180,6 +5205,48 @@ function machineStatusInfo(m){
   if(rd>=0) return {label:`定期まで${Math.max(0,ri-rd)}日`,dot:'green',rank:3};
   return {label:'情報未設定',dot:'gray',rank:9};
 }
+function machineCycleInfo(m){
+  const regular=regularInterval(m);
+  const regularLabel=regular===7?'週1巡回':regular===14?'14日巡回':`${regular}日巡回`;
+  const tags=[regularLabel];
+  const si=supplyInterval(m);
+  const di=drainInterval(m);
+  if(m.supplyScheduleMode==='weekdays'&&(m.supplyWeekdays||[]).length){
+    tags.push(`原料:${(m.supplyWeekdays||[]).map(d=>'日月火水木金土'[d]).join('・')}`);
+  }else if(si>0){
+    tags.push(`原料:${si===7?'週1':si+'日'}`);
+  }
+  if(m.drainScheduleMode==='weekdays'&&(m.drainWeekdays||[]).length){
+    tags.push(`排水:${(m.drainWeekdays||[]).map(d=>'日月火水木金土'[d]).join('・')}`);
+  }else if(di>0){
+    tags.push(`排水:${di===7?'週1':di+'日'}`);
+  }
+  if(m.waterWeekly)tags.push('給水:週1');
+  if(m.garbageWeekly)tags.push('ゴミ:週1');
+  return {regular,label:regularLabel,tags};
+}
+function machineCycleFilterMatch(m,filter){
+  if(!filter||filter==='all')return true;
+  const regular=regularInterval(m);
+  if(filter==='weekly')return regular===7;
+  if(filter==='standard')return regular===14;
+  if(filter==='custom')return regular!==7&&regular!==14;
+  if(filter==='extra'){
+    return supplyInterval(m)>0||drainInterval(m)>0||m.waterWeekly||m.garbageWeekly||
+      (m.supplyScheduleMode==='weekdays'&&(m.supplyWeekdays||[]).length)||
+      (m.drainScheduleMode==='weekdays'&&(m.drainWeekdays||[]).length);
+  }
+  return true;
+}
+function openMachineCycleEditor(id){
+  rememberMachineListPosition(id);
+  openRegisterPage('machines',id);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    const el=document.getElementById('registerRouteSettings');
+    if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
+  }));
+}
+
 function renderMachines(){
   machineCount.textContent=db.machines.length;
 
@@ -5190,10 +5257,12 @@ function renderMachines(){
     .map(a=>`<button class="area-chip" onclick="setAreaFilter('${a}')">${escapeHtml(a)} ${counts[a]}台</button>`).join('');
 
   const filter=areaFilter.value||'all';
+  const cycleFilterValue=window.cycleFilter?.value||'all';
   const search=(window.machineListSearch?.value||'').trim().toLowerCase();
   if(window.machineListSearchClear)machineListSearchClear.classList.toggle('hidden',!search);
   let rows=db.machines.slice()
     .filter(m=>filter==='all'||(m.area||'未設定')===filter)
+    .filter(m=>machineCycleFilterMatch(m,cycleFilterValue))
     .filter(m=>{
       if(!search)return true;
       const facilityName=String(machineDisplayTitle(m)||'').toLowerCase();
@@ -5226,11 +5295,12 @@ function renderMachines(){
       <td>#${escapeHtml(m.number||'-')}</td>
       <td class="name-cell" title="${escapeHtml(machineDisplayTitle(m))}"><button type="button" class="machine-detail-link table-link" onclick="openMachineDetailPage('${m.id}','machines')">${escapeHtml(machineDisplayTitle(m))}</button><div class="machine-place-sub">${escapeHtml(machineDisplaySub(m)||'設置場所・機種 未設定')}</div></td>
       <td><span class="status-dot ${st.dot}"></span>${escapeHtml(st.label)}</td>
+      <td class="cycle-cell">${machineCycleInfo(m).tags.map((x,i)=>`<span class="cycle-chip ${i===0?'main':''}">${escapeHtml(x)}</span>`).join('')}<button class="cycle-edit-btn" type="button" onclick="openMachineCycleEditor('${m.id}')">周期編集</button></td>
       <td>${escapeHtml(m.lastRegular||'-')}</td>
       <td>${escapeHtml(m.lastSupply||'-')}</td>
       <td>${escapeHtml(m.lastCollection||'-')}</td>
       <td>${regularInterval(m)}日</td>
-      <td>${m.weekly?supplyInterval(m)+'日':'なし'}</td>
+      <td>${supplyInterval(m)>0?(supplyInterval(m)===7?'週1':supplyInterval(m)+'日'):'なし'}</td>
       <td title="${escapeHtml(m.inventoryMemo||'')}">${escapeHtml((m.inventoryMemo||'').slice(0,18))||'-'}</td>
       <td>${Number(m.workMinutes||25)}分</td>
       <td>
@@ -5580,6 +5650,7 @@ function searchPlaceInAppleMaps(){
 
 
 let registerReturnPage='machines';
+let registerOriginPage='machines';
 let registerEditingId=null;
 let machineListReturnState={machineId:null,scrollY:0,restore:false};
 
@@ -5693,6 +5764,7 @@ function renderRegisterLocation(){
 }
 function openRegisterPage(returnPage='machines',machineId=null){
   registerReturnPage=returnPage;
+  if(returnPage!=='register')registerOriginPage=returnPage||'machines';
   if(machineId&&returnPage==='machines'&&!machineListReturnState.restore){
     rememberMachineListPosition(machineId);
   }
@@ -5746,9 +5818,22 @@ function openRegisterPage(returnPage='machines',machineId=null){
     registerSaveBtn.textContent='この内容で保存する';
     addSameSiteBtn.classList.remove('hidden');
   }else{
+    rpFacility.value='';
+    rpArea.value='未設定';
     document.querySelector('#registerPage .section-title').textContent='新規登録';
     document.querySelector('#registerPage [style*="font-size:24px"]').textContent='自販機を登録';
     fillModelSelect();
+
+    // 新規登録の追加作業は明示的に「なし」から開始。
+    rpSupplyInterval.value='0';
+    rpSupplyCustom.value='';
+    rpSupplyCustomMode.value='weekdays';
+    setSelectedWeekdays(rpSupplyWeekdays,[]);
+    rpDrainInterval.value='0';
+    rpDrainCustom.value='';
+    setSelectedWeekdays(rpDrainWeekdays,[]);
+    updateRouteCycleVisibility();
+
     registerSaveBtn.textContent='この内容で登録する';
     addSameSiteBtn.classList.add('hidden');
   }
@@ -5760,12 +5845,19 @@ function openRegisterPage(returnPage='machines',machineId=null){
 function closeRegisterPage(){
   const editedId=registerEditingId||machineListReturnState.machineId;
   registerEditingId=null;
-  if(registerReturnPage==='machines'||machineListReturnState.restore){
+
+  let target=registerReturnPage||registerOriginPage||'machines';
+  if(target==='register')target=registerOriginPage||'machines';
+
+  registerMapPickMode=false;
+  if(target==='machines'||machineListReturnState.restore){
+    registerReturnPage='machines';
+    registerOriginPage='machines';
     switchPage('machines');
     renderMachines();
     restoreMachineListPosition(editedId,false);
   }else{
-    const target=registerReturnPage||'machines';
+    registerReturnPage=target;
     switchPage(target);
     if(target==='map')restoreMapAfterEdit();
   }
@@ -5796,6 +5888,7 @@ function exitRegisterMapPicker(){
   if(backToRegisterBtn) backToRegisterBtn.classList.add('hidden');
   if(mapRegisterBannerText) mapRegisterBannerText.textContent='登録したい場所を地図上で1回タップ';
 
+  registerReturnPage=registerOriginPage||'machines';
   switchPage('register');
   renderRegisterLocation();
   window.scrollTo({top:0,behavior:'smooth'});
@@ -5803,6 +5896,7 @@ function exitRegisterMapPicker(){
 
 function chooseLocationOnMapForRegister(){
   registerMapPickMode=true;
+  // 登録画面へ一時的に戻るためのMAP選択。元の戻り先はregisterOriginPageに保持する。
   registerReturnPage='register';
 
   switchPage('map');
@@ -5830,7 +5924,16 @@ function addSameSiteMachineFromEdit(){
   rpLat.value=m.lat??'';
   rpLng.value=m.lng??'';
   rpRegularInterval.value=m.regularIntervalDays||14;
-  rpSupplyInterval.value=m.supplyIntervalDays||7;
+  if(m.supplyScheduleMode==='weekdays'){
+    rpSupplyInterval.value='custom';
+    rpSupplyCustomMode.value='weekdays';
+    rpSupplyCustom.value='';
+    setSelectedWeekdays(rpSupplyWeekdays,m.supplyWeekdays||[]);
+  }else{
+    setCycleSelect(rpSupplyInterval,rpSupplyCustom,m.supplyIntervalDays??0,[0,7]);
+    rpSupplyCustomMode.value='days';
+    setSelectedWeekdays(rpSupplyWeekdays,[]);
+  }
   rpLastRegular.value='';
   rpNextRegular.value='';
   rpLastSupply.value='';
@@ -7408,7 +7511,7 @@ function openMachineDetailPage(id,returnPage='machines'){
   machineDetailLastRegular.textContent=fmtMachineDate(m.lastRegular);
   machineDetailNextRegular.textContent=nextDateFrom(m.lastRegular,m.regularIntervalDays||14);
   machineDetailLastSupply.textContent=fmtMachineDate(m.lastSupply);
-  machineDetailNextSupply.textContent=nextDateFrom(m.lastSupply,m.supplyIntervalDays||7);
+  machineDetailNextSupply.textContent=supplyInterval(m)>0?nextDateFrom(m.lastSupply,supplyInterval(m)):'なし';
   machineDetailLastCollection.textContent=fmtMachineDate(m.lastCollection);
   machineDetailNextCollection.textContent=nextDateFrom(m.lastCollection,14);
 
@@ -8505,14 +8608,27 @@ function fillRegisterFacilitySelect(selectedId=''){
 }
 
 function applySelectedFacilityToRegister(){
-  const f=facility(rpFacility.value);
-  if(!f)return;
-  rpName.value=f.name||'';
-  if([...rpArea.options].some(o=>o.value===(f.area||'未設定')))rpArea.value=f.area||'未設定';
-  const sample=(db.machines||[]).find(m=>m.facilityId===f.id&&m.lat!=null&&m.lng!=null);
-  if(sample&&!rpLat.value&&!rpLng.value){
-    rpLat.value=sample.lat;rpLng.value=sample.lng;renderRegisterLocation();
+  const selectedId=rpFacility.value;
+
+  // 「新しい施設を入力」に戻した時は、前に選んだ施設の情報を残さない。
+  if(!selectedId){
+    rpName.value='';
+    if(window.rpMiddleCategory)rpMiddleCategory.value='';
+    rpSite.value='';
+    rpArea.value='未設定';
+    rpLat.value='';
+    rpLng.value='';
+    renderRegisterLocation();
+    requestAnimationFrame(()=>rpName.focus());
+    return;
   }
+
+  const f=facility(selectedId);
+  if(!f)return;
+
+  // 登録済み施設から引き継ぐのは施設名だけ。
+  // エリア・設置場所・位置情報は自販機ごとにユーザーが決める。
+  rpName.value=f.name||'';
 }
 
 function setSettingsTab(name){
@@ -8862,6 +8978,7 @@ machineForm.addEventListener('submit',e=>{
   showToast(`${savedName} を登録しました`);
 });
 areaFilter.addEventListener('change',renderMachines);
+if(window.cycleFilter)cycleFilter.addEventListener('change',renderMachines);
 mapRegisterMenuBtn.addEventListener('click',()=>openRegisterPage('map'));
 cancelMapRegisterBtn.addEventListener('click',()=>{
   if(registerMapPickMode){
@@ -8903,6 +9020,14 @@ if(window.rpModel)rpModel.addEventListener('change',()=>{
   }
 });
 registerCancelBtn.addEventListener('click',closeRegisterPage);
+['pointerdown','touchstart'].forEach(type=>{
+  registerCancelBtn.addEventListener(type,e=>{
+    e.preventDefault();
+    e.stopPropagation();
+    if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+    closeRegisterPage();
+  },{passive:false});
+});
 rpUseCurrentLocation.addEventListener('click',useCurrentLocationForRegister);
 rpChooseOnMap.addEventListener('click',chooseLocationOnMapForRegister);
 rpClearLocation.addEventListener('click',()=>{rpLat.value='';rpLng.value='';renderRegisterLocation()});
@@ -9083,7 +9208,7 @@ if(window.modelPageBackBtn)modelPageBackBtn.addEventListener('click',closeModelE
 if(window.modelPageCancelBtn)modelPageCancelBtn.addEventListener('click',closeModelEditorPage);
 if(window.modelPageSaveBtn)modelPageSaveBtn.addEventListener('click',saveModelEditorPage);
 
-window.changeTroubleStatus=changeTroubleStatus;window.deleteTroubleRecord=deleteTroubleRecord;window.moveManualOrder=moveManualOrder;window.toggleManualMachine=toggleManualMachine;window.openFacilityEditorPage=openFacilityEditorPage;window.openRouteWorkEdit=openRouteWorkEdit;window.openTroubleForMachine=openTroubleForMachine;window.openMonthlyManualBuilder=openMonthlyManualBuilder;window.closeMonthlyManualBuilder=closeMonthlyManualBuilder;window.toggleMonthlyManualMachine=toggleMonthlyManualMachine;window.toggleMonthlyManualWork=toggleMonthlyManualWork;window.clearMonthlyManualSelection=clearMonthlyManualSelection;window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openWeeklyDayDetail=openWeeklyDayDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
+window.openMachineCycleEditor=openMachineCycleEditor;window.changeTroubleStatus=changeTroubleStatus;window.deleteTroubleRecord=deleteTroubleRecord;window.moveManualOrder=moveManualOrder;window.toggleManualMachine=toggleManualMachine;window.openFacilityEditorPage=openFacilityEditorPage;window.openRouteWorkEdit=openRouteWorkEdit;window.openTroubleForMachine=openTroubleForMachine;window.openMonthlyManualBuilder=openMonthlyManualBuilder;window.closeMonthlyManualBuilder=closeMonthlyManualBuilder;window.toggleMonthlyManualMachine=toggleMonthlyManualMachine;window.toggleMonthlyManualWork=toggleMonthlyManualWork;window.clearMonthlyManualSelection=clearMonthlyManualSelection;window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openWeeklyDayDetail=openWeeklyDayDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
 window.openModelEditor=openModelEditor;window.deleteModel=deleteModel;window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
