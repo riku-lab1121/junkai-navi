@@ -1871,6 +1871,29 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
 .bulk-fix-main{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
 .bulk-fix-main b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bulk-fix-main span{font-size:11px;color:#718096;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Ver.11.17.7 イレギュラー可視化・原料周期復旧 */
+.irregular-badge{display:inline-block;margin:2px 5px 2px 0;padding:4px 8px;border-radius:999px;background:#fff1d6;color:#a65a00;font-size:11px;font-weight:900;border:1px solid #f5cf86}
+.bulk-fix-item .bulk-supply-select{flex:0 0 auto;min-width:125px;max-width:150px}
+@media(max-width:640px){.bulk-fix-item{align-items:flex-start;flex-wrap:wrap}.bulk-fix-item .bulk-supply-select{width:100%;max-width:none}}
+
+/* Ver.11.17.7 巡回設定編集時も設置先を見失わない */
+.machine-table td.name-cell,.machine-table th:nth-child(3){
+  position:sticky;left:0;z-index:6;
+  box-shadow:8px 0 14px -12px rgba(15,23,42,.45);
+}
+.machine-table td.name-cell{background:#fff;min-width:190px;max-width:220px}
+.machine-table th:nth-child(3){background:#f8fafc;z-index:8}
+.machine-table tbody tr:nth-child(even) td.name-cell{background:#fbfcfd}
+.machine-table th:first-child,.machine-table td:first-child{position:static!important}
+.cycle-context{display:none;margin:0 0 6px;padding-bottom:6px;border-bottom:1px solid #e8edf4;color:#172033}
+.cycle-context b{display:block;font-size:12px;font-weight:950;line-height:1.25;white-space:normal}
+.cycle-context span{display:block;margin-top:2px;font-size:10px;color:#738198;line-height:1.25;white-space:normal}
+@media(max-width:760px){
+  .machine-table td.name-cell{min-width:175px;max-width:190px}
+  .cycle-cell{min-width:225px}
+  .cycle-context{display:block}
+}
 </style>
 </head>
 <body>
@@ -2169,24 +2192,24 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
           <button class="secondary" id="addMachineBtn">＋ 登録</button>
         </div>
         <div class="area-chips" id="areaChips" style="margin-top:12px"></div>
-        <button type="button" class="secondary bulk-cycle-fix-open" id="bulkSupplyFixBtn" style="width:100%;margin-top:12px">原料補充「週1」をまとめて見直す</button>
+        <button type="button" class="secondary bulk-cycle-fix-open" id="bulkSupplyFixBtn" style="width:100%;margin-top:12px">原料補充をまとめて見直す</button>
       </div>
 
       <div class="card" id="bulkSupplyFixCard" style="display:none">
         <div class="row">
           <div>
             <div class="section-title">週1設定の見直し</div>
-            <div class="sub">今回の不具合で「なし」から週1に変わった可能性がある自販機をまとめて修正できます。再登録は不要です。</div>
+            <div class="sub">全自販機の原料補充周期をここで直接直せます。間違えて「なし」に戻した週1の自販機も、ここから復元できます。</div>
           </div>
           <button type="button" class="secondary" id="bulkSupplyFixClose">閉じる</button>
         </div>
         <div class="bulk-fix-actions">
-          <button type="button" class="secondary" id="bulkSupplySelectAll">すべて選択</button>
-          <button type="button" class="secondary" id="bulkSupplyClearAll">選択解除</button>
+          <select id="bulkSupplyAreaFilter" class="compact-select"><option value="all">全エリア</option></select>
+          <select id="bulkSupplyStateFilter" class="compact-select"><option value="all">すべて</option><option value="none">原料なし</option><option value="weekly">原料 週1</option><option value="other">その他周期</option></select>
         </div>
         <div id="bulkSupplyFixList" class="bulk-fix-list"></div>
-        <button type="button" class="primary" id="bulkSupplyApplyNone" style="width:100%;margin-top:12px">選択した自販機の原料補充を「なし」に戻す</button>
-        <div class="sub" style="margin-top:8px">本当に週1で原料補充する自販機は選択を外してください。</div>
+        <button type="button" class="primary" id="bulkSupplySave" style="width:100%;margin-top:12px">原料補充設定を保存</button>
+        <div class="sub" style="margin-top:8px">変更した自販機だけ保存し、月間計画・日別巡回にも再反映します。</div>
       </div>
 
       <div class="card">
@@ -2199,7 +2222,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
               <option value="weekly">基本巡回：週1</option>
               <option value="custom">基本巡回：カスタム</option>
               <option value="standard">基本巡回：14日</option>
-              <option value="extra">追加作業あり</option>
+              <option value="irregular">イレギュラー</option>
             </select>
           </div>
         </div>
@@ -2582,7 +2605,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.17.5</div>
+          <div class="app-version-badge">Version 11.17.7</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2597,7 +2620,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.17.5</div>
+      <div class="app-version-footer">Ver. 11.17.7</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -5251,19 +5274,19 @@ function machineCycleInfo(m){
   }
   if(m.waterWeekly)tags.push('給水:週1');
   if(m.garbageWeekly)tags.push('ゴミ:週1');
-  return {regular,label:regularLabel,tags};
+  // 標準は「基本巡回14日＋追加作業なし」。それ以外は一覧でイレギュラー表示。
+  const irregular=regular!==14 || si>0 || di>0 || !!m.waterWeekly || !!m.garbageWeekly ||
+    (m.supplyScheduleMode==='weekdays'&&(m.supplyWeekdays||[]).length) ||
+    (m.drainScheduleMode==='weekdays'&&(m.drainWeekdays||[]).length);
+  return {regular,label:regularLabel,tags,irregular};
 }
 function machineCycleFilterMatch(m,filter){
   if(!filter||filter==='all')return true;
-  const regular=regularInterval(m);
+  const info=machineCycleInfo(m),regular=info.regular;
   if(filter==='weekly')return regular===7;
-  if(filter==='standard')return regular===14;
+  if(filter==='standard')return regular===14&&!info.irregular;
   if(filter==='custom')return regular!==7&&regular!==14;
-  if(filter==='extra'){
-    return supplyInterval(m)>0||drainInterval(m)>0||m.waterWeekly||m.garbageWeekly||
-      (m.supplyScheduleMode==='weekdays'&&(m.supplyWeekdays||[]).length)||
-      (m.drainScheduleMode==='weekdays'&&(m.drainWeekdays||[]).length);
-  }
+  if(filter==='irregular'||filter==='extra')return info.irregular;
   return true;
 }
 function openMachineCycleEditor(id){
@@ -5276,64 +5299,74 @@ function openMachineCycleEditor(id){
 }
 
 function bulkSupplyCandidates(){
+  const area=window.bulkSupplyAreaFilter?.value||'all';
+  const state=window.bulkSupplyStateFilter?.value||'all';
   return (db.machines||[]).filter(m=>{
-    return m.supplyScheduleMode!=='weekdays' && supplyInterval(m)===7;
+    if(area!=='all'&&(m.area||'未設定')!==area)return false;
+    const si=supplyInterval(m);
+    const mode=m.supplyScheduleMode||'days';
+    if(state==='none')return mode!=='weekdays'&&si===0;
+    if(state==='weekly')return mode!=='weekdays'&&si===7;
+    if(state==='other')return mode==='weekdays'||(si>0&&si!==7);
+    return true;
   }).sort((a,b)=>{
     const ac=String(a.area||'未設定').localeCompare(String(b.area||'未設定'),'ja');
     return ac||String(machineDisplayTitle(a)||'').localeCompare(String(machineDisplayTitle(b)||''),'ja');
   });
 }
+function fillBulkSupplyAreaFilter(){
+  const el=window.bulkSupplyAreaFilter;if(!el)return;
+  const current=el.value||'all';
+  el.innerHTML='<option value="all">全エリア</option>'+areaNames().map(a=>`<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('')+'<option value="未設定">未設定</option>';
+  if([...el.options].some(o=>o.value===current))el.value=current;
+}
+function bulkSupplyValue(m){
+  if(m.supplyScheduleMode==='weekdays')return 'weekdays';
+  const si=supplyInterval(m);
+  if(si===0)return '0';
+  if(si===7)return '7';
+  if(si===14)return '14';
+  return String(si);
+}
 function renderBulkSupplyFix(){
   const host=document.getElementById('bulkSupplyFixList');
   if(!host)return;
+  fillBulkSupplyAreaFilter();
   const list=bulkSupplyCandidates();
-  if(!list.length){
-    host.innerHTML='<div class="empty">原料補充が「週1」の自販機はありません。</div>';
-    bulkSupplyApplyNone.disabled=true;
-    return;
-  }
-  bulkSupplyApplyNone.disabled=false;
-  host.innerHTML=list.map(m=>`
-    <label class="bulk-fix-item">
-      <input type="checkbox" class="bulk-supply-check" value="${escapeHtml(m.id)}" checked>
-      <span class="bulk-fix-main">
-        <b>${escapeHtml(machineDisplayTitle(m))}</b>
-        <span>${escapeHtml(m.area||'未設定')} ・ ${escapeHtml(machineDisplaySub(m)||'詳細なし')}</span>
-      </span>
-      <span class="cycle-chip main">原料 週1</span>
-    </label>`).join('');
+  if(!list.length){host.innerHTML='<div class="empty">該当する自販機はありません。</div>';return;}
+  host.innerHTML=list.map(m=>{
+    const val=bulkSupplyValue(m);
+    const custom=(!['0','7','14','weekdays'].includes(val));
+    return `<div class="bulk-fix-item">
+      <span class="bulk-fix-main"><b>${escapeHtml(machineDisplayTitle(m))}</b><span>${escapeHtml(m.area||'未設定')} ・ ${escapeHtml(machineDisplaySub(m)||'詳細なし')}</span></span>
+      <select class="compact-select bulk-supply-select" data-machine-id="${escapeHtml(m.id)}" data-original="${escapeHtml(val)}">
+        <option value="0" ${val==='0'?'selected':''}>原料なし</option>
+        <option value="7" ${val==='7'?'selected':''}>原料 週1</option>
+        <option value="14" ${val==='14'?'selected':''}>原料 14日</option>
+        ${custom?`<option value="${escapeHtml(val)}" selected>原料 ${escapeHtml(val)}日</option>`:''}
+        ${val==='weekdays'?'<option value="weekdays" selected>曜日指定（維持）</option>':''}
+      </select>
+    </div>`;
+  }).join('');
 }
 function openBulkSupplyFix(){
-  bulkSupplyFixCard.style.display='';
-  renderBulkSupplyFix();
-  bulkSupplyFixCard.scrollIntoView({behavior:'smooth',block:'start'});
+  bulkSupplyFixCard.style.display='';renderBulkSupplyFix();bulkSupplyFixCard.scrollIntoView({behavior:'smooth',block:'start'});
 }
-function closeBulkSupplyFix(){
-  bulkSupplyFixCard.style.display='none';
-}
-function setBulkSupplyChecks(checked){
-  document.querySelectorAll('.bulk-supply-check').forEach(x=>x.checked=checked);
-}
-function applyBulkSupplyNone(){
-  const ids=[...document.querySelectorAll('.bulk-supply-check:checked')].map(x=>x.value);
-  if(!ids.length){showToast('修正する自販機を選んでください');return;}
-  ids.forEach(id=>{
-    const m=machine(id); if(!m)return;
-    m.supplyIntervalDays=0;
-    m.supplyScheduleMode='days';
-    m.supplyWeekdays=[];
-    m.weekly=false;
-    m.prioritySupply=false;
+function closeBulkSupplyFix(){bulkSupplyFixCard.style.display='none';}
+function saveBulkSupplySettings(){
+  const changed=[];
+  document.querySelectorAll('.bulk-supply-select').forEach(el=>{
+    if(el.value===el.dataset.original)return;
+    const m=machine(el.dataset.machineId);if(!m)return;
+    if(el.value==='weekdays')return;
+    const days=Math.max(0,Number(el.value)||0);
+    m.supplyIntervalDays=days;m.supplyScheduleMode='days';m.supplyWeekdays=[];m.weekly=days===7;
+    changed.push(m.id);
   });
-  ids.forEach(id=>syncMachinesToPlanning(id,{persist:false,refresh:false}));
-  save();
-  renderMachines();
-  renderBulkSupplyFix();
-  try{renderHome()}catch(e){}
-  try{renderRoute()}catch(e){}
-  try{renderCalendar()}catch(e){}
-  try{renderMonthlyActionPlan()}catch(e){}
-  showToast(`${ids.length}台の原料補充を「なし」に戻しました`);
+  if(!changed.length){showToast('変更はありません');return;}
+  syncMachinesToPlanning(changed,{persist:false,refresh:false});save();renderMachines();renderBulkSupplyFix();
+  try{renderHome()}catch(e){} try{renderRoute()}catch(e){} try{renderCalendar()}catch(e){} try{renderMonthlyActionPlan()}catch(e){}
+  showToast(`${changed.length}台の原料補充設定を保存しました`);
 }
 
 function renderMachines(){
@@ -5384,7 +5417,7 @@ function renderMachines(){
       <td>#${escapeHtml(m.number||'-')}</td>
       <td class="name-cell" title="${escapeHtml(machineDisplayTitle(m))}"><button type="button" class="machine-detail-link table-link" onclick="openMachineDetailPage('${m.id}','machines')">${escapeHtml(machineDisplayTitle(m))}</button><div class="machine-place-sub">${escapeHtml(machineDisplaySub(m)||'設置場所・機種 未設定')}</div></td>
       <td><span class="status-dot ${st.dot}"></span>${escapeHtml(st.label)}</td>
-      <td class="cycle-cell">${machineCycleInfo(m).tags.map((x,i)=>`<span class="cycle-chip ${i===0?'main':''}">${escapeHtml(x)}</span>`).join('')}<button class="cycle-edit-btn" type="button" onclick="openMachineCycleEditor('${m.id}')">周期編集</button></td>
+      <td class="cycle-cell"><div class="cycle-context"><b>${escapeHtml(machineDisplayTitle(m))}</b><span>${escapeHtml(machineDisplaySub(m)||('#'+(m.number||'-')))}</span></div>${machineCycleInfo(m).irregular?'<span class="irregular-badge">イレギュラー</span>':''}${machineCycleInfo(m).tags.map((x,i)=>`<span class="cycle-chip ${i===0?'main':''}">${escapeHtml(x)}</span>`).join('')}<button class="cycle-edit-btn" type="button" onclick="openMachineCycleEditor('${m.id}')">周期編集</button></td>
       <td>${escapeHtml(m.lastRegular||'-')}</td>
       <td>${escapeHtml(m.lastSupply||'-')}</td>
       <td>${escapeHtml(m.lastCollection||'-')}</td>
@@ -9070,9 +9103,9 @@ areaFilter.addEventListener('change',renderMachines);
 if(window.cycleFilter)cycleFilter.addEventListener('change',renderMachines);
 if(window.bulkSupplyFixBtn)bulkSupplyFixBtn.addEventListener('click',openBulkSupplyFix);
 if(window.bulkSupplyFixClose)bulkSupplyFixClose.addEventListener('click',closeBulkSupplyFix);
-if(window.bulkSupplySelectAll)bulkSupplySelectAll.addEventListener('click',()=>setBulkSupplyChecks(true));
-if(window.bulkSupplyClearAll)bulkSupplyClearAll.addEventListener('click',()=>setBulkSupplyChecks(false));
-if(window.bulkSupplyApplyNone)bulkSupplyApplyNone.addEventListener('click',applyBulkSupplyNone);
+if(window.bulkSupplyAreaFilter)bulkSupplyAreaFilter.addEventListener('change',renderBulkSupplyFix);
+if(window.bulkSupplyStateFilter)bulkSupplyStateFilter.addEventListener('change',renderBulkSupplyFix);
+if(window.bulkSupplySave)bulkSupplySave.addEventListener('click',saveBulkSupplySettings);
 mapRegisterMenuBtn.addEventListener('click',()=>openRegisterPage('map'));
 cancelMapRegisterBtn.addEventListener('click',()=>{
   if(registerMapPickMode){
