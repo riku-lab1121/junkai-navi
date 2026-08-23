@@ -1861,6 +1861,16 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
 .cycle-chip{display:inline-block;margin:2px 4px 2px 0;padding:4px 7px;border-radius:999px;background:#eef2f7;color:#52637c;font-size:11px;font-weight:850}
 .cycle-chip.main{background:#e7f1ff;color:#156fd6}
 .cycle-edit-btn{display:block;margin-top:6px;padding:6px 9px;border-radius:9px;background:#eef4ff;color:#245cbf;font-size:11px;font-weight:900}
+
+/* Ver.11.17.5 既存データ救済 */
+.bulk-cycle-fix-open{background:#fff8e8!important;color:#9a5b00!important;border:1px solid #f4d58a!important}
+.bulk-fix-actions{display:flex;gap:8px;margin:14px 0 10px}
+.bulk-fix-list{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow:auto;-webkit-overflow-scrolling:touch}
+.bulk-fix-item{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--line);border-radius:14px;background:#fbfcfe}
+.bulk-fix-item input{width:22px;height:22px;flex:0 0 auto}
+.bulk-fix-main{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.bulk-fix-main b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bulk-fix-main span{font-size:11px;color:#718096;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -2159,6 +2169,24 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
           <button class="secondary" id="addMachineBtn">＋ 登録</button>
         </div>
         <div class="area-chips" id="areaChips" style="margin-top:12px"></div>
+        <button type="button" class="secondary bulk-cycle-fix-open" id="bulkSupplyFixBtn" style="width:100%;margin-top:12px">原料補充「週1」をまとめて見直す</button>
+      </div>
+
+      <div class="card" id="bulkSupplyFixCard" style="display:none">
+        <div class="row">
+          <div>
+            <div class="section-title">週1設定の見直し</div>
+            <div class="sub">今回の不具合で「なし」から週1に変わった可能性がある自販機をまとめて修正できます。再登録は不要です。</div>
+          </div>
+          <button type="button" class="secondary" id="bulkSupplyFixClose">閉じる</button>
+        </div>
+        <div class="bulk-fix-actions">
+          <button type="button" class="secondary" id="bulkSupplySelectAll">すべて選択</button>
+          <button type="button" class="secondary" id="bulkSupplyClearAll">選択解除</button>
+        </div>
+        <div id="bulkSupplyFixList" class="bulk-fix-list"></div>
+        <button type="button" class="primary" id="bulkSupplyApplyNone" style="width:100%;margin-top:12px">選択した自販機の原料補充を「なし」に戻す</button>
+        <div class="sub" style="margin-top:8px">本当に週1で原料補充する自販機は選択を外してください。</div>
       </div>
 
       <div class="card">
@@ -2554,7 +2582,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.17.4</div>
+          <div class="app-version-badge">Version 11.17.5</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2569,7 +2597,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.17.4</div>
+      <div class="app-version-footer">Ver. 11.17.5</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -5245,6 +5273,67 @@ function openMachineCycleEditor(id){
     const el=document.getElementById('registerRouteSettings');
     if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
   }));
+}
+
+function bulkSupplyCandidates(){
+  return (db.machines||[]).filter(m=>{
+    return m.supplyScheduleMode!=='weekdays' && supplyInterval(m)===7;
+  }).sort((a,b)=>{
+    const ac=String(a.area||'未設定').localeCompare(String(b.area||'未設定'),'ja');
+    return ac||String(machineDisplayTitle(a)||'').localeCompare(String(machineDisplayTitle(b)||''),'ja');
+  });
+}
+function renderBulkSupplyFix(){
+  const host=document.getElementById('bulkSupplyFixList');
+  if(!host)return;
+  const list=bulkSupplyCandidates();
+  if(!list.length){
+    host.innerHTML='<div class="empty">原料補充が「週1」の自販機はありません。</div>';
+    bulkSupplyApplyNone.disabled=true;
+    return;
+  }
+  bulkSupplyApplyNone.disabled=false;
+  host.innerHTML=list.map(m=>`
+    <label class="bulk-fix-item">
+      <input type="checkbox" class="bulk-supply-check" value="${escapeHtml(m.id)}" checked>
+      <span class="bulk-fix-main">
+        <b>${escapeHtml(machineDisplayTitle(m))}</b>
+        <span>${escapeHtml(m.area||'未設定')} ・ ${escapeHtml(machineDisplaySub(m)||'詳細なし')}</span>
+      </span>
+      <span class="cycle-chip main">原料 週1</span>
+    </label>`).join('');
+}
+function openBulkSupplyFix(){
+  bulkSupplyFixCard.style.display='';
+  renderBulkSupplyFix();
+  bulkSupplyFixCard.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function closeBulkSupplyFix(){
+  bulkSupplyFixCard.style.display='none';
+}
+function setBulkSupplyChecks(checked){
+  document.querySelectorAll('.bulk-supply-check').forEach(x=>x.checked=checked);
+}
+function applyBulkSupplyNone(){
+  const ids=[...document.querySelectorAll('.bulk-supply-check:checked')].map(x=>x.value);
+  if(!ids.length){showToast('修正する自販機を選んでください');return;}
+  ids.forEach(id=>{
+    const m=machine(id); if(!m)return;
+    m.supplyIntervalDays=0;
+    m.supplyScheduleMode='days';
+    m.supplyWeekdays=[];
+    m.weekly=false;
+    m.prioritySupply=false;
+  });
+  ids.forEach(id=>syncMachinesToPlanning(id,{persist:false,refresh:false}));
+  save();
+  renderMachines();
+  renderBulkSupplyFix();
+  try{renderHome()}catch(e){}
+  try{renderRoute()}catch(e){}
+  try{renderCalendar()}catch(e){}
+  try{renderMonthlyActionPlan()}catch(e){}
+  showToast(`${ids.length}台の原料補充を「なし」に戻しました`);
 }
 
 function renderMachines(){
@@ -8979,6 +9068,11 @@ machineForm.addEventListener('submit',e=>{
 });
 areaFilter.addEventListener('change',renderMachines);
 if(window.cycleFilter)cycleFilter.addEventListener('change',renderMachines);
+if(window.bulkSupplyFixBtn)bulkSupplyFixBtn.addEventListener('click',openBulkSupplyFix);
+if(window.bulkSupplyFixClose)bulkSupplyFixClose.addEventListener('click',closeBulkSupplyFix);
+if(window.bulkSupplySelectAll)bulkSupplySelectAll.addEventListener('click',()=>setBulkSupplyChecks(true));
+if(window.bulkSupplyClearAll)bulkSupplyClearAll.addEventListener('click',()=>setBulkSupplyChecks(false));
+if(window.bulkSupplyApplyNone)bulkSupplyApplyNone.addEventListener('click',applyBulkSupplyNone);
 mapRegisterMenuBtn.addEventListener('click',()=>openRegisterPage('map'));
 cancelMapRegisterBtn.addEventListener('click',()=>{
   if(registerMapPickMode){
