@@ -1895,6 +1895,26 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
   .cycle-context{display:block}
 }
 
+/* Ver.11.17.9 自販機一覧：スマホは横スクロール表をやめてカード表示 */
+.machine-mobile-list{display:none}
+@media(max-width:760px){
+  #machinesPage .table-wrap{display:none!important}
+  .machine-mobile-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+  .machine-mobile-list.hidden{display:none!important}
+  .machine-mobile-card{background:#fff;border:1px solid #dfe7f0;border-radius:16px;padding:13px 14px;box-shadow:0 2px 8px rgba(15,23,42,.025)}
+  .machine-mobile-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+  .machine-mobile-title{min-width:0;flex:1}
+  .machine-mobile-title button{display:block;max-width:100%;padding:0;background:none;border:0;color:#172033;font-size:17px;line-height:1.25;font-weight:950;text-align:left;text-decoration:underline;text-underline-offset:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .machine-mobile-area{flex:0 0 auto;padding:5px 8px;border-radius:999px;background:#edf5ff;color:#1477df;font-size:11px;font-weight:900}
+  .machine-mobile-sub{margin-top:5px;color:#718096;font-size:12px;line-height:1.45;white-space:normal;overflow-wrap:anywhere}
+  .machine-mobile-status{display:flex;align-items:center;gap:6px;margin-top:9px;font-size:12px;font-weight:850;color:#475569}
+  .machine-mobile-cycles{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+  .machine-mobile-cycles .cycle-chip,.machine-mobile-cycles .irregular-badge{margin:0}
+  .machine-mobile-actions{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:11px}
+  .machine-mobile-actions .cycle-edit-btn{display:block;width:100%;margin:0;padding:10px 12px;border-radius:11px;font-size:13px}
+  .machine-mobile-actions .machine-edit-mini{padding:10px 13px;border-radius:11px;background:#f1f5f9;color:#334155;font-size:13px;font-weight:900}
+}
+
 /* Ver.11.17.8 巡回一覧コンパクト化・週間編集 */
 .route-facility-head{padding:8px 12px;margin:10px 0 4px;border-radius:12px;background:#eaf2fb;display:flex;justify-content:space-between;align-items:center;gap:10px}
 .route-facility-head b{font-size:16px}.route-facility-head span{font-size:11px;font-weight:900;color:#64748b}
@@ -2274,6 +2294,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
             <tbody id="machineTableBody"></tbody>
           </table>
         </div>
+        <div id="machineMobileList" class="machine-mobile-list"></div>
         <div id="machineEmpty" class="empty hidden">自販機を登録してください。</div>
       </div>
     </section>
@@ -2622,7 +2643,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.17.8</div>
+          <div class="app-version-badge">Version 11.17.9</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2637,7 +2658,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.17.8</div>
+      <div class="app-version-footer">Ver. 11.17.9</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -5447,6 +5468,27 @@ function renderMachines(){
   machineEmpty.classList.toggle('hidden',rows.length>0);
   machineEmpty.textContent=search?'検索結果がありません。':'自販機を登録してください。';
   document.querySelector('.table-wrap').classList.toggle('hidden',rows.length===0);
+  if(window.machineMobileList){
+    machineMobileList.classList.toggle('hidden',rows.length===0);
+    machineMobileList.innerHTML=rows.map(m=>{
+      const st=machineStatusInfo(m);
+      const ci=machineCycleInfo(m);
+      const sub=[m.middleCategory,m.site,m.model?('機種 '+m.model):'',m.number?('#'+m.number):''].filter(Boolean).join(' ・ ');
+      return `<div class="machine-mobile-card" data-machine-id="${escapeHtml(m.id)}">
+        <div class="machine-mobile-top">
+          <div class="machine-mobile-title"><button type="button" onclick="openMachineDetailPage('${m.id}','machines')">${escapeHtml(machineDisplayTitle(m))}</button></div>
+          <span class="machine-mobile-area">${escapeHtml(m.area||'未設定')}</span>
+        </div>
+        <div class="machine-mobile-sub">${escapeHtml(sub||'設置場所・機種 未設定')}</div>
+        <div class="machine-mobile-status"><span class="status-dot ${st.dot}"></span>${escapeHtml(st.label)}</div>
+        <div class="machine-mobile-cycles">${ci.irregular?'<span class="irregular-badge">イレギュラー</span>':''}${ci.tags.map((x,i)=>`<span class="cycle-chip ${i===0?'main':''}">${escapeHtml(x)}</span>`).join('')}</div>
+        <div class="machine-mobile-actions">
+          <button class="cycle-edit-btn" type="button" onclick="openMachineCycleEditor('${m.id}')">巡回周期を編集</button>
+          <button class="machine-edit-mini" type="button" onclick="editMachine('${m.id}')">詳細編集</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
 
   rows.forEach(m=>{
     const st=machineStatusInfo(m);
