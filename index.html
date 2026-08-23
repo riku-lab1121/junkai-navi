@@ -1996,6 +1996,12 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
   .audit-row-actions{margin-top:9px}
   .audit-row-actions button{flex:1}
 }
+
+/* Ver.11.18.6 周期ルール明示 */
+.cycle-help{display:block;width:100%;margin-top:4px;color:#718096;font-size:11px}
+
+/* Ver.11.18.7 手動予定を安全に保護 */
+.safe-auto-note{margin-top:10px;padding:9px 10px;border-radius:10px;background:#eef7ff;color:#3b5f86;font-weight:700}
 </style>
 </head>
 <body>
@@ -2275,6 +2281,9 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         <button class="primary" id="quickAutoRouteBtn">おすすめで作る</button>
         <button class="secondary" id="manualRouteBtn">手動で作る</button>
       </div>
+      <button class="secondary" id="optimizeTodayRouteBtn" type="button" style="width:100%;margin:10px 0 14px">
+        今の巡回をエリア・距離順に並べ直す
+      </button>
       <div id="routeList" class="list"></div>
       </div>
 
@@ -2286,6 +2295,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
               <div class="sub" id="routeWeekRange"></div>
             </div>
             <button class="secondary" type="button" id="routeWeekTodayBtn">今週</button>
+            <button class="secondary" type="button" onclick="cleanWeeklyDuplicates()">重複チェック</button>
           </div>
         </div>
         <div id="routeWeekList" class="list"></div>
@@ -2479,15 +2489,9 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
           <option value="all">登録済みを全部候補にする</option>
         </select>
 
-        <div class="grid2">
-          <div>
-            <label>最大台数</label>
-            <input id="routeMaxStops" type="number" min="1" max="100" value="15" />
-          </div>
-          <div>
-            <label>作業時間上限（分）</label>
-            <input id="routeBudget" type="number" min="15" step="15" value="360" />
-          </div>
+        <div>
+          <label>最大台数</label>
+          <input id="routeMaxStops" type="number" min="1" max="100" value="15" />
         </div>
 
       </div>
@@ -2727,7 +2731,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.18.2</div>
+          <div class="app-version-badge">Version 11.18.7</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2742,7 +2746,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.18.2</div>
+      <div class="app-version-footer">Ver. 11.18.7</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -3053,22 +3057,17 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
     <div class="row">
       <div>
         <div class="section-title">自動作成</div>
-        <div class="sub">エリア・距離・巡回期限を見て平日に割り振ります</div>
+        <div class="sub">手動調整した予定を残し、足りない巡回だけ自動で補います</div>
       </div>
       <span class="weekday-badge">土日休み</span>
     </div>
 
-    <div class="grid2" style="margin-top:10px">
-      <div>
-        <label>1日の最大台数</label>
-        <input id="monthlyAutoMaxStops" type="number" min="1" max="30" value="15">
-      </div>
-      <div>
-        <label>1日の作業上限（分）</label>
-        <input id="monthlyAutoBudget" type="number" min="30" step="30" value="360">
-      </div>
+    <div style="margin-top:10px">
+      <label>1日の最大台数</label>
+      <input id="monthlyAutoMaxStops" type="number" min="1" max="30" value="15">
     </div>
 
+    <div class="sub safe-auto-note">※ 手動で編集・移動した予定は固定して、自動作成では上書きしません。</div>
     <div class="monthly-auto-actions">
       <button class="primary" type="button" onclick="autoCreateMonthlyPlan()">自動で月間計画を作る</button>
       <button class="secondary" type="button" onclick="clearAutoMonthlyPlan()">自動作成分を消す</button>
@@ -3238,7 +3237,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
               <button type="button" data-day="1">月</button><button type="button" data-day="2">火</button><button type="button" data-day="3">水</button><button type="button" data-day="4">木</button><button type="button" data-day="5">金</button>
             </div>
             <div id="rpSupplyDaysWrap" class="route-cycle-days hidden">
-              <input id="rpSupplyCustom" type="number" min="1" inputmode="numeric" placeholder="日数"><span>日ごと</span>
+              <input id="rpSupplyCustom" type="number" min="1" inputmode="numeric" placeholder="日数"><span>日ごと</span><small class="cycle-help">1日以下は週1扱い</small>
             </div>
           </div>
 
@@ -3259,7 +3258,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
               <button type="button" data-day="1">月</button><button type="button" data-day="2">火</button><button type="button" data-day="3">水</button><button type="button" data-day="4">木</button><button type="button" data-day="5">金</button>
             </div>
             <div id="rpDrainDaysWrap" class="route-cycle-days hidden">
-              <input id="rpDrainCustom" type="number" min="1" inputmode="numeric" placeholder="日数"><span>日ごと</span>
+              <input id="rpDrainCustom" type="number" min="1" inputmode="numeric" placeholder="日数"><span>日ごと</span><small class="cycle-help">1日以下は週1扱い</small>
             </div>
           </div>
 
@@ -3665,6 +3664,7 @@ if(!db.logs) db.logs=[];
 if(!db.shifts) db.shifts={};
 if(!db.tasks) db.tasks=[];
 if(!db.troubles) db.troubles=[];
+if(!Array.isArray(db.planSuppressions))db.planSuppressions=[];
 if(!Array.isArray(db.daysOff)) db.daysOff=[];
 
 if(!Array.isArray(db.facilities)) db.facilities=[];
@@ -3725,6 +3725,7 @@ function syncDbFromStorage(){
       if(!db.shifts) db.shifts={};
       if(!Array.isArray(db.tasks)) db.tasks=[];
       if(!Array.isArray(db.troubles)) db.troubles=[];
+if(!Array.isArray(db.planSuppressions))db.planSuppressions=[];
 if(!Array.isArray(db.models)) db.models=[];
 if(!db.settings)db.settings={};
 if(db.settings.routeDefaultMode===undefined)db.settings.routeDefaultMode='recommended';
@@ -4422,79 +4423,90 @@ function adjustArrivalForFacility(f,arrival,serviceMinutes){
 
   return {start,wait,warning,late};
 }
+function routePointForMachine(m){
+  if(!m)return null;
+  const lat=Number(m.lat),lng=Number(m.lng);
+  return Number.isFinite(lat)&&Number.isFinite(lng)?{lat,lng}:null;
+}
+function routeDistanceMinutes(point,m){
+  const mp=routePointForMachine(m);
+  if(!point||!mp)return 10;
+  const km=hav(point,mp)*1.3;
+  return Math.max(3,Math.round((km/30)*60));
+}
+function routeAreaFacilityGroups(chosen){
+  const areas=new Map();
+  chosen.forEach(m=>{
+    const area=m.area||'未設定';
+    if(!areas.has(area))areas.set(area,new Map());
+    const facilityName=String(machineDisplayTitle(m)||'').trim().toLowerCase();
+    if(!areas.get(area).has(facilityName))areas.get(area).set(facilityName,[]);
+    areas.get(area).get(facilityName).push(m);
+  });
+  return areas;
+}
 function buildTimedRoutePlan(chosen){
   if(!chosen.length)return [];
 
-  // 施設単位でまとめる。同一施設は必ず連続。
-  const groupMap=new Map();
-  chosen.forEach(m=>{
-    // 登録方法やfacilityIdが違っても、画面上で同じ設置先施設なら同じ訪問としてまとめる。
-    const facilityName=String(machineDisplayTitle(m)||'').trim().toLowerCase();
-    const area=String(m.area||'未設定').trim().toLowerCase();
-    const key=`place:${area}:${facilityName}`;
-    if(!groupMap.has(key))groupMap.set(key,[]);
-    groupMap.get(key).push(m);
-  });
+  const areaMap=routeAreaFacilityGroups(chosen);
+  for(const groups of areaMap.values()){
+    for(const group of groups.values()){
+      group.sort((a,b)=>String(a.site||'').localeCompare(String(b.site||''),'ja'));
+    }
+  }
 
-  let remaining=[...groupMap.values()];
-  remaining.forEach(g=>g.sort((a,b)=>
-    routeScore(b,false)-routeScore(a,false)
-  ));
-
+  let currentPoint=(lastUserPosition&&Number.isFinite(Number(lastUserPosition.lat))&&Number.isFinite(Number(lastUserPosition.lng)))
+    ? {lat:Number(lastUserPosition.lat),lng:Number(lastUserPosition.lng)}
+    : null;
   let clock=routePlanningStartMinutes();
-  let currentMachine=null;
   const result=[];
 
-  while(remaining.length){
-    let bestIndex=0;
-    let bestScore=Infinity;
-    let bestMeta=null;
+  while(areaMap.size){
+    // 次に入るエリアは現在地から一番近い施設を持つエリア。
+    let selectedArea=null,bestAreaScore=Infinity;
+    for(const [area,groupsMap] of areaMap.entries()){
+      let nearest=Infinity;
+      for(const group of groupsMap.values()){
+        const first=routeGroupCenterMachine(group);
+        nearest=Math.min(nearest,currentPoint?routeDistanceMinutes(currentPoint,first):0);
+      }
+      if(nearest<bestAreaScore){bestAreaScore=nearest;selectedArea=area}
+    }
 
-    remaining.forEach((group,index)=>{
+    const groups=[...areaMap.get(selectedArea).values()];
+    while(groups.length){
+      let bestIndex=0,bestScore=Infinity;
+      groups.forEach((group,i)=>{
+        const first=routeGroupCenterMachine(group);
+        const travel=currentPoint?routeDistanceMinutes(currentPoint,first):0;
+        if(travel<bestScore){bestScore=travel;bestIndex=i}
+      });
+
+      const group=groups.splice(bestIndex,1)[0];
       const first=routeGroupCenterMachine(group);
-      const travel=currentMachine?estimatedRoadMinutesBetween(currentMachine,first):0;
-      const sameArea=!currentMachine || (currentMachine.area||'未設定')===(first?.area||'未設定');
-      const areaSwitchPenalty=sameArea?0:18; // エリアを飛び越える往復を避ける
-      const arrival=clock+travel;
+      const travel=currentPoint?routeDistanceMinutes(currentPoint,first):0;
       const facility=groupFacilityForRoute(group);
       const service=routeGroupServiceMinutes(group);
-      const timing=adjustArrivalForFacility(facility,arrival,service);
+      const timing=adjustArrivalForFacility(facility,clock+travel,service);
+      let itemClock=timing.start;
 
-      // 待ち時間、移動時間、時間超過を重く評価。
-      // 優先度が高い施設は少し前に出す。
-      const priority=Math.max(...group.map(m=>routeScore(m,false)),0);
-      const latePenalty=timing.late?10000:0;
-      const score=travel + areaSwitchPenalty + timing.wait*2 + latePenalty - Math.min(priority,500)*0.08;
-
-      if(score<bestScore){
-        bestScore=score;
-        bestIndex=index;
-        bestMeta={travel,arrival,timing,service,facility,first};
-      }
-    });
-
-    const group=remaining.splice(bestIndex,1)[0];
-    const meta=bestMeta;
-    const facility=meta.facility;
-    const visitStart=meta.timing.start;
-    let itemClock=visitStart;
-
-    group.forEach((m,i)=>{
-      const work=Math.max(1,Number(m.workMinutes||25));
-      result.push({
-        machine:m,
-        facility,
-        arrivalMinutes:itemClock,
-        travelMinutes:i===0?meta.travel:0,
-        waitingMinutes:i===0?meta.timing.wait:0,
-        warning:i===0?meta.timing.warning:'',
-        late:i===0?meta.timing.late:false
+      group.forEach((m,i)=>{
+        const work=Math.max(1,Number(m.workMinutes||25));
+        result.push({
+          machine:m,facility,area:selectedArea,
+          arrivalMinutes:itemClock,
+          travelMinutes:i===0?travel:0,
+          waitingMinutes:i===0?timing.wait:0,
+          warning:i===0?timing.warning:'',
+          late:i===0?timing.late:false
+        });
+        itemClock+=work;
       });
-      itemClock+=work;
-    });
 
-    clock=visitStart+meta.service;
-    currentMachine=routeGroupCenterMachine(group);
+      clock=timing.start+service;
+      currentPoint=routePointForMachine(first)||currentPoint;
+    }
+    areaMap.delete(selectedArea);
   }
 
   return result;
@@ -4523,18 +4535,7 @@ function candidateMachinesFromOptions(){
 }
 function chooseRouteMachines(){
   const max=Math.max(1,Number(routeMaxStops.value)||15);
-  const budget=Math.max(15,Number(routeBudget.value)||360);
-  const candidates=candidateMachinesFromOptions();
-
-  let chosen=[],used=0;
-  for(const m of candidates){
-    const minutes=Math.max(1,Number(m.workMinutes||25));
-    if(chosen.length>=max) break;
-    if(chosen.length>0 && used+minutes>budget) continue;
-    chosen.push(m);
-    used+=minutes;
-  }
-  return chosen;
+  return candidateMachinesFromOptions().slice(0,max);
 }
 function orderRouteMachines(chosen){
   return buildTimedRoutePlan(chosen).map(x=>x.machine);
@@ -4653,12 +4654,34 @@ function openRouteOptions(){
   routeArea.value=routeAreasSelected.join('|');
   routeCandidateMode.value=r?.candidateMode||db.settings?.routeDefaultMode||'recommended';
   routeMaxStops.value=db.settings.maxStops||15;
-  routeBudget.value=db.settings.workBudget||360;
   renderRouteAreaMulti();
   renderRoutePreview();
   switchPage('autoRoute');
   window.scrollTo({top:0,behavior:'smooth'});
 }
+function optimizeTodayRoute(){
+  const r=todaysRoute();
+  if(!r?.stops?.length){showToast('並べ直す巡回がありません');return}
+  const done=r.stops.filter(s=>s.status==='done');
+  const pending=r.stops.filter(s=>s.status!=='done');
+  if(pending.length<2){showToast('並べ直す未完了巡回がありません');return}
+  const stopMap=new Map(pending.map(s=>[s.machineId,s]));
+  const plan=buildTimedRoutePlan(pending.map(s=>machine(s.machineId)).filter(Boolean));
+  const reordered=plan.map(item=>{
+    const s=stopMap.get(item.machine.id);
+    return {...s,
+      plannedArrival:minutesToTime(item.arrivalMinutes),
+      plannedTravelMinutes:item.travelMinutes||0,
+      plannedWaitMinutes:item.waitingMinutes||0,
+      facilityWarning:item.warning||''
+    };
+  });
+  r.stops=[...done,...reordered];
+  r.stops.forEach((s,i)=>s.order=i+1);
+  save();renderRoute();renderHome();
+  showToast(`${reordered.length}台をエリア・距離順に並べ直しました`);
+}
+
 function moveStop(stopId,delta){
   const r=todaysRoute();if(!r)return;
   const i=r.stops.findIndex(s=>s.id===stopId);if(i<0)return;
@@ -5107,6 +5130,42 @@ function routePeriodSet(period){
   if(window.routeMonthView)routeMonthView.classList.toggle('hidden',period!=='month');
   if(period==='week')renderRouteWeek();
 }
+function weeklyDuplicateMachines(anchorDate=routeWeekAnchor){
+  const start=routeWeekStart(anchorDate);
+  const dates=Array.from({length:7},(_,i)=>addDaysYmd(start,i));
+  const seen=new Map(),dupes=[];
+  dates.forEach(date=>{
+    const r=routeForDate(date);
+    (r?.stops||[]).forEach(s=>{
+      if(!seen.has(s.machineId))seen.set(s.machineId,[]);
+      seen.get(s.machineId).push({date,stop:s});
+    });
+  });
+  for(const [machineId,items] of seen.entries()){
+    if(items.length>1)dupes.push({machineId,items});
+  }
+  return dupes;
+}
+function cleanWeeklyDuplicates(){
+  const dupes=weeklyDuplicateMachines(routeWeekAnchor);
+  if(!dupes.length){showToast('今週の重複はありません ✓');return}
+  if(!confirm(`今週、同じ自販機が複数日に入っているものが${dupes.length}台あります。\n最も早い日だけ残して、後の日から外しますか？`))return;
+  let removed=0;
+  dupes.forEach(d=>{
+    const sorted=d.items.slice().sort((a,b)=>a.date.localeCompare(b.date));
+    sorted.slice(1).forEach(x=>{
+      const r=routeForDate(x.date);
+      if(!r)return;
+      r.stops=(r.stops||[]).filter(s=>s.id!==x.stop.id);
+      r.stops.forEach((s,i)=>s.order=i+1);
+      if(!r.stops.length)delete db.routes[x.date];
+      removed++;
+    });
+  });
+  save();renderRouteWeek();renderRouteAudit();renderHome();
+  showToast(`${removed}件の重複巡回を整理しました`);
+}
+
 function routeWeekStart(date){
   const d=ymdDate(date),day=d.getDay()||7;
   d.setDate(d.getDate()-(day-1));
@@ -6201,6 +6260,56 @@ function cycleValue(select,custom,fallback=0){
   if(select.value==='custom')return Math.max(1,Number(custom.value)||fallback||1);
   return Math.max(0,Number(select.value)||0);
 }
+function normalizedExtraCycleValue(selectEl,customEl,defaultValue=0){
+  const v=cycleValue(selectEl,customEl,defaultValue);
+  // 原料・排水の日数指定で 0〜1 日は誤設定とみなし週1へ補正。
+  if(selectEl?.value==='custom' && v<2)return 7;
+  return v;
+}
+function weeklyScheduleRule(m,kind){
+  if(kind==='原料補充'){
+    if(m.supplyScheduleMode==='weekdays'){
+      const days=[...new Set((m.supplyWeekdays||[]).map(Number))];
+      return {oncePerWeek:days.length<=1,days};
+    }
+    const interval=supplyInterval(m);
+    return {oncePerWeek:interval>=7,interval};
+  }
+  if(kind==='排水'){
+    if(m.drainScheduleMode==='weekdays'){
+      const days=[...new Set((m.drainWeekdays||[]).map(Number))];
+      return {oncePerWeek:days.length<=1,days};
+    }
+    const interval=drainInterval(m);
+    return {oncePerWeek:interval>=7,interval};
+  }
+  if(kind==='給水' || kind==='ゴミ回収'){
+    return {oncePerWeek:true,interval:7};
+  }
+  if(kind==='基本巡回'){
+    return {oncePerWeek:regularInterval(m)>=7,interval:regularInterval(m)};
+  }
+  return {oncePerWeek:false};
+}
+function mondayWeekKey(date){
+  const d=ymdDate(date);
+  const day=d.getDay();
+  const delta=day===0?-6:1-day;
+  d.setDate(d.getDate()+delta);
+  return localYmd(d);
+}
+function enforceOncePerWeekOccurrences(m,occurrences){
+  const seen=new Set();
+  return occurrences.filter(o=>{
+    const rule=weeklyScheduleRule(m,o.kind);
+    if(!rule.oncePerWeek)return true;
+    const key=`${o.kind}|${mondayWeekKey(o.date)}`;
+    if(seen.has(key))return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function setCycleSelect(select,custom,value,presets){
   const n=Number(value||0);
   if(presets.includes(n)){select.value=String(n);custom.value=''}
@@ -6666,7 +6775,11 @@ function saveRegisterPage(){
       throw new Error('排水の曜日を1つ以上選んでください');
     }
 
+    const supplyDayCorrected=(rpSupplyInterval.value==='custom'&&rpSupplyCustomMode.value==='days'&&(Number(rpSupplyCustom.value)||0)<2);
+    const drainDayCorrected=(rpDrainInterval.value==='custom'&&rpDrainCustomMode.value==='days'&&(Number(rpDrainCustom.value)||0)<2);
+
     const id=registerEditingId||uid();
+    const previousMachine=registerEditingId?db.machines.find(m=>m.id===registerEditingId):null;
     const data={
       id,
       name,
@@ -6680,10 +6793,10 @@ function saveRegisterPage(){
       lat,
       lng,
       regularIntervalDays:cycleValue(rpRegularInterval,rpRegularCustom,14),
-      supplyIntervalDays:(rpSupplyInterval.value==='custom'&&rpSupplyCustomMode.value==='weekdays')?0:cycleValue(rpSupplyInterval,rpSupplyCustom,0),
+      supplyIntervalDays:(rpSupplyInterval.value==='custom'&&rpSupplyCustomMode.value==='weekdays')?0:normalizedExtraCycleValue(rpSupplyInterval,rpSupplyCustom,0),
       supplyScheduleMode:(rpSupplyInterval.value==='custom'&&rpSupplyCustomMode.value==='weekdays')?'weekdays':'days',
       supplyWeekdays:(rpSupplyInterval.value==='custom'&&rpSupplyCustomMode.value==='weekdays')?selectedWeekdays(rpSupplyWeekdays):[],
-      drainIntervalDays:(rpDrainInterval.value==='custom'&&rpDrainCustomMode.value==='weekdays')?0:cycleValue(rpDrainInterval,rpDrainCustom,0),
+      drainIntervalDays:(rpDrainInterval.value==='custom'&&rpDrainCustomMode.value==='weekdays')?0:normalizedExtraCycleValue(rpDrainInterval,rpDrainCustom,0),
       drainScheduleMode:(rpDrainInterval.value==='custom'&&rpDrainCustomMode.value==='weekdays')?'weekdays':'days',
       drainWeekdays:(rpDrainInterval.value==='custom'&&rpDrainCustomMode.value==='weekdays')?selectedWeekdays(rpDrainWeekdays):[],
       lastRegular:rpLastRegular.value||'',
@@ -6702,6 +6815,18 @@ function saveRegisterPage(){
       memo:(rpMemo.value||'').trim(),
       createdAt:Date.now()
     };
+
+    // 基本巡回周期を変更した時、古い周期で保存された次回予定日がそのままなら自動更新。
+    // 次回予定日をユーザー自身が変更していた場合は、その手入力を優先する。
+    if(previousMachine && data.lastRegular){
+      const oldInterval=regularInterval(previousMachine);
+      const newInterval=Math.max(1,Number(data.regularIntervalDays||14));
+      const oldNext=previousMachine.nextRegular||'';
+      const formNext=data.nextRegular||'';
+      if(oldInterval!==newInterval && (!formNext || formNext===oldNext)){
+        data.nextRegular=addDaysYmd(data.lastRegular,newInterval);
+      }
+    }
 
     if(!Array.isArray(db.machines)) db.machines=[];
     if(registerEditingId){
@@ -6731,10 +6856,12 @@ function saveRegisterPage(){
     const planSyncResult=syncMachinesToPlanning(id,{persist:true,refresh:false});
 
     const savedMachineId=id;
+    const correctedNote=(supplyDayCorrected||drainDayCorrected)?'｜1日以下の指定は週1に補正':'';
     showToast(
-      wasEditing
+      (wasEditing
         ? `${name} を保存しました${planSyncResult.months?`｜巡回・月間計画も更新`:""}`
-        : `${name} を登録しました${planSyncResult.months?`｜巡回・月間計画にも反映`:""}`
+        : `${name} を登録しました${planSyncResult.months?`｜巡回・月間計画にも反映`:""}`)
+      + correctedNote
     );
     registerEditingId=null;
 
@@ -7808,9 +7935,16 @@ function monthlyPlannedWorksForMachine(tasks,m){
   return null;
 }
 function plannedWorkChipsHtml(tasks,m){
-  const works=monthlyPlannedWorksForMachine(tasks,m);
-  if(!works)return machineWorkBadgesHtml(m);
-  return works.map(w=>`<span class="work-chip">${escapeHtml(w)}</span>`).join('');
+  const items=[];
+  (tasks||[]).forEach(t=>{
+    (t.machineWorkKinds||[]).filter(x=>x.machineId===m.id).forEach(x=>{
+      const planned=t.due||'';
+      const due=x.due||'';
+      const shifted=planned&&due&&planned!==due;
+      items.push(`<span class="work-chip">${escapeHtml(workLabelForOccurrence(x.work))}${shifted?` <small>期限${escapeHtml(due.slice(5).replace('-','/'))}</small>`:''}</span>`);
+    });
+  });
+  return items.length?items.join(''):machineWorkBadgesHtml(m);
 }
 
 function fillMonthlyActionAreas(){
@@ -8257,15 +8391,25 @@ function moveSelectedWeeklyStopsTo(newDate){
   const existingMachineIds=new Set(targetStops.map(s=>s.machineId));
   const duplicates=selected.filter(s=>existingMachineIds.has(s.machineId));
   const movable=selected.filter(s=>!existingMachineIds.has(s.machineId));
+  const allSelectedIds=new Set(selected.map(s=>s.id));
 
   if(duplicates.length&&!confirm(`${auditDateLabel(newDate)}に同じ自販機が${duplicates.length}台あります。\n重複分は元の日に残し、残り${movable.length}台を移動しますか？`))return;
   if(!movable.length){showToast('移動先にすべて同じ自販機があります');return}
 
-  const movedIds=new Set(movable.map(s=>s.id));
-  source.stops=source.stops.filter(s=>!movedIds.has(s.id));
+  // 移動先に同じ自販機がある場合も、元の日からは必ず外す。
+  source.stops=source.stops.filter(s=>!allSelectedIds.has(s.id));
   source.stops.sort((a,b)=>(a.order||0)-(b.order||0)).forEach((s,i)=>s.order=i+1);
 
-  const moved=movable.map(s=>({...s,order:targetStops.length+1,status:'pending'}));
+  const moved=movable.map(s=>({
+    ...s,
+    order:targetStops.length+1,
+    status:'pending',
+    manualLocked:true,
+    userAdjusted:true,
+    originalDue:s.originalDue||s.sourcePlanDate||oldDate,
+    movedFromDate:oldDate,
+    movedAt:Date.now()
+  }));
   const merged=[...targetStops,...moved];
   merged.forEach((s,i)=>s.order=i+1);
   db.routes[newDate]={
@@ -8312,6 +8456,17 @@ function deleteSelectedWeeklyStops(){
   if(!r||!selected.length){showToast('外す自販機を選んでください');return}
   if(!confirm(`選択した${selected.length}台を${auditDateLabel(monthlyDayDetailDate)}の巡回から外しますか？\n周期設定・前回作業日・実績は変更しません。`))return;
   const ids=new Set(selected.map(s=>s.id));
+  if(!Array.isArray(db.planSuppressions))db.planSuppressions=[];
+  selected.forEach(s=>{
+    db.planSuppressions.push({
+      id:uid(),machineId:s.machineId,
+      kind:(s.workTypes||[])[0]||'予定',
+      originalDue:s.originalDue||s.sourcePlanDate||monthlyDayDetailDate,
+      removedFrom:monthlyDayDetailDate,
+      month:monthlyDayDetailDate.slice(0,7),
+      createdAt:Date.now()
+    });
+  });
   r.stops=r.stops.filter(s=>!ids.has(s.id));
   r.stops.sort((a,b)=>(a.order||0)-(b.order||0)).forEach((s,i)=>s.order=i+1);
   if(!r.stops.length)delete db.routes[monthlyDayDetailDate];
@@ -8334,7 +8489,15 @@ function moveWeeklyRouteDayTo(newDate){
   if(target?.stops?.length&&!confirm(`${auditDateLabel(newDate)}には${target.stops.length}台の予定があります。まとめて追加しますか？`))return;
   const targetStops=Array.isArray(target?.stops)?target.stops.slice():[];
   const existingIds=new Set(targetStops.map(s=>s.machineId));
-  const moved=(source.stops||[]).filter(s=>!existingIds.has(s.machineId)).map(s=>({...s,status:s.status==='done'?'pending':s.status}));
+  const moved=(source.stops||[]).filter(s=>!existingIds.has(s.machineId)).map(s=>({
+    ...s,
+    status:s.status==='done'?'pending':s.status,
+    manualLocked:true,
+    userAdjusted:true,
+    originalDue:s.originalDue||s.sourcePlanDate||oldDate,
+    movedFromDate:oldDate,
+    movedAt:Date.now()
+  }));
   const merged=[...targetStops,...moved];merged.forEach((s,i)=>s.order=i+1);
   db.routes[newDate]={...(target||{}),date:newDate,createdAt:target?.createdAt||Date.now(),areaFilter:target?.areaFilter||source.areaFilter||'manual',areas:target?.areas||source.areas||[],candidateMode:target?.candidateMode||source.candidateMode||'manual',stops:merged};
   delete db.routes[oldDate];
@@ -8411,7 +8574,10 @@ function moveMonthlyDayPlan(){
   const oldDate=monthlyDayDetailDate;
   const moved=(db.tasks||[]).filter(t=>t.due===oldDate);
   if(!moved.length)return;
-  moved.forEach(t=>t.due=newDate);
+  moved.forEach(t=>{
+    t.due=newDate;
+    if(t.autoMonthlyPlan)markTaskManualLocked(t,'月間行動計画で日付移動');
+  });
   save();
   monthlyDayDetailDate=newDate;
   renderMonthlyDayDetail();
@@ -8427,9 +8593,15 @@ function renderMonthlyActionPlan(){
   monthlyActionPlanEmpty.classList.toggle('hidden',rows.length>0);
 
   const autoRows=rows.filter(t=>t.autoMonthlyPlan);
-  monthlyAutoSummary.textContent=autoRows.length
-    ? `自動作成 ${new Set(autoRows.map(t=>t.due)).size}日分・対象 ${autoRows.reduce((s,t)=>s+(t.machineIds?.length||0),0)}台（休業日を除外）`
-    : '自動作成分はまだありません';
+  if(autoRows.length){
+    const bounds=monthlyActionMonthBounds();
+    const key=monthlyActionMonthKey();
+    const wa=weeklyRegularPlanAudit(bounds.start,bounds.end,key);
+    const locked=(rows||[]).filter(t=>t.manualLocked||t.userAdjusted).length;
+    monthlyAutoSummary.textContent=`自動作成 ${new Set(autoRows.filter(t=>!t.manualLocked).map(t=>t.due)).size}日分｜手動調整 ${locked}件保護｜週1基本巡回 ${wa.planned}/${wa.expected}回`;
+  }else{
+    monthlyAutoSummary.textContent='自動作成分はまだありません';
+  }
 
   const groups=monthlyDayGroups();
   const dow=['日','月','火','水','木','金','土'];
@@ -8445,7 +8617,12 @@ function renderMonthlyActionPlan(){
     const linked=Object.values(db.routes||{}).flatMap(r=>(r?.stops||[]).map(s=>({...s,actualDate:r.date}))).filter(s=>ids.has(s.machineId)&&s.sourcePlanDate===date);
     const transferred=new Set(linked.map(s=>s.machineId)).size;
     const actualDone=new Set(linked.filter(s=>s.status==='done').map(s=>s.machineId)).size;
-    const state=machines.length&&actualDone>=machines.length?'実施済み':machines.length&&transferred>=machines.length?'今日へ反映':transferred>0?`一部反映 ${transferred}/${machines.length}`:done?'完了':'予定';
+    const manuallyAdjusted=tasks.some(t=>t.manualLocked||t.userAdjusted);
+    const state=machines.length&&actualDone>=machines.length?'実施済み'
+      :machines.length&&transferred>=machines.length?'今日へ反映'
+      :transferred>0?`一部反映 ${transferred}/${machines.length}`
+      :done?'完了'
+      :manuallyAdjusted?'手動調整':'予定';
     return `<tr class="${done||state==='実施済み'?'done-row':''}">
       <td><b>${dd.getMonth()+1}/${dd.getDate()}</b></td>
       <td>${dow[dd.getDay()]}</td>
@@ -8475,7 +8652,9 @@ function saveMonthlyActionPlan(){
     t.category=monthlyActionType.value||'other';
     t.priority=monthlyActionPriority.value||'normal';
     t.memo=(monthlyActionMemo.value||'').trim();
-    // 自動作成行を編集しても対象自販機・距離情報は保持。
+    // 自動作成後にユーザーが触った予定は、次回自動作成でも上書きしない。
+    if(t.autoMonthlyPlan)markTaskManualLocked(t,'月間行動計画で編集');
+    // 対象自販機・元の期限情報は保持。
   }else{
     db.tasks.push({
       id:uid(),
@@ -8570,6 +8749,15 @@ function monthlyDatesByInterval(lastDate,interval,start,end){
   while(d<=end && guard++<500){out.push(d);d=addDaysYmd(d,interval)}
   return out;
 }
+function regularOccurrenceStart(m){
+  const interval=regularInterval(m);
+  // 月間計画は「現在の周期設定」を最優先する。
+  // 週1へ変更した後に古い nextRegular(14日周期時代など) が残っていても、
+  // 最終基本巡回日 + 現在周期 から正しく再計算する。
+  if(m?.lastRegular)return addDaysYmd(m.lastRegular,interval);
+  if(m?.nextRegular)return m.nextRegular;
+  return '';
+}
 function monthlyDatesByWeekdays(days,start,end){
   const set=new Set((days||[]).map(Number));
   if(!set.size)return [];
@@ -8588,14 +8776,15 @@ function machineMonthlyOccurrences(m,start,end){
     if(!prev||rank<prev.rank)map.set(date,{date,kind,rank});
   };
 
-  const regularStart=nextRegularDate(m);
+  const regularStart=regularOccurrenceStart(m);
   if(regularStart){
+    const interval=regularInterval(m);
     let d=regularStart,guard=0;
-    while(d<start&&guard++<500)d=addDaysYmd(d,regularInterval(m)||14);
+    while(d<start&&guard++<500)d=addDaysYmd(d,interval);
     guard=0;
     while(d<=end&&guard++<500){
       put(d,'基本巡回',1);
-      d=addDaysYmd(d,regularInterval(m)||14);
+      d=addDaysYmd(d,interval);
     }
   }
 
@@ -8616,7 +8805,8 @@ function machineMonthlyOccurrences(m,start,end){
   if(m.trashWeekly||m.garbageWeekly||m.needsTrashWeekly){
     monthlyDatesByInterval(m.lastTrash||m.lastGarbage||m.lastRegular||'',7,start,end).forEach(d=>put(d,'ゴミ回収',4));
   }
-  return [...map.values()].sort((a,b)=>a.date.localeCompare(b.date));
+  const occurrences=[...map.values()].sort((a,b)=>a.date.localeCompare(b.date));
+  return enforceOncePerWeekOccurrences(m,occurrences);
 }
 function autoPlanDistanceKm(machines){
   const pts=machines.filter(m=>Number.isFinite(Number(m.lat))&&Number.isFinite(Number(m.lng)));
@@ -8634,26 +8824,150 @@ function autoPlanDistanceKm(machines){
   }
   return km;
 }
+function allowedMonthlyPlanDates(due,workdays){
+  if(!workdays.length)return [];
+  // 期限を最優先。原則「期限当日」、休業日なら直前勤務日。
+  // 台数・時間の都合でずらす場合も前倒しは最大2勤務日、後ろ倒しは最大1勤務日まで。
+  let dueIndex=workdays.findIndex(d=>d>=due);
+  if(dueIndex<0)dueIndex=workdays.length-1;
+
+  let baseIndex=workdays.indexOf(due);
+  if(baseIndex<0){
+    // due が休業日なら直前勤務日を基準にする。
+    baseIndex=-1;
+    for(let i=0;i<workdays.length;i++){
+      if(workdays[i]<=due)baseIndex=i;
+      else break;
+    }
+    if(baseIndex<0)baseIndex=0;
+  }
+
+  const idxs=[];
+  for(let i=Math.max(0,baseIndex-2);i<=Math.min(workdays.length-1,baseIndex+1);i++){
+    idxs.push(i);
+  }
+  return [...new Set(idxs.map(i=>workdays[i]))];
+}
+
 function machinePairDistance(a,b){
   if(!a||!b)return Infinity;
   if(!Number.isFinite(Number(a.lat))||!Number.isFinite(Number(a.lng))||
      !Number.isFinite(Number(b.lat))||!Number.isFinite(Number(b.lng)))return Infinity;
   return hav({lat:Number(a.lat),lng:Number(a.lng)},{lat:Number(b.lat),lng:Number(b.lng)});
 }
+function taskMachineOccurrenceKeys(task){
+  const keys=[];
+  if(Array.isArray(task?.machineWorkKinds)&&task.machineWorkKinds.length){
+    task.machineWorkKinds.forEach(x=>{
+      if(x?.machineId&&x?.work&&x?.due)keys.push(`${x.machineId}|${x.work}|${x.due}`);
+    });
+  }else{
+    const ids=Array.isArray(task?.machineIds)?task.machineIds:(task?.machineId?[task.machineId]:[]);
+    ids.forEach(id=>keys.push(`${id}|予定|${task.due||''}`));
+  }
+  return keys;
+}
+function isProtectedMonthlyTask(task){
+  // 手動で作った予定、および自動作成後にユーザーが編集/移動した予定は自動再作成で壊さない。
+  return !task?.autoMonthlyPlan || !!task?.manualLocked || !!task?.userAdjusted;
+}
+function protectedMonthlyOccurrenceKeys(key){
+  const set=new Set();
+  (db.tasks||[]).forEach(t=>{
+    if(!String(t.due||'').startsWith(key))return;
+    if(!isProtectedMonthlyTask(t))return;
+    taskMachineOccurrenceKeys(t).forEach(k=>set.add(k));
+  });
+
+  // 1週間側でユーザーが動かした巡回も保護対象。
+  Object.entries(db.routes||{}).forEach(([date,r])=>{
+    if(!String(date).startsWith(key))return;
+    (r?.stops||[]).forEach(s=>{
+      if(!s?.manualLocked||!s.machineId)return;
+      const originalDue=s.originalDue||s.sourcePlanDate||date;
+      const kinds=(s.workTypes||[]).map(w=>w==='原料'?'原料補充':w);
+      (kinds.length?kinds:['予定']).forEach(kind=>set.add(`${s.machineId}|${kind}|${originalDue}`));
+    });
+  });
+  (db.planSuppressions||[]).forEach(x=>{
+    if(x.month!==key||!x.machineId||!x.originalDue)return;
+    const kind=x.kind==='原料'?'原料補充':x.kind;
+    set.add(`${x.machineId}|${kind}|${x.originalDue}`);
+  });
+  return set;
+}
+function seedProtectedMonthlyCapacity(buckets,key){
+  (db.tasks||[]).forEach(t=>{
+    if(!String(t.due||'').startsWith(key)||!isProtectedMonthlyTask(t))return;
+    const b=buckets.get(t.due);if(!b)return;
+    const ids=Array.isArray(t.machineIds)?t.machineIds:(t.machineId?[t.machineId]:[]);
+    ids.forEach(id=>{
+      const m=machine(id);if(!m)return;
+      if(!b.machines.some(x=>x.id===id))b.machines.push(m);
+      const area=m.area||t.area||'未設定';
+      b.areaCounts.set(area,(b.areaCounts.get(area)||0)+1);
+    });
+  });
+}
+function markTaskManualLocked(task,reason='手動調整'){
+  if(!task)return;
+  task.manualLocked=true;
+  task.userAdjusted=true;
+  task.manualLockReason=reason;
+  task.manualLockedAt=Date.now();
+}
+
+function weeklyRegularPlanAudit(start,end,key){
+  const weeklyMachines=(db.machines||[]).filter(m=>regularInterval(m)===7);
+  let expected=0,planned=0,missing=[];
+
+  weeklyMachines.forEach(m=>{
+    const expectedDates=machineMonthlyOccurrences(m,start,end)
+      .filter(x=>x.kind==='基本巡回')
+      .map(x=>x.date);
+    expected+=expectedDates.length;
+
+    const plannedRows=(db.tasks||[])
+      .filter(t=>t.autoMonthlyPlan&&String(t.due||'').startsWith(key))
+      .flatMap(t=>(t.machineWorkKinds||[])
+        .filter(x=>x.machineId===m.id&&x.work==='基本巡回')
+        .map(x=>({planDate:t.due,due:x.due})));
+    planned+=plannedRows.length;
+
+    if(plannedRows.length<expectedDates.length){
+      missing.push({
+        machineId:m.id,
+        name:machineDisplayTitle(m),
+        area:m.area||'未設定',
+        expected:expectedDates.length,
+        planned:plannedRows.length
+      });
+    }
+  });
+
+  return {machines:weeklyMachines.length,expected,planned,missing};
+}
+
 function autoCreateMonthlyPlan(){
   const workdays=monthlyWorkdays();
   if(!workdays.length){alert('対象月に平日がありません');return}
   const {start,end}=monthlyActionMonthBounds();
   const maxStops=Math.max(1,Number(monthlyAutoMaxStops.value)||15);
-  const budget=Math.max(30,Number(monthlyAutoBudget.value)||360);
 
-  // Remove only old auto-generated rows for this month before rebuilding.
+  // 自動作成分だけ再構築。手動作成・手動編集・手動移動した予定は保護して残す。
   const key=monthlyActionMonthKey();
-  db.tasks=(db.tasks||[]).filter(t=>!(t.autoMonthlyPlan&&String(t.due||'').startsWith(key)));
+  const protectedKeys=protectedMonthlyOccurrenceKeys(key);
+  db.tasks=(db.tasks||[]).filter(t=>!(
+    t.autoMonthlyPlan &&
+    String(t.due||'').startsWith(key) &&
+    !isProtectedMonthlyTask(t)
+  ));
 
   // Ver.9.4: 1台につき月1回ではなく、周期に応じて月内の全訪問候補を作る。
   const candidates=db.machines
-    .flatMap(m=>machineMonthlyOccurrences(m,start,end).map(o=>({m,due:o.date,workKind:o.kind})))
+    .flatMap(m=>machineMonthlyOccurrences(m,start,end)
+      .filter(o=>!protectedKeys.has(`${m.id}|${o.kind}|${o.date}`))
+      .map(o=>({m,due:o.date,workKind:o.kind})))
     .sort((a,b)=>String(a.due).localeCompare(String(b.due))
       || String(a.m.area||'未設定').localeCompare(String(b.m.area||'未設定'),'ja'));
 
@@ -8666,6 +8980,7 @@ function autoCreateMonthlyPlan(){
 
   // Day buckets. We prefer same area, close GPS, near due date and capacity.
   const buckets=new Map(workdays.map(d=>[d,{date:d,machines:[],items:[],minutes:0,areaCounts:new Map(),capacity:dayWorkCapacity(d)}]));
+  seedProtectedMonthlyCapacity(buckets,key);
 
   for(const item of candidates){
     const m=item.m;
@@ -8674,12 +8989,11 @@ function autoCreateMonthlyPlan(){
     const area=m.area||'未設定';
     const minutes=Math.max(1,Number(m.workMinutes||25));
 
-    let choices=workdays.map(date=>{
+    const allowedDates=allowedMonthlyPlanDates(item.due,workdays);
+    let choices=allowedDates.map(date=>{
       const b=buckets.get(date);
       const dayMaxStops=Math.max(1,Math.floor(maxStops*b.capacity));
-      const dayBudget=Math.max(30,Math.floor(budget*b.capacity));
       if(b.machines.length>=dayMaxStops)return null;
-      if(b.machines.length>0 && b.minutes+minutes>dayBudget)return null;
 
       const dayGap=Math.abs(dayDiff(date,target));
       const sameArea=b.areaCounts.get(area)||0;
@@ -8690,19 +9004,20 @@ function autoCreateMonthlyPlan(){
       }
       if(!Number.isFinite(nearest))nearest=20;
 
-      // Lower is better. Same area and nearby strongly reduce score.
-      let score=dayGap*12 + Math.min(nearest,50);
-      score-=sameArea*22;
-      // Prefer dates on or before due date slightly, to avoid lateness.
-      if(date>item.due)score+=Math.max(0,dayDiff(item.due,date))*8;
+      // 期限差を最優先。エリア・距離は「許容範囲内の日を選ぶ」ためだけに使う。
+      let score=dayGap*100 + Math.min(nearest,50);
+      score-=Math.min(sameArea,3)*8;
+      if(date>item.due)score+=Math.max(0,dayDiff(item.due,date))*180;
       return {date,score};
     }).filter(Boolean);
 
     if(!choices.length){
-      // Capacity overflow: pick lightest weekday anyway.
-      choices=workdays.map(date=>{
+      // 許容範囲が満杯でも月内の遠い日へ飛ばさない。
+      // 期限に最も近い許容勤務日のうち、負荷が軽い日へ入れる。
+      choices=allowedDates.map(date=>{
         const b=buckets.get(date);
-        return {date,score:b.machines.length*100+b.minutes};
+        const gap=Math.abs(dayDiff(date,item.due));
+        return {date,score:gap*1000+b.machines.length*100+b.minutes};
       });
     }
     choices.sort((a,b)=>a.score-b.score||a.date.localeCompare(b.date));
@@ -8768,17 +9083,32 @@ function autoCreateMonthlyPlan(){
         distanceKm,
         done:false,
         autoMonthlyPlan:true,
+        manualLocked:false,
+        userAdjusted:false,
         createdAt:Date.now()
       });
       created++;
       totalMachines+=machines.length;
     }
   }
+  // 期限から3日以上早い自動割当が残っていないか最終監査。
+  let farEarly=0;
+  (db.tasks||[]).filter(t=>t.autoMonthlyPlan&&String(t.due||'').startsWith(key)).forEach(t=>{
+    (t.machineWorkKinds||[]).forEach(x=>{
+      if(x.due&&dayDiff(t.due,x.due)>=3)farEarly++;
+    });
+  });
+
   save();
   renderMonthlyActionPlan();
   renderWorkDashboard();
   const monthLabel=`${ymdDate(start).getMonth()+1}月`;
-  showToast(`${monthLabel}の月間計画を作成しました｜${created}日分・${totalMachines}件`, 'success', 3200);
+  const weeklyAudit=weeklyRegularPlanAudit(start,end,key);
+  if(weeklyAudit.missing.length){
+    const sample=weeklyAudit.missing.slice(0,5).map(x=>`${x.name}（${x.area}） ${x.planned}/${x.expected}回`).join('\n');
+    alert(`週1基本巡回の反映漏れを検出しました。\n\n${sample}${weeklyAudit.missing.length>5?'\nほか '+(weeklyAudit.missing.length-5)+'台':''}\n\n月間計画を保存したままです。設定を確認してください。`);
+  }
+  showToast(`${monthLabel}の月間計画を作成｜週1 ${weeklyAudit.machines}台・${weeklyAudit.planned}/${weeklyAudit.expected}回反映`, weeklyAudit.missing.length?'warning':'success', 4200);
 }
 
 function calendarEventsForDate(date){
@@ -9444,6 +9774,7 @@ troubleBackBtn.addEventListener('click',()=>switchPage(troubleReturnPage||'home'
 settingsBackBtn.addEventListener('click',()=>switchPage(settingsReturnPage||'home'));
 quickAutoRouteBtn.addEventListener('click',openRouteOptions);
 manualRouteBtn.addEventListener('click',openManualRoute);
+if(window.optimizeTodayRouteBtn)optimizeTodayRouteBtn.addEventListener('click',optimizeTodayRoute);
 manualRouteSearch.addEventListener('input',renderManualRouteList);
 manualNextBtn.addEventListener('click',openManualOrderStep);
 manualBackToSelectBtn.addEventListener('click',backToManualSelectStep);
@@ -9453,7 +9784,6 @@ confirmGenerateRoute.addEventListener('click',generateRoute);
 refreshRoutePreviewBtn.addEventListener('click',renderRoutePreview);
 routeCandidateMode.addEventListener('change',renderRoutePreview);
 routeMaxStops.addEventListener('input',renderRoutePreview);
-routeBudget.addEventListener('input',renderRoutePreview);
 workManagerBtn.addEventListener('click',()=>openWorkManager('today'));
 quickTaskBtn.addEventListener('click',openTaskModal);
 quickTroubleBtn.addEventListener('click',openTroubleModal);
