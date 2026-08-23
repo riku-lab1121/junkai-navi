@@ -1894,6 +1894,27 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
   .cycle-cell{min-width:225px}
   .cycle-context{display:block}
 }
+
+/* Ver.11.17.8 巡回一覧コンパクト化・週間編集 */
+.route-facility-head{padding:8px 12px;margin:10px 0 4px;border-radius:12px;background:#eaf2fb;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.route-facility-head b{font-size:16px}.route-facility-head span{font-size:11px;font-weight:900;color:#64748b}
+#routeList{gap:6px}
+#routeList .stop.route-stop-compact{padding:0;border-radius:14px;overflow:hidden}
+.compact-stop-main{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:8px;padding:10px}
+.compact-stop-order{font-size:13px;font-weight:900;color:#64748b;text-align:center}
+.compact-stop-info{min-width:0}.compact-stop-title{font-size:16px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.compact-stop-meta{margin-top:2px;font-size:11px;font-weight:750;color:#718096;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.compact-stop-side{display:flex;align-items:center;gap:5px}.compact-start{padding:8px 10px!important;min-width:52px}
+.compact-detail-btn{border:0;background:#f1f5f9;color:#475569;border-radius:10px;padding:8px 9px;font-size:11px;font-weight:900}
+.compact-stop-detail{padding:0 10px 10px 52px;border-top:1px solid #edf1f6}.compact-stop-detail .worktags{margin-top:8px}
+.compact-actions{margin-top:8px;gap:6px;flex-wrap:wrap}.compact-actions button{min-height:34px;padding:7px 10px}
+.weekly-edit-card{padding:10px!important}.weekly-edit-note{font-size:12px;color:#64748b;font-weight:750;padding:4px 4px 10px}
+.weekly-edit-row{display:grid;grid-template-columns:34px minmax(0,1fr);gap:8px;padding:11px 4px;border-top:1px solid #e5eaf1}
+.weekly-edit-row:first-of-type{border-top:0}.weekly-edit-order{font-size:13px;font-weight:900;color:#64748b;padding-top:3px}
+.weekly-edit-main{min-width:0}.weekly-edit-main>b{font-size:16px}.weekly-edit-main .sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.weekly-edit-actions{grid-column:2;display:grid;grid-template-columns:44px 44px 1fr 1fr;gap:6px;margin-top:7px}
+.weekly-edit-actions button{border:0;border-radius:10px;background:#eef2f7;color:#334155;min-height:36px;font-weight:850}.weekly-edit-actions .danger-text{color:#c24141;background:#fff0f0}
+@media(max-width:390px){.compact-stop-main{grid-template-columns:30px minmax(0,1fr) auto;padding-left:7px;padding-right:7px}.compact-stop-detail{padding-left:45px}.compact-stop-title{font-size:15px}.compact-stop-side{gap:3px}.compact-detail-btn{padding:8px 7px}}
 </style>
 </head>
 <body>
@@ -2337,7 +2358,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         <div>
           <div class="section-title">巡回作成</div>
           <div class="flow-title">おすすめで巡回を作る</div>
-          <div class="sub">期限・補充・集金・在庫・トラブルから候補を作ります。</div>
+          <div class="sub">期限・補充・集金・在庫から候補を作ります。</div>
         </div>
         <button class="secondary" id="autoRouteBackBtn">戻る</button>
       </div>
@@ -2364,10 +2385,6 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
           </div>
         </div>
 
-        <div class="checkrow">
-          <input id="routeIncludeTrouble" type="checkbox" checked>
-          <span>未完了トラブルを優先する</span>
-        </div>
       </div>
 
       <div class="flow-card">
@@ -2605,7 +2622,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.17.7</div>
+          <div class="app-version-badge">Version 11.17.8</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2620,7 +2637,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.17.7</div>
+      <div class="app-version-footer">Ver. 11.17.8</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -4277,7 +4294,7 @@ function buildTimedRoutePlan(chosen){
 
   let remaining=[...groupMap.values()];
   remaining.forEach(g=>g.sort((a,b)=>
-    routeScore(b,routeIncludeTrouble.checked)-routeScore(a,routeIncludeTrouble.checked)
+    routeScore(b,false)-routeScore(a,false)
   ));
 
   let clock=routePlanningStartMinutes();
@@ -4299,7 +4316,7 @@ function buildTimedRoutePlan(chosen){
 
       // 待ち時間、移動時間、時間超過を重く評価。
       // 優先度が高い施設は少し前に出す。
-      const priority=Math.max(...group.map(m=>routeScore(m,routeIncludeTrouble.checked)),0);
+      const priority=Math.max(...group.map(m=>routeScore(m,false)),0);
       const latePenalty=timing.late?10000:0;
       const score=travel + timing.wait*2 + latePenalty - Math.min(priority,500)*0.08;
 
@@ -4340,7 +4357,7 @@ function buildTimedRoutePlan(chosen){
 function candidateMachinesFromOptions(){
   const areas=routeSelectedAreas();
   const mode=routeCandidateMode.value||'recommended';
-  const includeTrouble=routeIncludeTrouble.checked;
+  const includeTrouble=false;
 
   let list=db.machines.filter(m=>{
     const areaOk=areas.includes('all')||areas.includes(m.area||'未設定');
@@ -4399,7 +4416,7 @@ function renderRoutePreview(){
   routePreviewList.innerHTML=plan.map((item,i)=>{
     const m=item.machine;
     const f=item.facility;
-    const reasons=routeReason(m,routeIncludeTrouble.checked);
+    const reasons=routeReason(m,false);
     const reason=reasons.length?reasons.join('・'):'期限前';
     const timeText=minutesToTime(item.arrivalMinutes);
     const facilityInfo=f&&facilityVisitLabel(f)!=='未設定'
@@ -4412,7 +4429,7 @@ function renderRoutePreview(){
         <b>${i+1}. ${escapeHtml(machineDisplayTitle(m))}</b>
         <div class="sub">${escapeHtml(machineDisplaySub(m))}</div>
         <div class="route-preview-time"><b>${timeText}頃</b> ・ ${facilityInfo}${travel}${wait}</div>
-        <div class="route-reason ${routeScore(m,routeIncludeTrouble.checked)>=100?'urgent':''}">${escapeHtml(reason)}</div>
+        <div class="route-reason ${routeScore(m,false)>=100?'urgent':''}">${escapeHtml(reason)}</div>
         ${item.warning?`<div class="route-window-warning">${escapeHtml(item.warning)}</div>`:''}
       </div>
       <span class="mini">${Number(m.workMinutes||25)}分</span>
@@ -4484,7 +4501,6 @@ function openRouteOptions(){
   routeCandidateMode.value=r?.candidateMode||db.settings?.routeDefaultMode||'recommended';
   routeMaxStops.value=db.settings.maxStops||15;
   routeBudget.value=db.settings.workBudget||360;
-  routeIncludeTrouble.checked=true;
   renderRouteAreaMulti();
   renderRoutePreview();
   switchPage('autoRoute');
@@ -4838,12 +4854,17 @@ function renderRouteWeek(){
 let routeWorkEditStopId=null;
 let routeWorkEditScrollY=0;
 let routeWorkEditReturnStopId=null;
+let routeWorkEditDate=null;
+let routeWorkEditReturnPage='route';
 
-function openRouteWorkEdit(stopId){
-  const stop=(todaysRoute()?.stops||[]).find(s=>s.id===stopId);
+function routeForDate(date){ return db.routes?.[date]||null; }
+function openRouteWorkEdit(stopId,date=today(),returnPage='route'){
+  const stop=(routeForDate(date)?.stops||[]).find(s=>s.id===stopId);
   if(!stop)return;
   routeWorkEditScrollY=window.scrollY||0;
   routeWorkEditReturnStopId=stopId;
+  routeWorkEditDate=date;
+  routeWorkEditReturnPage=returnPage;
   const m=machine(stop.machineId);
   if(!m)return;
 
@@ -4872,28 +4893,31 @@ function openRouteWorkEdit(stopId){
 function closeRouteWorkEdit(){
   const targetStopId=routeWorkEditReturnStopId;
   const previousY=routeWorkEditScrollY;
+  const targetPage=routeWorkEditReturnPage||'route';
 
   routeWorkEditStopId=null;
-  switchPage('route');
-  routePeriodSet('today');
-  renderRoute();
+  switchPage(targetPage);
+  if(targetPage==='monthlyDayDetail'){
+    renderMonthlyDayDetail();
+  }else{
+    routePeriodSet('today');
+    renderRoute();
+  }
 
   requestAnimationFrame(()=>{
     requestAnimationFrame(()=>{
-      const card=targetStopId
-        ? document.querySelector(`#routeList .stop[data-stop-id="${CSS.escape(targetStopId)}"]`)
-        : null;
-
+      const selector=targetPage==='monthlyDayDetail'
+        ? `#monthlyDayDetailList [data-week-stop-id="${CSS.escape(targetStopId||'')}"]`
+        : `#routeList .stop[data-stop-id="${CSS.escape(targetStopId||'')}"]`;
+      const card=targetStopId?document.querySelector(selector):null;
       if(card){
         const rect=card.getBoundingClientRect();
-        const targetY=Math.max(0,window.scrollY+rect.top-120);
-        window.scrollTo({top:targetY,behavior:'auto'});
-      }else{
-        window.scrollTo({top:previousY,behavior:'auto'});
-      }
-
+        window.scrollTo({top:Math.max(0,window.scrollY+rect.top-120),behavior:'auto'});
+      }else window.scrollTo({top:previousY,behavior:'auto'});
       routeWorkEditReturnStopId=null;
       routeWorkEditScrollY=0;
+      routeWorkEditDate=null;
+      routeWorkEditReturnPage='route';
     });
   });
 }
@@ -4917,7 +4941,8 @@ function recomputeMachineWorkDates(machineId){
   m.lastCollection=lastWith('集金')?.date||regularDate||null;
 }
 function saveRouteWorkEdit(){
-  const stop=(todaysRoute()?.stops||[]).find(s=>s.id===routeWorkEditStopId);
+  const editDate=routeWorkEditDate||today();
+  const stop=(routeForDate(editDate)?.stops||[]).find(s=>s.id===routeWorkEditStopId);
   if(!stop)return;
   const works=[...routeWorkEditChoices.querySelectorAll('input:checked')].map(x=>x.value);
   if(!works.length){
@@ -4928,7 +4953,7 @@ function saveRouteWorkEdit(){
   stop.workTypes=works;
 
   // 完了後の修正なら、当該巡回の実績ログも修正。
-  if(stop.status==='done'){
+  if(stop.status==='done'&&editDate===today()){
     const log=(db.logs||[])
       .filter(l=>l.date===today()&&l.type==='work'&&l.machineId===stop.machineId&&l.end)
       .sort((a,b)=>b.end-a.end)[0];
@@ -5111,6 +5136,12 @@ function safeRouteWorks(stop,m){
   return [...new Set([...stored,...current])]
     .filter(w=>w&&w!=='トラブル');
 }
+let routeExpandedStops=new Set();
+function toggleRouteStopDetail(stopId){
+  if(routeExpandedStops.has(stopId))routeExpandedStops.delete(stopId);
+  else routeExpandedStops.add(stopId);
+  renderRoute();
+}
 function renderRoute(){
   const r=todaysRoute(),stops=Array.isArray(r?.stops)?r.stops:[];
   routeCount.textContent=stops.length;
@@ -5169,23 +5200,32 @@ function renderRoute(){
       const memo=m.inventoryMemo?`<div class="urgent-note">次回: ${escapeHtml(m.inventoryMemo)}</div>`:'';
       const works=safeRouteWorks(s,m);
 
-      el.innerHTML=`<div class="stop-head">
-        <div>
-          <div class="sub">${String(i+1).padStart(2,'0')} ・ ${escapeHtml(m.area||'未設定')} ・ ${escapeHtml(state)}${s.plannedArrival?` ・ ${escapeHtml(s.plannedArrival)}頃`:''}</div>
-          <div class="stop-name">${m.site?`<div class="sub">${escapeHtml(m.site)}</div>`:''}${escapeHtml(m.name||machineDisplayTitle(m))}</div>
-          <div class="worktags">${works.map(w=>`<span class="tag">${escapeHtml(w)}</span>`).join('')}</div>
-          ${memo}
-          ${s.facilityWarning?`<div class="route-window-warning">${escapeHtml(s.facilityWarning)}</div>`:''}
+      const expanded=routeExpandedStops.has(s.id);
+      const siteLabel=(m.site||m.middleCategory||'設置場所未設定').trim();
+      const primaryWork=works[0]||state;
+      el.classList.add('route-stop-compact');
+      el.innerHTML=`<div class="compact-stop-main">
+        <div class="compact-stop-order">${String(i+1).padStart(2,'0')}</div>
+        <div class="compact-stop-info">
+          <div class="compact-stop-title">${escapeHtml(siteLabel)}</div>
+          <div class="compact-stop-meta">${escapeHtml(m.area||'未設定')} ・ ${escapeHtml(primaryWork)}${s.plannedArrival?` ・ ${escapeHtml(s.plannedArrival)}頃`:''} ・ 約${Number(s.plannedMinutes||25)}分</div>
         </div>
-        <div>${s.status==='done'?'<span class="pill green">✓</span>':`<button class="smallbtn" onclick="openWorkPicker('${s.id}')">開始</button>`}</div>
+        <div class="compact-stop-side">
+          ${s.status==='done'?'<span class="pill green">✓</span>':`<button class="smallbtn compact-start" onclick="openWorkPicker('${s.id}')">開始</button>`}
+          <button class="compact-detail-btn" type="button" onclick="toggleRouteStopDetail('${s.id}')">${expanded?'閉じる':'詳細'}</button>
+        </div>
       </div>
-      <div class="route-actions">
-        <button class="route-order-btn" onclick="moveStop('${s.id}',-1)" ${i===0?'disabled':''}>↑</button>
-        <button class="route-order-btn" onclick="moveStop('${s.id}',1)" ${i===sorted.length-1?'disabled':''}>↓</button>
-        <button class="smallbtn" onclick="openRouteWorkEdit('${s.id}')">${s.status==='done'?'実施内容':'作業変更'}</button>
-        <button class="smallbtn trouble-route-btn" onclick="openTroubleForMachine('${m.id}')">トラブル</button>
-        <button class="smallbtn navbtn" onclick="navigateToMachine('${m.id}')">ナビ</button>
-        <span class="mini">約${Number(s.plannedMinutes||25)}分</span>
+      <div class="compact-stop-detail ${expanded?'':'hidden'}">
+        <div class="worktags">${works.map(w=>`<span class="tag">${escapeHtml(w)}</span>`).join('')}</div>
+        ${memo}
+        ${s.facilityWarning?`<div class="route-window-warning">${escapeHtml(s.facilityWarning)}</div>`:''}
+        <div class="route-actions compact-actions">
+          <button class="route-order-btn" onclick="moveStop('${s.id}',-1)" ${i===0?'disabled':''}>↑</button>
+          <button class="route-order-btn" onclick="moveStop('${s.id}',1)" ${i===sorted.length-1?'disabled':''}>↓</button>
+          <button class="smallbtn" onclick="openRouteWorkEdit('${s.id}')">${s.status==='done'?'実施内容':'作業変更'}</button>
+          <button class="smallbtn trouble-route-btn" onclick="openTroubleForMachine('${m.id}')">トラブル</button>
+          <button class="smallbtn navbtn" onclick="navigateToMachine('${m.id}')">ナビ</button>
+        </div>
       </div>`;
       routeList.appendChild(el);
     }catch(err){
@@ -7764,6 +7804,34 @@ function renderMonthlyDayDetail(){
     const already=existingRoute?.stops?.filter(s=>planIds.has(s.machineId)).length||0;
     monthlyDayToTodayBtn.textContent=monthlyDayDetailDate===today()?(already?`今日の巡回へ追加（${already}台反映済み）`:'今日の巡回へ'):'この計画を今日の巡回へ';
   }
+
+  if(monthlyDayDetailSource==='week'){
+    monthlyDayEditPanel.classList.add('hidden');
+    monthlyDayEditToggle.classList.add('hidden');
+    monthlyDayDetailList.innerHTML=weekStops.length?`<div class="monthly-day-detail-card weekly-edit-card">
+      <div class="weekly-edit-note">順番・作業内容をここから直接変更できます。</div>
+      ${weekStops.map((stop,index)=>{
+        const m=machine(stop.machineId); if(!m)return '';
+        const works=Array.isArray(stop.workTypes)&&stop.workTypes.length?stop.workTypes:routeWorkTypes(m);
+        return `<div class="weekly-edit-row" data-week-stop-id="${stop.id}">
+          <div class="weekly-edit-order">${String(index+1).padStart(2,'0')}</div>
+          <div class="weekly-edit-main">
+            <b>${escapeHtml(machineDisplayTitle(m))}</b>
+            <div class="sub">${escapeHtml(m.site||machineDisplaySub(m))}</div>
+            <div class="worktags">${works.map(w=>`<span class="tag">${escapeHtml(w)}</span>`).join('')}</div>
+          </div>
+          <div class="weekly-edit-actions">
+            <button type="button" onclick="moveWeeklyStop('${monthlyDayDetailDate}','${stop.id}',-1)" ${index===0?'disabled':''}>↑</button>
+            <button type="button" onclick="moveWeeklyStop('${monthlyDayDetailDate}','${stop.id}',1)" ${index===weekStops.length-1?'disabled':''}>↓</button>
+            <button type="button" onclick="openRouteWorkEdit('${stop.id}','${monthlyDayDetailDate}','monthlyDayDetail')">作業</button>
+            <button type="button" class="danger-text" onclick="removeWeeklyStop('${monthlyDayDetailDate}','${stop.id}')">外す</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`:'<div class="flow-card"><div class="empty">この日の巡回予定はありません。</div></div>';
+    return;
+  }
+
   const grouped=new Map();
   for(const m of machines){
     const a=m.area||'未設定';
@@ -7803,6 +7871,26 @@ function renderMonthlyDayDetail(){
   monthlyDayEditToggle.textContent='編集';
   monthlyDayEditToggle.classList.toggle('hidden',monthlyDayDetailSource==='week');
 }
+function moveWeeklyStop(date,stopId,delta){
+  const r=routeForDate(date); if(!r||!Array.isArray(r.stops))return;
+  const ordered=r.stops.slice().sort((a,b)=>(a.order||0)-(b.order||0));
+  const i=ordered.findIndex(s=>s.id===stopId),j=i+delta;
+  if(i<0||j<0||j>=ordered.length)return;
+  [ordered[i],ordered[j]]=[ordered[j],ordered[i]];
+  ordered.forEach((s,k)=>s.order=k+1);
+  r.stops=ordered; save(); renderMonthlyDayDetail(); renderRouteWeek();
+  showToast('巡回順を変更しました');
+}
+function removeWeeklyStop(date,stopId){
+  const r=routeForDate(date); if(!r||!Array.isArray(r.stops))return;
+  const stop=r.stops.find(s=>s.id===stopId),m=stop?machine(stop.machineId):null;
+  if(!confirm(`${m?machineDisplayTitle(m):'この自販機'}をこの日の巡回から外しますか？`))return;
+  r.stops=r.stops.filter(s=>s.id!==stopId);
+  r.stops.sort((a,b)=>(a.order||0)-(b.order||0)).forEach((s,k)=>s.order=k+1);
+  save(); renderMonthlyDayDetail(); renderRouteWeek();
+  showToast('この日の巡回から外しました');
+}
+
 function bringMonthlyDayToToday(){
   if(!monthlyDayDetailDate)return;
   const tasks=(db.tasks||[]).filter(t=>t.due===monthlyDayDetailDate);
@@ -8878,7 +8966,6 @@ refreshRoutePreviewBtn.addEventListener('click',renderRoutePreview);
 routeCandidateMode.addEventListener('change',renderRoutePreview);
 routeMaxStops.addEventListener('input',renderRoutePreview);
 routeBudget.addEventListener('input',renderRoutePreview);
-routeIncludeTrouble.addEventListener('change',renderRoutePreview);
 workManagerBtn.addEventListener('click',()=>openWorkManager('today'));
 quickTaskBtn.addEventListener('click',openTaskModal);
 quickTroubleBtn.addEventListener('click',openTroubleModal);
@@ -9335,7 +9422,7 @@ if(window.modelPageBackBtn)modelPageBackBtn.addEventListener('click',closeModelE
 if(window.modelPageCancelBtn)modelPageCancelBtn.addEventListener('click',closeModelEditorPage);
 if(window.modelPageSaveBtn)modelPageSaveBtn.addEventListener('click',saveModelEditorPage);
 
-window.openMachineCycleEditor=openMachineCycleEditor;window.changeTroubleStatus=changeTroubleStatus;window.deleteTroubleRecord=deleteTroubleRecord;window.moveManualOrder=moveManualOrder;window.toggleManualMachine=toggleManualMachine;window.openFacilityEditorPage=openFacilityEditorPage;window.openRouteWorkEdit=openRouteWorkEdit;window.openTroubleForMachine=openTroubleForMachine;window.openMonthlyManualBuilder=openMonthlyManualBuilder;window.closeMonthlyManualBuilder=closeMonthlyManualBuilder;window.toggleMonthlyManualMachine=toggleMonthlyManualMachine;window.toggleMonthlyManualWork=toggleMonthlyManualWork;window.clearMonthlyManualSelection=clearMonthlyManualSelection;window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openWeeklyDayDetail=openWeeklyDayDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
+window.toggleRouteStopDetail=toggleRouteStopDetail;window.moveWeeklyStop=moveWeeklyStop;window.removeWeeklyStop=removeWeeklyStop;window.openMachineCycleEditor=openMachineCycleEditor;window.changeTroubleStatus=changeTroubleStatus;window.deleteTroubleRecord=deleteTroubleRecord;window.moveManualOrder=moveManualOrder;window.toggleManualMachine=toggleManualMachine;window.openFacilityEditorPage=openFacilityEditorPage;window.openRouteWorkEdit=openRouteWorkEdit;window.openTroubleForMachine=openTroubleForMachine;window.openMonthlyManualBuilder=openMonthlyManualBuilder;window.closeMonthlyManualBuilder=closeMonthlyManualBuilder;window.toggleMonthlyManualMachine=toggleMonthlyManualMachine;window.toggleMonthlyManualWork=toggleMonthlyManualWork;window.clearMonthlyManualSelection=clearMonthlyManualSelection;window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openWeeklyDayDetail=openWeeklyDayDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
 window.openModelEditor=openModelEditor;window.deleteModel=deleteModel;window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
