@@ -1958,6 +1958,44 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
 .week-route-delete{width:100%;margin-top:10px!important;background:#fff0f0!important;color:#c24141!important}
 @media(max-width:390px){.route-audit-summary{gap:4px}.audit-chip{padding:5px 7px}.week-shift-custom{grid-template-columns:72px 1fr}}
 
+
+/* Ver.11.18.1 1週間巡回：選択した自販機だけ移動 */
+.week-selected-count{flex:0 0 auto;padding:7px 10px;border-radius:12px;background:#edf5ff;color:#2367bd;font-size:13px}
+.week-selection-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.week-selection-actions button,.weekly-selected-actions button{min-height:46px}
+.weekly-selected-actions.disabled{opacity:.42;pointer-events:none}
+.weekly-select-box{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;flex:0 0 46px;font-size:10px;color:#718096}
+.weekly-select-box input{width:22px;height:22px}
+.weekly-edit-row.selected{background:#eef6ff;border-color:#9bc7ff;box-shadow:inset 3px 0 0 #3182f6}
+.weekly-edit-actions.compact{grid-template-columns:repeat(3,auto)}
+@media(max-width:700px){
+  #weeklyRouteMovePanel{position:relative}
+  .weekly-edit-row{grid-template-columns:46px 38px minmax(0,1fr);gap:8px}
+  .weekly-edit-actions.compact{grid-column:2/4;display:flex;gap:7px;margin-left:0}
+  .weekly-edit-actions.compact button{flex:1;min-height:40px}
+  .weekly-edit-main b{font-size:16px}
+  .week-route-tools-title{font-size:18px}
+}
+
+/* Ver.11.18.2 漏れチェック視認性 + 施設/エリア/距離ルート */
+.audit-section-head{margin:16px 0 6px;padding:8px 10px;border-radius:10px;background:#eef3f9;font-weight:800}
+.audit-section-head.danger{background:#fff0ef;color:#b23b32}
+.audit-area-head{margin:10px 0 5px;padding-left:4px;font-size:13px;font-weight:800;color:#60718a}
+.audit-row-clear{align-items:center;gap:10px}
+.audit-machine-id{min-width:0;flex:1}
+.audit-machine-id>b{font-size:17px}
+.audit-site{margin-top:3px;font-weight:700;color:#34445d}
+.audit-meta{margin-top:3px;font-size:12px;color:#718096;line-height:1.45}
+.audit-row-actions{display:flex;gap:6px;flex:0 0 auto}
+.audit-row-actions button{padding:9px 10px;white-space:nowrap}
+.route-preview-facility{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:14px 0 5px;padding:10px 12px;border-radius:12px;background:#eaf2fb}
+.route-preview-facility b{font-size:16px}
+.route-preview-facility span{font-size:12px;color:#60718a;font-weight:700}
+@media(max-width:700px){
+  .audit-row-clear{display:block}
+  .audit-row-actions{margin-top:9px}
+  .audit-row-actions button{flex:1}
+}
 </style>
 </head>
 <body>
@@ -2215,7 +2253,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         <div class="route-audit-head">
           <div>
             <div class="route-audit-title">巡回漏れチェック</div>
-            <div class="sub">自動作成とは別に、全自販機の期限と予定を照合</div>
+            <div class="sub">期限別・エリア別に、施設名・設置場所・管理Noまで表示</div>
           </div>
           <button class="secondary" type="button" id="routeAuditToggleBtn" onclick="toggleRouteAudit()">確認</button>
         </div>
@@ -2689,7 +2727,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.18.0</div>
+          <div class="app-version-badge">Version 11.18.2</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2704,7 +2742,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.18.0</div>
+      <div class="app-version-footer">Ver. 11.18.2</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -2946,25 +2984,38 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
 
   <div class="flow-card hidden" id="weeklyRouteMovePanel">
     <div class="week-route-tools">
-      <div class="week-route-tools-title">この日の巡回を移動・削除</div>
-      <div class="sub">1週間の中で、巡回予定をまとめてずらせます。自販機の周期設定や実績は変更しません。</div>
-      <div class="week-shift-quick">
-        <button type="button" onclick="shiftWeeklyRouteBy(-1)">← 1日前へ</button>
-        <button type="button" onclick="shiftWeeklyRouteBy(1)">1日後へ →</button>
+      <div class="row">
+        <div>
+          <div class="week-route-tools-title">選んだ自販機を移動・削除</div>
+          <div class="sub">下の一覧で自販機を選んでから操作します。周期設定や実績は変更しません。</div>
+        </div>
+        <div class="week-selected-count"><b id="weeklySelectedCount">0</b>台選択</div>
       </div>
-      <div class="week-shift-custom">
-        <input id="weeklyShiftDays" type="number" min="1" max="6" value="1" inputmode="numeric" aria-label="移動日数">
-        <div class="sub" style="align-self:center">日数を指定して移動</div>
+
+      <div class="week-selection-actions">
+        <button type="button" onclick="selectAllWeeklyStops(true)">すべて選択</button>
+        <button type="button" onclick="selectAllWeeklyStops(false)">選択解除</button>
       </div>
-      <div class="week-shift-custom-actions">
-        <button type="button" onclick="shiftWeeklyRouteCustom(-1)">指定日数 前へ</button>
-        <button type="button" onclick="shiftWeeklyRouteCustom(1)">指定日数 後へ</button>
+
+      <div id="weeklySelectedActions" class="weekly-selected-actions disabled">
+        <div class="week-shift-quick">
+          <button type="button" onclick="shiftSelectedWeeklyStops(-1)">← 前日へ</button>
+          <button type="button" onclick="shiftSelectedWeeklyStops(1)">翌日へ →</button>
+        </div>
+        <div class="week-shift-custom">
+          <input id="weeklyShiftDays" type="number" min="1" max="6" value="1" inputmode="numeric" aria-label="移動日数">
+          <div class="sub" style="align-self:center">日数を指定</div>
+        </div>
+        <div class="week-shift-custom-actions">
+          <button type="button" onclick="shiftSelectedWeeklyStopsCustom(-1)">指定日数 前へ</button>
+          <button type="button" onclick="shiftSelectedWeeklyStopsCustom(1)">指定日数 後へ</button>
+        </div>
+        <select id="weeklyMoveWeekday" class="week-weekday-select" onchange="moveSelectedWeeklyStopsToWeekday(this.value)">
+          <option value="">曜日を指定して移動…</option>
+          <option value="1">月曜日</option><option value="2">火曜日</option><option value="3">水曜日</option><option value="4">木曜日</option><option value="5">金曜日</option><option value="6">土曜日</option><option value="0">日曜日</option>
+        </select>
+        <button type="button" class="week-route-delete" onclick="deleteSelectedWeeklyStops()">選択した自販機をこの日から外す</button>
       </div>
-      <select id="weeklyMoveWeekday" class="week-weekday-select" onchange="moveWeeklyRouteToWeekday(this.value)">
-        <option value="">曜日を指定して移動…</option>
-        <option value="1">月曜日</option><option value="2">火曜日</option><option value="3">水曜日</option><option value="4">木曜日</option><option value="5">金曜日</option><option value="6">土曜日</option><option value="0">日曜日</option>
-      </select>
-      <button type="button" class="week-route-delete" onclick="deleteWeeklyRouteDay()">この日の巡回予定を削除</button>
     </div>
   </div>
 
@@ -4377,8 +4428,10 @@ function buildTimedRoutePlan(chosen){
   // 施設単位でまとめる。同一施設は必ず連続。
   const groupMap=new Map();
   chosen.forEach(m=>{
-    const f=facilityForMachine(m);
-    const key=f?`facility:${f.id}`:routeSiteKey(m);
+    // 登録方法やfacilityIdが違っても、画面上で同じ設置先施設なら同じ訪問としてまとめる。
+    const facilityName=String(machineDisplayTitle(m)||'').trim().toLowerCase();
+    const area=String(m.area||'未設定').trim().toLowerCase();
+    const key=`place:${area}:${facilityName}`;
     if(!groupMap.has(key))groupMap.set(key,[]);
     groupMap.get(key).push(m);
   });
@@ -4400,6 +4453,8 @@ function buildTimedRoutePlan(chosen){
     remaining.forEach((group,index)=>{
       const first=routeGroupCenterMachine(group);
       const travel=currentMachine?estimatedRoadMinutesBetween(currentMachine,first):0;
+      const sameArea=!currentMachine || (currentMachine.area||'未設定')===(first?.area||'未設定');
+      const areaSwitchPenalty=sameArea?0:18; // エリアを飛び越える往復を避ける
       const arrival=clock+travel;
       const facility=groupFacilityForRoute(group);
       const service=routeGroupServiceMinutes(group);
@@ -4409,7 +4464,7 @@ function buildTimedRoutePlan(chosen){
       // 優先度が高い施設は少し前に出す。
       const priority=Math.max(...group.map(m=>routeScore(m,false)),0);
       const latePenalty=timing.late?10000:0;
-      const score=travel + timing.wait*2 + latePenalty - Math.min(priority,500)*0.08;
+      const score=travel + areaSwitchPenalty + timing.wait*2 + latePenalty - Math.min(priority,500)*0.08;
 
       if(score<bestScore){
         bestScore=score;
@@ -4504,6 +4559,7 @@ function renderRoutePreview(){
     return;
   }
 
+  let lastPreviewFacility='';
   routePreviewList.innerHTML=plan.map((item,i)=>{
     const m=item.machine;
     const f=item.facility;
@@ -4515,10 +4571,16 @@ function renderRoutePreview(){
       : '訪問時間 未設定';
     const wait=item.waitingMinutes?` ・ 待ち約${item.waitingMinutes}分`:'';
     const travel=item.travelMinutes?` ・ 移動約${item.travelMinutes}分`:'';
-    return `<div class="route-preview-item ${item.late?'route-time-warning':''}">
+    const facilityName=machineDisplayTitle(m);
+    const sameCount=chosen.filter(x=>machineDisplayTitle(x)===facilityName&&(x.area||'未設定')===(m.area||'未設定')).length;
+    const head=facilityName!==lastPreviewFacility
+      ? `<div class="route-preview-facility"><b>${escapeHtml(facilityName)}</b><span>${escapeHtml(m.area||'未設定')} ・ ${sameCount}台</span></div>`
+      : '';
+    lastPreviewFacility=facilityName;
+    return `${head}<div class="route-preview-item ${item.late?'route-time-warning':''}">
       <div>
-        <b>${i+1}. ${escapeHtml(machineDisplayTitle(m))}</b>
-        <div class="sub">${escapeHtml(machineDisplaySub(m))}</div>
+        <b>${i+1}. ${escapeHtml(m.site||'設置場所未設定')}</b>
+        <div class="sub">${escapeHtml(m.middleCategory||'')} ${m.number?`・ #${escapeHtml(m.number)}`:''}</div>
         <div class="route-preview-time"><b>${timeText}頃</b> ・ ${facilityInfo}${travel}${wait}</div>
         <div class="route-reason ${routeScore(m,false)>=100?'urgent':''}">${escapeHtml(reason)}</div>
         ${item.warning?`<div class="route-window-warning">${escapeHtml(item.warning)}</div>`:''}
@@ -4975,14 +5037,50 @@ function renderRouteAudit(){
   const problem=new Set([...a.issues.map(x=>x.machineId),...a.settings.map(x=>x.machineId)]).size;
   summary.innerHTML=problem===0
     ? `<span class="audit-chip ok">✓ 漏れ候補 0台</span><span class="audit-chip info">7日先まで確認</span>`
-    : `${a.overdue.length?`<span class="audit-chip danger">期限超過・予定なし ${new Set(a.overdue.map(x=>x.machineId)).size}台</span>`:''}${a.upcoming.length?`<span class="audit-chip warn">7日以内・予定なし ${new Set(a.upcoming.map(x=>x.machineId)).size}台</span>`:''}${a.late.length?`<span class="audit-chip warn">期限後の予定 ${new Set(a.late.map(x=>x.machineId)).size}台</span>`:''}${a.settings.length?`<span class="audit-chip info">設定確認 ${a.settingMachines}台</span>`:''}`;
-  const rows=[...a.overdue,...a.upcoming,...a.late,...a.settings].slice(0,80);
+    : `${a.overdue.length?`<span class="audit-chip danger">期限超過 ${new Set(a.overdue.map(x=>x.machineId)).size}台</span>`:''}${a.upcoming.length?`<span class="audit-chip warn">7日以内 ${new Set(a.upcoming.map(x=>x.machineId)).size}台</span>`:''}${a.late.length?`<span class="audit-chip warn">期限後予定 ${new Set(a.late.map(x=>x.machineId)).size}台</span>`:''}${a.settings.length?`<span class="audit-chip info">設定確認 ${a.settingMachines}台</span>`:''}`;
+
+  const raw=[
+    ...a.overdue.map(x=>({...x,auditGroup:'期限超過'})),
+    ...a.upcoming.map(x=>({...x,auditGroup:'7日以内'})),
+    ...a.late.map(x=>({...x,auditGroup:'期限後の予定'})),
+    ...a.settings.map(x=>({...x,auditGroup:'設定確認'}))
+  ];
+  const rank={'期限超過':0,'7日以内':1,'期限後の予定':2,'設定確認':3};
+  raw.sort((x,y)=>{
+    const mx=machine(x.machineId),my=machine(y.machineId);
+    return (rank[x.auditGroup]-rank[y.auditGroup])
+      || String(mx?.area||'').localeCompare(String(my?.area||''),'ja')
+      || String(machineDisplayTitle(mx)||'').localeCompare(String(machineDisplayTitle(my)||''),'ja')
+      || String(mx?.site||'').localeCompare(String(my?.site||''),'ja');
+  });
+
+  let lastGroup='',lastArea='';
   list.classList.toggle('hidden',!routeAuditExpanded);
-  list.innerHTML=rows.length?rows.map(x=>{
+  list.innerHTML=raw.length?raw.slice(0,120).map(x=>{
     const m=machine(x.machineId);if(!m)return '';
     const state=x.reason?x.reason:(x.late?`${auditDateLabel(x.due)}期限 → ${auditDateLabel(x.planned)}予定`:`${auditDateLabel(x.due)}まで・予定なし`);
-    return `<div class="audit-row"><div><b>${escapeHtml(machineDisplayTitle(m))}</b><div class="sub">${escapeHtml(m.site||'')} ・ ${escapeHtml(x.label)} ・ ${escapeHtml(state)}</div></div><button type="button" onclick="addAuditMachineToday('${m.id}')">今日に追加</button></div>`;
+    let heads='';
+    if(x.auditGroup!==lastGroup){
+      lastGroup=x.auditGroup; lastArea='';
+      heads+=`<div class="audit-section-head ${x.auditGroup==='期限超過'?'danger':''}">${escapeHtml(x.auditGroup)}</div>`;
+    }
+    if((m.area||'未設定')!==lastArea){
+      lastArea=m.area||'未設定';
+      heads+=`<div class="audit-area-head">${escapeHtml(lastArea)}エリア</div>`;
+    }
+    return `${heads}<div class="audit-row audit-row-clear">
+      <div class="audit-machine-id">
+        <b>${escapeHtml(machineDisplayTitle(m))}</b>
+        <div class="audit-site">${escapeHtml(m.site||'設置場所未設定')} ${m.middleCategory?`・ ${escapeHtml(m.middleCategory)}`:''}</div>
+        <div class="audit-meta">${m.number?`管理No #${escapeHtml(m.number)} ・ `:''}${escapeHtml(x.label)} ・ ${escapeHtml(state)}</div>
+      </div>
+      <div class="audit-row-actions">
+        <button type="button" class="secondary" onclick="openMachineDetailPage('${m.id}','route')">詳細</button>
+        <button type="button" onclick="addAuditMachineToday('${m.id}')">今日に追加</button>
+      </div>
+    </div>`;
   }).join(''):'<div class="empty">7日先まで、巡回漏れ候補はありません ✓</div>';
+
   const btn=document.getElementById('routeAuditToggleBtn');if(btn)btn.textContent=routeAuditExpanded?'閉じる':'確認';
   const hm=document.getElementById('homeRouteAuditMain'),hs=document.getElementById('homeRouteAuditSub');
   if(hm){hm.textContent=problem?`要確認 ${problem}台`:'漏れ候補 0台 ✓';hm.className='home-audit-main '+(problem?'danger':'ok')}
@@ -5015,6 +5113,7 @@ function routeWeekStart(date){
   return localYmd(d);
 }
 let routeWeekExpandedDates=new Set();
+let weeklySelectedStopIds=new Set();
 function toggleRouteWeekDay(date){
   if(routeWeekExpandedDates.has(date))routeWeekExpandedDates.delete(date);
   else routeWeekExpandedDates.add(date);
@@ -8037,27 +8136,39 @@ function renderMonthlyDayDetail(){
   if(monthlyDayDetailSource==='week'){
     monthlyDayEditPanel.classList.add('hidden');
     monthlyDayEditToggle.classList.add('hidden');
+
+    // Remove selections that no longer exist on this day.
+    const validIds=new Set(weekStops.map(s=>s.id));
+    [...weeklySelectedStopIds].forEach(id=>{if(!validIds.has(id))weeklySelectedStopIds.delete(id)});
+
     monthlyDayDetailList.innerHTML=weekStops.length?`<div class="monthly-day-detail-card weekly-edit-card">
-      <div class="weekly-edit-note">順番・作業内容を直接変更できます。日の移動・削除は上の操作から行えます。</div>
+      <div class="weekly-edit-note">移動・削除したい自販機にチェックしてください。順番と作業内容は各行から変更できます。</div>
       ${weekStops.map((stop,index)=>{
         const m=machine(stop.machineId); if(!m)return '';
         const works=Array.isArray(stop.workTypes)&&stop.workTypes.length?stop.workTypes:routeWorkTypes(m);
-        return `<div class="weekly-edit-row" data-week-stop-id="${stop.id}">
+        const selected=weeklySelectedStopIds.has(stop.id);
+        const done=stop.status==='done';
+        return `<div class="weekly-edit-row ${selected?'selected':''}" data-week-stop-id="${stop.id}">
+          <label class="weekly-select-box">
+            <input type="checkbox" ${selected?'checked':''} ${done?'disabled':''} onchange="toggleWeeklyStopSelection('${stop.id}',this.checked)">
+            <span>${done?'済':'選択'}</span>
+          </label>
           <div class="weekly-edit-order">${String(index+1).padStart(2,'0')}</div>
           <div class="weekly-edit-main">
             <b>${escapeHtml(machineDisplayTitle(m))}</b>
             <div class="sub">${escapeHtml(m.site||machineDisplaySub(m))}</div>
             <div class="worktags">${works.map(w=>`<span class="tag">${escapeHtml(w)}</span>`).join('')}</div>
           </div>
-          <div class="weekly-edit-actions">
+          <div class="weekly-edit-actions compact">
             <button type="button" onclick="moveWeeklyStop('${monthlyDayDetailDate}','${stop.id}',-1)" ${index===0?'disabled':''}>↑</button>
             <button type="button" onclick="moveWeeklyStop('${monthlyDayDetailDate}','${stop.id}',1)" ${index===weekStops.length-1?'disabled':''}>↓</button>
             <button type="button" onclick="openRouteWorkEdit('${stop.id}','${monthlyDayDetailDate}','monthlyDayDetail')">作業</button>
-            <button type="button" class="danger-text" onclick="removeWeeklyStop('${monthlyDayDetailDate}','${stop.id}')">外す</button>
           </div>
         </div>`;
       }).join('')}
     </div>`:'<div class="flow-card"><div class="empty">この日の巡回予定はありません。</div></div>';
+
+    renderWeeklySelectionState();
     return;
   }
 
@@ -8101,6 +8212,118 @@ function renderMonthlyDayDetail(){
   monthlyDayEditToggle.textContent='編集';
   monthlyDayEditToggle.classList.toggle('hidden',monthlyDayDetailSource==='week');
 }
+function renderWeeklySelectionState(){
+  const count=weeklySelectedStopIds.size;
+  const countEl=document.getElementById('weeklySelectedCount');
+  if(countEl)countEl.textContent=count;
+  const actions=document.getElementById('weeklySelectedActions');
+  if(actions)actions.classList.toggle('disabled',count===0);
+}
+function toggleWeeklyStopSelection(stopId,checked){
+  if(checked)weeklySelectedStopIds.add(stopId);
+  else weeklySelectedStopIds.delete(stopId);
+  const row=document.querySelector(`#monthlyDayDetailList [data-week-stop-id="${CSS.escape(stopId)}"]`);
+  if(row)row.classList.toggle('selected',checked);
+  renderWeeklySelectionState();
+}
+function selectAllWeeklyStops(checked){
+  const r=routeForDate(monthlyDayDetailDate);
+  const stops=(r?.stops||[]).filter(s=>s.status!=='done');
+  weeklySelectedStopIds.clear();
+  if(checked)stops.forEach(s=>weeklySelectedStopIds.add(s.id));
+  renderMonthlyDayDetail();
+}
+function selectedWeeklyStops(){
+  const r=routeForDate(monthlyDayDetailDate);
+  return (r?.stops||[]).filter(s=>weeklySelectedStopIds.has(s.id)&&s.status!=='done');
+}
+function moveSelectedWeeklyStopsTo(newDate){
+  const oldDate=monthlyDayDetailDate;
+  if(!oldDate||!newDate||oldDate===newDate)return;
+  const bounds=weeklyRouteWeekBounds(oldDate);
+  if(newDate<bounds.start||newDate>bounds.end){
+    showToast('この1週間の範囲内で指定してください');
+    return;
+  }
+  const source=routeForDate(oldDate);
+  const selected=selectedWeeklyStops();
+  if(!source||!selected.length){
+    showToast('移動する自販機を選んでください');
+    return;
+  }
+
+  const target=routeForDate(newDate);
+  const targetStops=Array.isArray(target?.stops)?target.stops.slice():[];
+  const existingMachineIds=new Set(targetStops.map(s=>s.machineId));
+  const duplicates=selected.filter(s=>existingMachineIds.has(s.machineId));
+  const movable=selected.filter(s=>!existingMachineIds.has(s.machineId));
+
+  if(duplicates.length&&!confirm(`${auditDateLabel(newDate)}に同じ自販機が${duplicates.length}台あります。\n重複分は元の日に残し、残り${movable.length}台を移動しますか？`))return;
+  if(!movable.length){showToast('移動先にすべて同じ自販機があります');return}
+
+  const movedIds=new Set(movable.map(s=>s.id));
+  source.stops=source.stops.filter(s=>!movedIds.has(s.id));
+  source.stops.sort((a,b)=>(a.order||0)-(b.order||0)).forEach((s,i)=>s.order=i+1);
+
+  const moved=movable.map(s=>({...s,order:targetStops.length+1,status:'pending'}));
+  const merged=[...targetStops,...moved];
+  merged.forEach((s,i)=>s.order=i+1);
+  db.routes[newDate]={
+    ...(target||{}),
+    date:newDate,
+    createdAt:target?.createdAt||Date.now(),
+    areaFilter:target?.areaFilter||source.areaFilter||'manual',
+    areas:target?.areas||source.areas||[],
+    candidateMode:target?.candidateMode||source.candidateMode||'manual',
+    stops:merged
+  };
+  if(!source.stops.length)delete db.routes[oldDate];
+
+  weeklySelectedStopIds.clear();
+  save();
+  renderMonthlyDayDetail();
+  renderRouteWeek();
+  renderRouteAudit();
+  renderHome();
+  showToast(`${movable.length}台を${auditDateLabel(newDate)}へ移動しました`);
+}
+function shiftSelectedWeeklyStops(delta){
+  moveSelectedWeeklyStopsTo(addDaysYmd(monthlyDayDetailDate,delta));
+}
+function shiftSelectedWeeklyStopsCustom(direction){
+  const n=Math.max(1,Math.min(6,Number(document.getElementById('weeklyShiftDays')?.value)||1));
+  moveSelectedWeeklyStopsTo(addDaysYmd(monthlyDayDetailDate,n*direction));
+}
+function moveSelectedWeeklyStopsToWeekday(value){
+  if(value==='')return;
+  const bounds=weeklyRouteWeekBounds(monthlyDayDetailDate);
+  const wanted=Number(value);
+  let target=null;
+  for(let d=bounds.start;d<=bounds.end;d=addDaysYmd(d,1)){
+    if(ymdDate(d).getDay()===wanted){target=d;break}
+  }
+  const sel=document.getElementById('weeklyMoveWeekday');
+  if(sel)sel.value='';
+  if(target)moveSelectedWeeklyStopsTo(target);
+}
+function deleteSelectedWeeklyStops(){
+  const r=routeForDate(monthlyDayDetailDate);
+  const selected=selectedWeeklyStops();
+  if(!r||!selected.length){showToast('外す自販機を選んでください');return}
+  if(!confirm(`選択した${selected.length}台を${auditDateLabel(monthlyDayDetailDate)}の巡回から外しますか？\n周期設定・前回作業日・実績は変更しません。`))return;
+  const ids=new Set(selected.map(s=>s.id));
+  r.stops=r.stops.filter(s=>!ids.has(s.id));
+  r.stops.sort((a,b)=>(a.order||0)-(b.order||0)).forEach((s,i)=>s.order=i+1);
+  if(!r.stops.length)delete db.routes[monthlyDayDetailDate];
+  weeklySelectedStopIds.clear();
+  save();
+  renderMonthlyDayDetail();
+  renderRouteWeek();
+  renderRouteAudit();
+  renderHome();
+  showToast(`${selected.length}台をこの日の巡回から外しました`);
+}
+
 function weeklyRouteWeekBounds(date){const start=routeWeekStart(date);return {start,end:addDaysYmd(start,6)}}
 function moveWeeklyRouteDayTo(newDate){
   const oldDate=monthlyDayDetailDate;if(!oldDate||!newDate||oldDate===newDate)return;
