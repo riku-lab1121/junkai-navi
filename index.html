@@ -1935,6 +1935,29 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
 .weekly-edit-actions{grid-column:2;display:grid;grid-template-columns:44px 44px 1fr 1fr;gap:6px;margin-top:7px}
 .weekly-edit-actions button{border:0;border-radius:10px;background:#eef2f7;color:#334155;min-height:36px;font-weight:850}.weekly-edit-actions .danger-text{color:#c24141;background:#fff0f0}
 @media(max-width:390px){.compact-stop-main{grid-template-columns:30px minmax(0,1fr) auto;padding-left:7px;padding-right:7px}.compact-stop-detail{padding-left:45px}.compact-stop-title{font-size:15px}.compact-stop-side{gap:3px}.compact-detail-btn{padding:8px 7px}}
+
+/* Ver.11.18.0 巡回漏れ監査 + 週間予定の移動/削除 */
+.route-audit-card{border:1px solid #dbe7f5;background:#fff}
+.route-audit-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.route-audit-title{font-size:17px;font-weight:950;color:#172033}
+.route-audit-summary{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.audit-chip{display:inline-flex;align-items:center;gap:4px;padding:6px 9px;border-radius:999px;font-size:11px;font-weight:900;background:#edf2f7;color:#475569}
+.audit-chip.danger{background:#ffe9e9;color:#b42318}.audit-chip.warn{background:#fff4d6;color:#9a5b00}.audit-chip.ok{background:#e5f8ed;color:#147a42}.audit-chip.info{background:#eaf3ff;color:#1769c2}
+.route-audit-list{margin-top:10px;border-top:1px solid #e8edf4;padding-top:8px;display:flex;flex-direction:column;gap:7px}
+.audit-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:9px 10px;border-radius:12px;background:#f7f9fc}
+.audit-row b{font-size:14px}.audit-row .sub{font-size:11px;line-height:1.4}.audit-row button{border:0;border-radius:9px;background:#e8f2ff;color:#1769c2;padding:8px 9px;font-size:11px;font-weight:900}
+.home-audit-card{cursor:pointer}.home-audit-main{font-size:20px;font-weight:950;margin-top:3px}.home-audit-main.danger{color:#c24141}.home-audit-main.ok{color:#16804a}
+.week-route-tools{margin-top:10px;padding:12px;border-radius:14px;background:#f7f9fc;border:1px solid #e2e8f0}
+.week-route-tools-title{font-size:14px;font-weight:950;margin-bottom:4px}.week-route-tools .sub{font-size:11px}
+.week-shift-quick{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}
+.week-shift-quick button,.week-route-tools button{min-height:40px;border:0;border-radius:10px;background:#eaf2fb;color:#334155;font-weight:900}
+.week-shift-custom{display:grid;grid-template-columns:80px 1fr;gap:7px;margin-top:8px}
+.week-shift-custom input,.week-shift-custom select{min-width:0;height:42px;border:1px solid #d6e0ec;border-radius:10px;background:#fff;padding:0 10px;font-weight:800;color:#172033}
+.week-shift-custom-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px}
+.week-weekday-select{width:100%;height:42px;margin-top:8px;border:1px solid #d6e0ec;border-radius:10px;background:#fff;padding:0 10px;font-weight:850;color:#172033}
+.week-route-delete{width:100%;margin-top:10px!important;background:#fff0f0!important;color:#c24141!important}
+@media(max-width:390px){.route-audit-summary{gap:4px}.audit-chip{padding:5px 7px}.week-shift-custom{grid-template-columns:72px 1fr}}
+
 </style>
 </head>
 <body>
@@ -1968,6 +1991,17 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         <div class="progress"><div id="homeProgress"></div></div>
         <button class="primary" id="generateRouteBtn" style="margin-top:14px">今日の巡回を作る</button>
         <div id="homeRouteEditHint" class="sub home-route-edit-hint">作成後は追加・順番・作業内容を個別に変更できます</div>
+      </div>
+
+      <div class="card home-audit-card" id="homeRouteAuditCard" onclick="openRouteAuditFromHome()">
+        <div class="row">
+          <div>
+            <div class="section-title">巡回漏れチェック</div>
+            <div class="home-audit-main" id="homeRouteAuditMain">確認中…</div>
+            <div class="sub" id="homeRouteAuditSub">全自販機を予定と照合します</div>
+          </div>
+          <button class="secondary" type="button" onclick="event.stopPropagation();openRouteAuditFromHome()">確認</button>
+        </div>
       </div>
 
       
@@ -2175,6 +2209,18 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         <button type="button" class="active" data-routeperiod="today">今日の巡回</button>
         <button type="button" data-routeperiod="week">1週間の巡回</button>
         <button type="button" data-routeperiod="month">月間行動計画表</button>
+      </div>
+
+      <div class="card route-audit-card" id="routeAuditCard">
+        <div class="route-audit-head">
+          <div>
+            <div class="route-audit-title">巡回漏れチェック</div>
+            <div class="sub">自動作成とは別に、全自販機の期限と予定を照合</div>
+          </div>
+          <button class="secondary" type="button" id="routeAuditToggleBtn" onclick="toggleRouteAudit()">確認</button>
+        </div>
+        <div class="route-audit-summary" id="routeAuditSummary"></div>
+        <div class="route-audit-list hidden" id="routeAuditList"></div>
       </div>
 
       <div id="routeTodayView">
@@ -2643,7 +2689,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.17.9</div>
+          <div class="app-version-badge">Version 11.18.0</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2658,7 +2704,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.17.9</div>
+      <div class="app-version-footer">Ver. 11.18.0</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -2895,6 +2941,30 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         <div class="sub">エリア・自販機・順番を確認できます</div>
       </div>
       <div class="monthly-day-actions"><button class="primary hidden" type="button" id="monthlyDayToTodayBtn" onclick="bringMonthlyDayToToday()">今日の巡回へ</button><button class="secondary" type="button" id="monthlyDayEditToggle" onclick="toggleMonthlyDayEdit()">編集</button></div>
+    </div>
+  </div>
+
+  <div class="flow-card hidden" id="weeklyRouteMovePanel">
+    <div class="week-route-tools">
+      <div class="week-route-tools-title">この日の巡回を移動・削除</div>
+      <div class="sub">1週間の中で、巡回予定をまとめてずらせます。自販機の周期設定や実績は変更しません。</div>
+      <div class="week-shift-quick">
+        <button type="button" onclick="shiftWeeklyRouteBy(-1)">← 1日前へ</button>
+        <button type="button" onclick="shiftWeeklyRouteBy(1)">1日後へ →</button>
+      </div>
+      <div class="week-shift-custom">
+        <input id="weeklyShiftDays" type="number" min="1" max="6" value="1" inputmode="numeric" aria-label="移動日数">
+        <div class="sub" style="align-self:center">日数を指定して移動</div>
+      </div>
+      <div class="week-shift-custom-actions">
+        <button type="button" onclick="shiftWeeklyRouteCustom(-1)">指定日数 前へ</button>
+        <button type="button" onclick="shiftWeeklyRouteCustom(1)">指定日数 後へ</button>
+      </div>
+      <select id="weeklyMoveWeekday" class="week-weekday-select" onchange="moveWeeklyRouteToWeekday(this.value)">
+        <option value="">曜日を指定して移動…</option>
+        <option value="1">月曜日</option><option value="2">火曜日</option><option value="3">水曜日</option><option value="4">木曜日</option><option value="5">金曜日</option><option value="6">土曜日</option><option value="0">日曜日</option>
+      </select>
+      <button type="button" class="week-route-delete" onclick="deleteWeeklyRouteDay()">この日の巡回予定を削除</button>
     </div>
   </div>
 
@@ -4744,6 +4814,7 @@ function renderHeader(){
 }
 function renderHome(){
   const r=todaysRoute(),stops=r?.stops||[],done=stops.filter(s=>s.status==='done').length,rem=stops.length-done;
+  try{renderRouteAudit()}catch(e){console.warn('route audit',e)}
   const mins=stops.filter(s=>s.status!=='done').reduce((a,s)=>a+(s.plannedMinutes||25),0);
   homeStops.textContent=stops.length;homeDone.textContent=done;homeRemaining.textContent=rem;homeMinutes.textContent=mins;
   homeProgress.style.width=stops.length?`${Math.round(done/stops.length*100)}%`:'0%';
@@ -4812,6 +4883,119 @@ function renderActive(){
   }else{
     const m=machine(db.active.machineId);activeState.textContent='作業中';activeDetail.textContent=`${m?.name||''} ・ ${db.active.workTypes.join('＋')}`;workBtn.textContent='作業終了';breakBtn.textContent='作業中は休憩できません';
   }
+}
+
+let routeAuditExpanded=false;
+function auditWorkCovered(type,works){
+  const w=new Set(Array.isArray(works)?works:[]);
+  if(w.has('基本巡回'))return true;
+  if(type==='regular')return false;
+  if(type==='supply')return w.has('原料');
+  if(type==='drain')return w.has('排水')||w.has('原料');
+  if(type==='water')return w.has('給水')||w.has('水汲み')||w.has('原料');
+  if(type==='garbage')return w.has('ゴミ回収')||w.has('原料');
+  return false;
+}
+function nextWeekdayDates(days,start,end){
+  const wanted=new Set((days||[]).map(Number));
+  const out=[];
+  for(let d=start;d<=end;d=addDaysYmd(d,1))if(wanted.has(ymdDate(d).getDay()))out.push(d);
+  return out;
+}
+function auditPlannedDate(machineId,type,due,horizonEnd){
+  let first=null;
+  for(let date=today();date<=horizonEnd;date=addDaysYmd(date,1)){
+    const stops=db.routes?.[date]?.stops||[];
+    const hit=stops.find(s=>s.machineId===machineId&&s.status!=='done'&&auditWorkCovered(type,s.workTypes));
+    if(hit){first=date;break;}
+  }
+  return first;
+}
+function buildRouteAudit(horizonDays=7){
+  const start=today(),end=addDaysYmd(start,horizonDays);
+  const issues=[],settings=[];
+  const labels={regular:'基本巡回',supply:'原料',drain:'排水',water:'給水',garbage:'ゴミ回収'};
+  const addObligation=(m,type,due)=>{
+    if(!due||due>end)return;
+    const planned=auditPlannedDate(m.id,type,due,end);
+    if(planned&&planned<=due)return;
+    const overdue=due<start;
+    issues.push({machineId:m.id,type,label:labels[type],due,planned,overdue,late:!!planned&&planned>due});
+  };
+  for(const m of db.machines||[]){
+    const regular=nextRegularDate(m);
+    if(regular)addObligation(m,'regular',regular);
+    else settings.push({machineId:m.id,label:'基本巡回',reason:'前回作業日・次回予定が未設定'});
+
+    if(m.supplyScheduleMode==='weekdays'){
+      if((m.supplyWeekdays||[]).length)nextWeekdayDates(m.supplyWeekdays,start,end).forEach(d=>addObligation(m,'supply',d));
+      else settings.push({machineId:m.id,label:'原料',reason:'曜日指定なのに曜日が未設定'});
+    }else if(supplyInterval(m)>0){
+      const base=m.lastSupply||m.lastRegular;
+      if(base)addObligation(m,'supply',addDaysYmd(base,supplyInterval(m)));
+      else settings.push({machineId:m.id,label:'原料',reason:'周期あり・前回日が未設定'});
+    }
+
+    if(m.drainScheduleMode==='weekdays'){
+      if((m.drainWeekdays||[]).length)nextWeekdayDates(m.drainWeekdays,start,end).forEach(d=>addObligation(m,'drain',d));
+      else settings.push({machineId:m.id,label:'排水',reason:'曜日指定なのに曜日が未設定'});
+    }else if(drainInterval(m)>0){
+      const base=m.lastDrain||m.lastRegular;
+      if(base)addObligation(m,'drain',addDaysYmd(base,drainInterval(m)));
+      else settings.push({machineId:m.id,label:'排水',reason:'周期あり・前回日が未設定'});
+    }
+    if(m.waterWeekly){
+      const base=m.lastWater||m.lastRegular;
+      if(base)addObligation(m,'water',addDaysYmd(base,7));
+      else settings.push({machineId:m.id,label:'給水',reason:'週1・前回日が未設定'});
+    }
+    if(m.garbageWeekly){
+      const base=m.lastGarbage||m.lastRegular;
+      if(base)addObligation(m,'garbage',addDaysYmd(base,7));
+      else settings.push({machineId:m.id,label:'ゴミ回収',reason:'週1・前回日が未設定'});
+    }
+  }
+  const unique=(arr)=>new Set(arr.map(x=>x.machineId)).size;
+  return {
+    issues,settings,
+    overdue:issues.filter(x=>x.overdue&&!x.planned),
+    upcoming:issues.filter(x=>!x.overdue&&!x.planned),
+    late:issues.filter(x=>x.late),
+    issueMachines:unique(issues),settingMachines:unique(settings)
+  };
+}
+function auditDateLabel(date){
+  const d=ymdDate(date),dow=['日','月','火','水','木','金','土'];
+  return `${d.getMonth()+1}/${d.getDate()}(${dow[d.getDay()]})`;
+}
+function renderRouteAudit(){
+  const summary=document.getElementById('routeAuditSummary'),list=document.getElementById('routeAuditList');
+  if(!summary||!list)return;
+  const a=buildRouteAudit(7);
+  const problem=new Set([...a.issues.map(x=>x.machineId),...a.settings.map(x=>x.machineId)]).size;
+  summary.innerHTML=problem===0
+    ? `<span class="audit-chip ok">✓ 漏れ候補 0台</span><span class="audit-chip info">7日先まで確認</span>`
+    : `${a.overdue.length?`<span class="audit-chip danger">期限超過・予定なし ${new Set(a.overdue.map(x=>x.machineId)).size}台</span>`:''}${a.upcoming.length?`<span class="audit-chip warn">7日以内・予定なし ${new Set(a.upcoming.map(x=>x.machineId)).size}台</span>`:''}${a.late.length?`<span class="audit-chip warn">期限後の予定 ${new Set(a.late.map(x=>x.machineId)).size}台</span>`:''}${a.settings.length?`<span class="audit-chip info">設定確認 ${a.settingMachines}台</span>`:''}`;
+  const rows=[...a.overdue,...a.upcoming,...a.late,...a.settings].slice(0,80);
+  list.classList.toggle('hidden',!routeAuditExpanded);
+  list.innerHTML=rows.length?rows.map(x=>{
+    const m=machine(x.machineId);if(!m)return '';
+    const state=x.reason?x.reason:(x.late?`${auditDateLabel(x.due)}期限 → ${auditDateLabel(x.planned)}予定`:`${auditDateLabel(x.due)}まで・予定なし`);
+    return `<div class="audit-row"><div><b>${escapeHtml(machineDisplayTitle(m))}</b><div class="sub">${escapeHtml(m.site||'')} ・ ${escapeHtml(x.label)} ・ ${escapeHtml(state)}</div></div><button type="button" onclick="addAuditMachineToday('${m.id}')">今日に追加</button></div>`;
+  }).join(''):'<div class="empty">7日先まで、巡回漏れ候補はありません ✓</div>';
+  const btn=document.getElementById('routeAuditToggleBtn');if(btn)btn.textContent=routeAuditExpanded?'閉じる':'確認';
+  const hm=document.getElementById('homeRouteAuditMain'),hs=document.getElementById('homeRouteAuditSub');
+  if(hm){hm.textContent=problem?`要確認 ${problem}台`:'漏れ候補 0台 ✓';hm.className='home-audit-main '+(problem?'danger':'ok')}
+  if(hs)hs.textContent=problem?`期限・予定・設定を7日先まで照合`:'全自販機を7日先まで照合済み';
+}
+function toggleRouteAudit(){routeAuditExpanded=!routeAuditExpanded;renderRouteAudit()}
+function openRouteAuditFromHome(){switchPage('route');routePeriodSet('week');routeAuditExpanded=true;renderRouteAudit();window.scrollTo({top:0,behavior:'smooth'})}
+function addAuditMachineToday(machineId){
+  const m=machine(machineId);if(!m)return;
+  const r=ensureRoute();
+  if(r.stops.some(s=>s.machineId===machineId)){showToast('すでに今日の巡回に入っています');return}
+  r.stops.push({id:uid(),machineId,order:r.stops.length+1,status:'pending',workTypes:(workFor(m).length?workFor(m):['確認']).filter(w=>w!=='トラブル'),plannedMinutes:Number(m.workMinutes||25)});
+  save();renderAll();renderRouteAudit();showToast('今日の巡回に追加しました');
 }
 
 let routePeriod='today';
@@ -5165,6 +5349,7 @@ function toggleRouteStopDetail(stopId){
 }
 function renderRoute(){
   const r=todaysRoute(),stops=Array.isArray(r?.stops)?r.stops:[];
+  try{renderRouteAudit()}catch(e){console.warn('route audit',e)}
   routeCount.textContent=stops.length;
   routeMinutes.textContent=stops.reduce((a,s)=>a+Number(s.status==='done'?(s.actualMinutes||s.plannedMinutes||25):(s.plannedMinutes||25)),0);
   routeAreaLabel.textContent=routeAreaDisplayLabel(r);
@@ -7847,11 +8032,13 @@ function renderMonthlyDayDetail(){
     monthlyDayToTodayBtn.textContent=monthlyDayDetailDate===today()?(already?`今日の巡回へ追加（${already}台反映済み）`:'今日の巡回へ'):'この計画を今日の巡回へ';
   }
 
+  if(window.weeklyRouteMovePanel)weeklyRouteMovePanel.classList.toggle('hidden',monthlyDayDetailSource!=='week');
+
   if(monthlyDayDetailSource==='week'){
     monthlyDayEditPanel.classList.add('hidden');
     monthlyDayEditToggle.classList.add('hidden');
     monthlyDayDetailList.innerHTML=weekStops.length?`<div class="monthly-day-detail-card weekly-edit-card">
-      <div class="weekly-edit-note">順番・作業内容をここから直接変更できます。</div>
+      <div class="weekly-edit-note">順番・作業内容を直接変更できます。日の移動・削除は上の操作から行えます。</div>
       ${weekStops.map((stop,index)=>{
         const m=machine(stop.machineId); if(!m)return '';
         const works=Array.isArray(stop.workTypes)&&stop.workTypes.length?stop.workTypes:routeWorkTypes(m);
@@ -7909,10 +8096,46 @@ function renderMonthlyDayDetail(){
     </div>`;
   }).join('') || '<div class="flow-card"><div class="empty">この日の自販機情報はありません。</div></div>';
 
+  if(window.weeklyRouteMovePanel)weeklyRouteMovePanel.classList.add('hidden');
   monthlyDayEditPanel.classList.add('hidden');
   monthlyDayEditToggle.textContent='編集';
   monthlyDayEditToggle.classList.toggle('hidden',monthlyDayDetailSource==='week');
 }
+function weeklyRouteWeekBounds(date){const start=routeWeekStart(date);return {start,end:addDaysYmd(start,6)}}
+function moveWeeklyRouteDayTo(newDate){
+  const oldDate=monthlyDayDetailDate;if(!oldDate||!newDate||oldDate===newDate)return;
+  const bounds=weeklyRouteWeekBounds(oldDate);
+  if(newDate<bounds.start||newDate>bounds.end){showToast('この1週間の範囲内で指定してください');return}
+  const source=routeForDate(oldDate);if(!source||!(source.stops||[]).length){showToast('移動する巡回予定がありません');return}
+  const target=routeForDate(newDate);
+  if(target?.stops?.length&&!confirm(`${auditDateLabel(newDate)}には${target.stops.length}台の予定があります。まとめて追加しますか？`))return;
+  const targetStops=Array.isArray(target?.stops)?target.stops.slice():[];
+  const existingIds=new Set(targetStops.map(s=>s.machineId));
+  const moved=(source.stops||[]).filter(s=>!existingIds.has(s.machineId)).map(s=>({...s,status:s.status==='done'?'pending':s.status}));
+  const merged=[...targetStops,...moved];merged.forEach((s,i)=>s.order=i+1);
+  db.routes[newDate]={...(target||{}),date:newDate,createdAt:target?.createdAt||Date.now(),areaFilter:target?.areaFilter||source.areaFilter||'manual',areas:target?.areas||source.areas||[],candidateMode:target?.candidateMode||source.candidateMode||'manual',stops:merged};
+  delete db.routes[oldDate];
+  save();monthlyDayDetailDate=newDate;routeWeekAnchor=newDate;renderMonthlyDayDetail();renderRouteWeek();renderRouteAudit();renderHome();
+  showToast(`${auditDateLabel(newDate)}へ巡回を移動しました`);
+}
+function shiftWeeklyRouteBy(delta){moveWeeklyRouteDayTo(addDaysYmd(monthlyDayDetailDate,delta))}
+function shiftWeeklyRouteCustom(direction){
+  const n=Math.max(1,Math.min(6,Number(document.getElementById('weeklyShiftDays')?.value)||1));
+  moveWeeklyRouteDayTo(addDaysYmd(monthlyDayDetailDate,n*direction));
+}
+function moveWeeklyRouteToWeekday(value){
+  if(value==='')return;
+  const bounds=weeklyRouteWeekBounds(monthlyDayDetailDate),wanted=Number(value);let target=null;
+  for(let d=bounds.start;d<=bounds.end;d=addDaysYmd(d,1)){if(ymdDate(d).getDay()===wanted){target=d;break}}
+  const sel=document.getElementById('weeklyMoveWeekday');if(sel)sel.value='';
+  if(target)moveWeeklyRouteDayTo(target);
+}
+function deleteWeeklyRouteDay(){
+  const r=routeForDate(monthlyDayDetailDate),count=r?.stops?.length||0;if(!count){showToast('削除する巡回予定がありません');return}
+  if(!confirm(`${auditDateLabel(monthlyDayDetailDate)}の巡回予定 ${count}台を削除しますか？\n自販機の周期設定・前回作業日・実績は削除しません。`))return;
+  delete db.routes[monthlyDayDetailDate];save();renderMonthlyDayDetail();renderRouteWeek();renderRouteAudit();renderHome();showToast('この日の巡回予定を削除しました');
+}
+
 function moveWeeklyStop(date,stopId,delta){
   const r=routeForDate(date); if(!r||!Array.isArray(r.stops))return;
   const ordered=r.stops.slice().sort((a,b)=>(a.order||0)-(b.order||0));
@@ -9464,7 +9687,7 @@ if(window.modelPageBackBtn)modelPageBackBtn.addEventListener('click',closeModelE
 if(window.modelPageCancelBtn)modelPageCancelBtn.addEventListener('click',closeModelEditorPage);
 if(window.modelPageSaveBtn)modelPageSaveBtn.addEventListener('click',saveModelEditorPage);
 
-window.toggleRouteStopDetail=toggleRouteStopDetail;window.moveWeeklyStop=moveWeeklyStop;window.removeWeeklyStop=removeWeeklyStop;window.openMachineCycleEditor=openMachineCycleEditor;window.changeTroubleStatus=changeTroubleStatus;window.deleteTroubleRecord=deleteTroubleRecord;window.moveManualOrder=moveManualOrder;window.toggleManualMachine=toggleManualMachine;window.openFacilityEditorPage=openFacilityEditorPage;window.openRouteWorkEdit=openRouteWorkEdit;window.openTroubleForMachine=openTroubleForMachine;window.openMonthlyManualBuilder=openMonthlyManualBuilder;window.closeMonthlyManualBuilder=closeMonthlyManualBuilder;window.toggleMonthlyManualMachine=toggleMonthlyManualMachine;window.toggleMonthlyManualWork=toggleMonthlyManualWork;window.clearMonthlyManualSelection=clearMonthlyManualSelection;window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openWeeklyDayDetail=openWeeklyDayDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
+window.toggleRouteAudit=toggleRouteAudit;window.openRouteAuditFromHome=openRouteAuditFromHome;window.addAuditMachineToday=addAuditMachineToday;window.shiftWeeklyRouteBy=shiftWeeklyRouteBy;window.shiftWeeklyRouteCustom=shiftWeeklyRouteCustom;window.moveWeeklyRouteToWeekday=moveWeeklyRouteToWeekday;window.deleteWeeklyRouteDay=deleteWeeklyRouteDay;window.toggleRouteStopDetail=toggleRouteStopDetail;window.moveWeeklyStop=moveWeeklyStop;window.removeWeeklyStop=removeWeeklyStop;window.openMachineCycleEditor=openMachineCycleEditor;window.changeTroubleStatus=changeTroubleStatus;window.deleteTroubleRecord=deleteTroubleRecord;window.moveManualOrder=moveManualOrder;window.toggleManualMachine=toggleManualMachine;window.openFacilityEditorPage=openFacilityEditorPage;window.openRouteWorkEdit=openRouteWorkEdit;window.openTroubleForMachine=openTroubleForMachine;window.openMonthlyManualBuilder=openMonthlyManualBuilder;window.closeMonthlyManualBuilder=closeMonthlyManualBuilder;window.toggleMonthlyManualMachine=toggleMonthlyManualMachine;window.toggleMonthlyManualWork=toggleMonthlyManualWork;window.clearMonthlyManualSelection=clearMonthlyManualSelection;window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openWeeklyDayDetail=openWeeklyDayDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
 window.openModelEditor=openModelEditor;window.deleteModel=deleteModel;window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
