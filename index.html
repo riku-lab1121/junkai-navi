@@ -2759,7 +2759,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.19.1</div>
+      <div class="app-version-footer">Ver. 11.19.2</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -5239,6 +5239,15 @@ function repairPlanningSync(){
     });
   });
 
+  // 自販機編集で明示した次回基本巡回予定日を最後に再適用する。
+  let manualDateFixes=0;
+  (db.machines||[]).forEach(m=>{
+    if(m.nextRegularManual&&m.nextRegular){
+      const x=enforceManualNextRegularOnRoutes(m.id)||{};
+      manualDateFixes+=Number(x.added||0)+Number(x.removed||0);
+    }
+  });
+
   save();
   renderRoute();
   renderRouteWeek();
@@ -5248,7 +5257,8 @@ function repairPlanningSync(){
 
   const afterRoutes=Object.values(db.routes||{}).reduce((s,r)=>s+(r?.stops?.length||0),0);
   const afterTasks=(db.tasks||[]).reduce((s,t)=>s+(t.machineIds?.length||0),0);
-  showToast(`同期完了｜巡回 ${afterRoutes}件・月間 ${afterTasks}件`, 'success', 3200);
+  showToast(`同期完了｜巡回 ${afterRoutes}件・月間 ${afterTasks}件`, 'success', 4200);
+  alert(`同期チェック完了\n\n今日・1週間・月間を確認しました。\n巡回予定：${afterRoutes}件\n月間計画：${afterTasks}件\n次回日からの補正：${manualDateFixes}件`);
 }
 function renderRouteWeek(){
   if(!window.routeWeekList)return;
@@ -7002,6 +7012,39 @@ function syncEditedMachinePlanning(machineId){
   return {months:keys.size,routes:routeChanges};
 }
 
+function enforceManualNextRegularOnRoutes(machineId){
+  const m=machine(machineId);if(!m||!m.nextRegularManual||!m.nextRegular)return {added:0,removed:0};
+  const target=m.nextRegular;
+  let added=0,removed=0;
+  // 明示した次回基本巡回日は「その日の予定」の正本として扱う。
+  // 実績と手動ロックは壊さないが、自動生成された別日の予定は外す。
+  Object.entries(db.routes||{}).forEach(([date,r])=>{
+    if(date===target||!Array.isArray(r?.stops))return;
+    const before=r.stops.length;
+    r.stops=r.stops.filter(st=>{
+      if(st.machineId!==machineId)return true;
+      if(st.status==='done'||st.manualLocked||st.userAdjusted)return true;
+      return false;
+    });
+    removed+=before-r.stops.length;
+    r.stops.forEach((st,i)=>st.order=i+1);
+    if(!r.stops.length)delete db.routes[date];
+  });
+  if(!db.routes)db.routes={};
+  let r=db.routes[target];
+  if(!r){r=db.routes[target]={date:target,createdAt:Date.now(),areaFilter:'date-sync',candidateMode:'auto-sync',stops:[]}}
+  if(!Array.isArray(r.stops))r.stops=[];
+  let st=r.stops.find(x=>x.machineId===machineId&&x.status!=='done');
+  if(st){
+    st.workTypes=['基本巡回'];st.autoSynced=true;st.plannedMinutes=Number(m.workMinutes||25);
+  }else{
+    r.stops.push({id:uid(),machineId,order:r.stops.length+1,status:'pending',workTypes:['基本巡回'],plannedMinutes:Number(m.workMinutes||25),autoSynced:true});
+    added++;
+  }
+  r.stops.forEach((x,i)=>x.order=i+1);
+  return {added,removed};
+}
+
 function syncMachinesToPlanning(machineIds,{persist=true,refresh=true}={}){
   const ids=[...new Set((Array.isArray(machineIds)?machineIds:[machineIds]).filter(Boolean))];
   let months=0,routes=0,changed=0;
@@ -7010,8 +7053,9 @@ function syncMachinesToPlanning(machineIds,{persist=true,refresh=true}={}){
     if(!machine(id))return;
     try{
       const r=syncEditedMachinePlanning(id)||{};
+      const forced=enforceManualNextRegularOnRoutes(id)||{};
       months=Math.max(months,Number(r.months||0));
-      routes+=Number(r.routes||0);
+      routes+=Number(r.routes||0)+Number(forced.added||0)+Number(forced.removed||0);
       changed++;
     }catch(e){
       console.warn('machine planning sync failed',id,e);
