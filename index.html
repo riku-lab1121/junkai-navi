@@ -2759,7 +2759,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.19.2</div>
+      <div class="app-version-footer">Ver. 11.19.3</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -4229,8 +4229,8 @@ function createManualRoute(){
     if(!db.routes)db.routes={};
     db.routes[today()]=route;
 
-    // 巡回データの保存を最優先。外回り終了済みでも作成・編集は可能。
-    reconcilePlanningDate(today(),{prefer:'route'});
+    // 手動で確定した今日の巡回を、その日の月間予定の正本として完全同期。
+    const mirrorResult=mirrorRouteDateToMonthlyExact(today(),{markManual:true});
     localStorage.setItem(DBKEY,JSON.stringify(db));
   }catch(e){
     console.error('route storage save failed',e);
@@ -4248,7 +4248,7 @@ function createManualRoute(){
 
   manualCreateBtn.disabled=false;
   manualCreateBtn.textContent='この内容で巡回を作成';
-  showToast(`${chosen.length}台の巡回を保存しました`);
+  showToast(`${chosen.length}台の巡回を保存｜月間も${chosen.length}台に同期しました`);
   window.scrollTo(0,0);
 }
 
@@ -4651,8 +4651,8 @@ function generateRoute(){
       }))
     };
 
-    // 今日を作った時点で月間/週間にも同じ内容を反映。
-    reconcilePlanningDate(today(),{prefer:'route'});
+    // 今日を作った時点で月間/週間にも同じ内容を完全同期。
+    mirrorRouteDateToMonthlyExact(today(),{markManual:false});
     save();
     switchPage('route');
     renderAll();
@@ -5137,8 +5137,9 @@ function addAuditMachineToday(machineId){
   const m=machine(machineId);if(!m)return;
   const r=ensureRoute();
   if(r.stops.some(s=>s.machineId===machineId)){showToast('すでに今日の巡回に入っています');return}
-  r.stops.push({id:uid(),machineId,order:r.stops.length+1,status:'pending',workTypes:(workFor(m).length?workFor(m):['確認']).filter(w=>w!=='トラブル'),plannedMinutes:Number(m.workMinutes||25)});
-  save();renderAll();renderRouteAudit();showToast('今日の巡回に追加しました');
+  r.stops.push({id:uid(),machineId,order:r.stops.length+1,status:'pending',workTypes:(workFor(m).length?workFor(m):['確認']).filter(w=>w!=='トラブル'),plannedMinutes:Number(m.workMinutes||25),manualLocked:true,userAdjusted:true});
+  mirrorRouteDateToMonthlyExact(today(),{markManual:true});
+  save();renderAll();renderRouteAudit();showToast('今日の巡回に追加｜月間にも反映しました');
 }
 
 let routePeriod='today';
@@ -5247,6 +5248,11 @@ function repairPlanningSync(){
       manualDateFixes+=Number(x.added||0)+Number(x.removed||0);
     }
   });
+
+  // 今日の巡回はユーザーが今見ている内容を最優先し、月間を完全一致させる。
+  const todayMirror=db.routes?.[today()]
+    ? mirrorRouteDateToMonthlyExact(today(),{markManual:db.routes[today()]?.candidateMode==='manual'})
+    : {routeCount:0,monthlyCount:0,removed:0};
 
   save();
   renderRoute();
@@ -5475,6 +5481,105 @@ function reconcilePlanningDate(date,{prefer='route'}={}){
   }
   return {routes:routeChanges,tasks:taskChanges};
 }
+function mirrorRouteDateToMonthlyExact(date,{markManual=false}={}){
+  const r=db.routes?.[date];
+  if(!r)return {routeCount:0,monthlyCount:0,removed:0};
+
+  const stops=(r.stops||[]).filter(s=>s&&s.machineId);
+  const routeIds=new Set(stops.map(s=>s.machineId));
+  let removed=0;
+
+  // その日の「自販機を持つ巡回予定」は今日/週間のrouteを正として一度整理。
+  // メモだけの手動予定や巡回以外の予定は残す。
+  (db.tasks||[]).forEach(t=>{
+    if(t.due!==date||t.category!=='route')return;
+
+    const ids=[...new Set([
+      ...(Array.isArray(t.machineIds)?t.machineIds:[]),
+      ...(Array.isArray(t.machineWorkKinds)?t.machineWorkKinds.map(x=>x.machineId):[])
+    ].filter(Boolean))];
+
+    if(!ids.length)return;
+
+    if(Array.isArray(t.machineIds)){
+      const before=t.machineIds.length;
+      t.machineIds=t.machineIds.filter(id=>routeIds.has(id));
+      removed+=before-t.machineIds.length;
+    }
+    if(Array.isArray(t.machineWorkKinds)){
+      t.machineWorkKinds=t.machineWorkKinds.filter(x=>routeIds.has(x.machineId));
+    }
+    if(t.machineWorks){
+      Object.keys(t.machineWorks).forEach(id=>{
+        if(!routeIds.has(id))delete t.machineWorks[id];
+      });
+    }
+    normalizeAutoTaskTitle(t);
+  });
+
+  // 空になった自動/連動タスクだけ削除。人が書いたメモ予定は残す。
+  db.tasks=(db.tasks||[]).filter(t=>{
+    if(t.due!==date||t.category!=='route')return true;
+    const count=new Set([
+      ...(Array.isArray(t.machineIds)?t.machineIds:[]),
+      ...(Array.isArray(t.machineWorkKinds)?t.machineWorkKinds.map(x=>x.machineId):[])
+    ].filter(Boolean)).size;
+    if(count>0)return true;
+    return !(t.autoMonthlyPlan||t.routeLinked);
+  });
+
+  // route にある全台を月間へ追加/更新。
+  stops.forEach(s=>{
+    ensureMachineInMonthlyDate(s.machineId,date,s,{
+      manual:markManual||!!(s.manualLocked||s.userAdjusted)||r.candidateMode==='manual'
+    });
+  });
+
+  // 同じ日・同じ自販機が複数タスクに残った場合は1つへ集約する。
+  const ownerByMachine=new Map();
+  const dayTasks=(db.tasks||[]).filter(t=>t.due===date&&t.category==='route');
+  dayTasks.forEach(t=>{
+    const ids=[...new Set([
+      ...(Array.isArray(t.machineIds)?t.machineIds:[]),
+      ...(Array.isArray(t.machineWorkKinds)?t.machineWorkKinds.map(x=>x.machineId):[])
+    ].filter(Boolean))];
+
+    ids.forEach(id=>{
+      if(!routeIds.has(id))return;
+      if(!ownerByMachine.has(id)){
+        ownerByMachine.set(id,t.id);
+        return;
+      }
+      if(ownerByMachine.get(id)===t.id)return;
+      if(Array.isArray(t.machineIds))t.machineIds=t.machineIds.filter(x=>x!==id);
+      if(Array.isArray(t.machineWorkKinds))t.machineWorkKinds=t.machineWorkKinds.filter(x=>x.machineId!==id);
+      if(t.machineWorks&&t.machineWorks[id])delete t.machineWorks[id];
+      normalizeAutoTaskTitle(t);
+    });
+  });
+
+  db.tasks=(db.tasks||[]).filter(t=>{
+    if(t.due!==date||t.category!=='route')return true;
+    const count=new Set([
+      ...(Array.isArray(t.machineIds)?t.machineIds:[]),
+      ...(Array.isArray(t.machineWorkKinds)?t.machineWorkKinds.map(x=>x.machineId):[])
+    ].filter(Boolean)).size;
+    return count>0 || (!t.autoMonthlyPlan&&!t.routeLinked);
+  });
+
+  const monthlyIds=new Set(
+    (db.tasks||[])
+      .filter(t=>t.due===date&&t.category==='route')
+      .flatMap(t=>[
+        ...(Array.isArray(t.machineIds)?t.machineIds:[]),
+        ...(Array.isArray(t.machineWorkKinds)?t.machineWorkKinds.map(x=>x.machineId):[])
+      ])
+      .filter(id=>routeIds.has(id))
+  );
+
+  return {routeCount:routeIds.size,monthlyCount:monthlyIds.size,removed};
+}
+
 function reconcilePlanningMonth(key,{prefer='monthly'}={}){
   if(!key)return;
   const dates=new Set();
@@ -5600,6 +5705,7 @@ function saveRouteWorkEdit(){
   }
 
   stop.workTypes=works;
+  mirrorRouteDateToMonthlyExact(editDate,{markManual:true});
 
   // 完了後の修正なら、当該巡回の実績ログも修正。
   if(stop.status==='done'&&editDate===today()){
@@ -6343,7 +6449,8 @@ function addMachineToToday(machineId){
   const m=machine(machineId);if(!m)return;
   const r=ensureRoute();
   if(r.stops.some(s=>s.machineId===machineId)){alert('すでに今日の巡回に入っています。');return}
-  r.stops.push({id:uid(),machineId,order:r.stops.length+1,status:'pending',workTypes:(workFor(m).length?workFor(m):['確認']).filter(w=>w!=='トラブル'),plannedMinutes:Number(m.workMinutes||25)});
+  r.stops.push({id:uid(),machineId,order:r.stops.length+1,status:'pending',workTypes:(workFor(m).length?workFor(m):['確認']).filter(w=>w!=='トラブル'),plannedMinutes:Number(m.workMinutes||25),manualLocked:true,userAdjusted:true});
+  mirrorRouteDateToMonthlyExact(today(),{markManual:true});
   save();
   renderAll();
   try{renderCalendar()}catch(e){}
@@ -9036,9 +9143,13 @@ function renderMonthlyActionPlan(){
 
   monthlyActionPlanBody.innerHTML=groups.map(([date,tasks])=>{
     const dd=ymdDate(date);
-    const machines=monthlyDayMachines(tasks);
+    const todayRouteForRow=date===today()?db.routes?.[date]:null;
+    const routeMachinesForToday=(todayRouteForRow?.stops||[]).map(s=>machine(s.machineId)).filter(Boolean);
+    const machines=routeMachinesForToday.length?routeMachinesForToday:monthlyDayMachines(tasks);
     const areas=monthlyDayAreas(tasks,machines);
-    const mins=monthlyDayMinutes(machines,tasks);
+    const mins=routeMachinesForToday.length
+      ? (todayRouteForRow.stops||[]).reduce((sum,s)=>sum+Number(s.plannedMinutes||25),0)
+      : monthlyDayMinutes(machines,tasks);
     const dist=monthlyDayDistance(tasks);
     const done=tasks.length>0&&tasks.every(t=>t.done);
     const ids=new Set(machines.map(m=>m.id));
