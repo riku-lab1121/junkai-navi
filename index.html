@@ -2744,7 +2744,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
             <div class="app-version-name">自販機巡回アプリ</div>
             <div class="sub">現在のバージョン</div>
           </div>
-          <div class="app-version-badge">Version 11.19.0</div>
+          <div class="app-version-badge">Version 11.19.1</div>
         </div>
         <div class="settings-group">
           <div class="section-title">バックアップ・一括登録</div>
@@ -2759,7 +2759,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.19.0</div>
+      <div class="app-version-footer">Ver. 11.19.1</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -5924,11 +5924,30 @@ function deleteArea(x){
   db.areas=(db.areas||[]).filter(v=>v!==a);db.machines.forEach(m=>{if(m.area===a)m.area='未設定'});save();fillAreaControls();renderAreaSettings();renderAll();
 }
 function machineStatusInfo(m){
-  if(!m.lastRegular && !m.lastCollection){
+  if(!m.lastRegular && !m.lastCollection && !nextRegularDate(m)){
     return {label:'情報未設定',dot:'gray',rank:9};
   }
-  const rd=dayDiff(m.lastRegular,today()), ri=regularInterval(m);
-  const cd=dayDiff(m.lastCollection||m.lastRegular,today());
+  const todayYmd=today();
+  const next=nextRegularDate(m);
+
+  // 次回基本巡回予定日が今日以降に設定されている場合は、その予定を最優先する。
+  // 基本巡回には通常の集金も含まれるため、過去の最終巡回/集金日だけを見て
+  // 「定期○日経過」「集金○日経過」を赤表示し続けない。
+  if(next && next>=todayYmd){
+    const days=Math.max(0,dayDiff(todayYmd,next));
+    if(m.prioritySupply) return {label:'早め補充',dot:'orange',rank:1};
+    if(m.weekly && supplyDue(m)) return {label:'補充時期',dot:'orange',rank:1};
+    return {label:days===0?'本日巡回予定':`次回まで${days}日`,dot:'green',rank:3};
+  }
+
+  // 次回予定日そのものを過ぎた場合は、経過日数ではなく予定超過として警告。
+  if(next && next<todayYmd){
+    const late=Math.max(1,dayDiff(next,todayYmd));
+    return {label:`予定 ${late}日超過`,dot:'red',rank:0};
+  }
+
+  const rd=dayDiff(m.lastRegular,todayYmd), ri=regularInterval(m);
+  const cd=dayDiff(m.lastCollection||m.lastRegular,todayYmd);
   if(rd>=ri||cd>=14) return {label:rd>=ri?`定期 ${rd}日経過`:`集金 ${cd}日経過`,dot:'red',rank:0};
   if(m.prioritySupply) return {label:'早め補充',dot:'orange',rank:1};
   if(m.weekly && supplyDue(m)) return {label:'補充時期',dot:'orange',rank:1};
