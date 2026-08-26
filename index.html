@@ -2005,6 +2005,12 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
 
 /* Ver.11.19.0 今日・週間・月間の統合同期 */
 .planning-sync-card{border:1px solid #d8e8fb;background:#f7fbff}
+
+/* Ver.11.19.5 予定データ安全リセット */
+.planning-reset-card{border:1px solid #f0d8d8;background:#fffafa;margin-top:14px}
+.planning-reset-card .section-title{color:#912f2f}
+.planning-reset-btn{width:100%;margin-top:14px;min-height:52px;font-weight:800}
+.danger-soft{border:0;border-radius:14px;background:#fff0f0;color:#c43d3d;padding:12px 16px}
 </style>
 </head>
 <body>
@@ -2312,6 +2318,13 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
           </div>
           <button class="secondary" type="button" onclick="repairPlanningSync()">同期チェック</button>
         </div>
+      </div>
+      <div class="card planning-reset-card">
+        <div>
+          <div class="section-title">予定データを最初から作り直す</div>
+          <div class="sub">今日の巡回・1週間の巡回・月間行動計画だけを消します。自販機・施設・巡回周期・前回/次回作業日・実績は残ります。</div>
+        </div>
+        <button class="danger-soft planning-reset-btn" type="button" onclick="resetPlanningDataSafely()">予定データをリセット</button>
       </div>
 
       <div id="routeMonthView" class="hidden">
@@ -2759,7 +2772,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.19.3</div>
+      <div class="app-version-footer">Ver. 11.19.5</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -5201,6 +5214,61 @@ function toggleRouteWeekDay(date){
   else routeWeekExpandedDates.add(date);
   renderRouteWeek();
 }
+function resetPlanningDataSafely(){
+  const routeDays=Object.keys(db.routes||{}).length;
+  const routeStops=Object.values(db.routes||{}).reduce((sum,r)=>sum+(r?.stops?.length||0),0);
+  const taskCount=(db.tasks||[]).length;
+
+  const first=confirm(
+    `予定データを最初から作り直しますか？\n\n`+
+    `削除するもの\n`+
+    `・今日/1週間の巡回：${routeStops}件（${routeDays}日分）\n`+
+    `・月間行動計画：${taskCount}件\n`+
+    `・予定の移動/削除に使った同期情報\n\n`+
+    `残すもの\n`+
+    `・登録自販機と施設\n`+
+    `・エリア/設置場所/管理No/機種\n`+
+    `・巡回周期と曜日設定\n`+
+    `・前回作業日/次回予定日\n`+
+    `・勤務/作業の実績ログ\n\n`+
+    `この操作は元に戻せません。`
+  );
+  if(!first)return;
+
+  const second=confirm(
+    `本当に予定データだけを削除します。\n\n`+
+    `自販機データは削除しません。\n`+
+    `削除後は月間行動計画や今日の巡回を新しく作成してください。`
+  );
+  if(!second)return;
+
+  db.routes={};
+  db.tasks=[];
+  db.planSuppressions=[];
+
+  try{weeklySelectedStopIds?.clear?.()}catch(e){}
+  try{routeWeekExpandedDates?.clear?.()}catch(e){}
+  try{monthlyDayDetailDate=null}catch(e){}
+  try{monthlyDayDetailSource='month'}catch(e){}
+  try{monthlyActionEditId.value=''}catch(e){}
+
+  save();
+
+  try{renderRoute()}catch(e){}
+  try{renderRouteWeek()}catch(e){}
+  try{renderMonthlyActionPlan()}catch(e){}
+  try{renderRouteAudit()}catch(e){}
+  try{renderHome()}catch(e){}
+  try{renderWorkDashboard()}catch(e){}
+  try{renderMapMarkers()}catch(e){}
+
+  showToast('予定データをリセットしました｜自販機データは保持しています','success',5000);
+  alert(
+    `予定データをリセットしました。\n\n`+
+    `自販機・施設・巡回周期・前回/次回作業日・実績は残っています。\n`+
+    `ここから月間行動計画や巡回を新しく作り直せます。`
+  );
+}
 function repairPlanningSync(){
   const key=today().slice(0,7);
   const beforeRoutes=Object.values(db.routes||{}).reduce((s,r)=>s+(r?.stops?.length||0),0);
@@ -5249,7 +5317,8 @@ function repairPlanningSync(){
     }
   });
 
-  // 今日の巡回はユーザーが今見ている内容を最優先し、月間を完全一致させる。
+  // 今日だけでなく、過去日・当日・手動調整した未来日も巡回側へ揃える。
+  const authoritativeSync=syncAuthoritativeRoutesToMonthly(key);
   const todayMirror=db.routes?.[today()]
     ? mirrorRouteDateToMonthlyExact(today(),{markManual:db.routes[today()]?.candidateMode==='manual'})
     : {routeCount:0,monthlyCount:0,removed:0};
@@ -5263,8 +5332,8 @@ function repairPlanningSync(){
 
   const afterRoutes=Object.values(db.routes||{}).reduce((s,r)=>s+(r?.stops?.length||0),0);
   const afterTasks=(db.tasks||[]).reduce((s,t)=>s+(t.machineIds?.length||0),0);
-  showToast(`同期完了｜巡回 ${afterRoutes}件・月間 ${afterTasks}件`, 'success', 4200);
-  alert(`同期チェック完了\n\n今日・1週間・月間を確認しました。\n巡回予定：${afterRoutes}件\n月間計画：${afterTasks}件\n次回日からの補正：${manualDateFixes}件`);
+  showToast(`同期完了｜${authoritativeSync.dates}日分を巡回基準で同期`, 'success', 4600);
+  alert(`同期チェック完了\n\n今日だけでなく、過去日・手動調整日も確認しました。\n巡回基準で同期：${authoritativeSync.dates}日分\n今日：${todayMirror.routeCount}台 / 月間：${todayMirror.monthlyCount}台\n次回日からの補正：${manualDateFixes}件`);
 }
 function renderRouteWeek(){
   if(!window.routeWeekList)return;
@@ -5578,6 +5647,31 @@ function mirrorRouteDateToMonthlyExact(date,{markManual=false}={}){
   );
 
   return {routeCount:routeIds.size,monthlyCount:monthlyIds.size,removed};
+}
+
+function routeIsAuthoritativeForDate(date,r=db.routes?.[date]){
+  if(!r||!Array.isArray(r.stops)||!r.stops.length)return false;
+  // 過去日と当日は、実際に使った/使う巡回データを正本にする。
+  if(date<=today())return true;
+  // 未来日は手動調整した場合のみ巡回側を優先。
+  if(r.candidateMode==='manual')return true;
+  return r.stops.some(s=>s.manualLocked||s.userAdjusted);
+}
+function syncAuthoritativeRoutesToMonthly(key){
+  let dates=0,routeCount=0,monthlyCount=0,removed=0;
+  Object.entries(db.routes||{})
+    .filter(([date,r])=>String(date).startsWith(key)&&routeIsAuthoritativeForDate(date,r))
+    .sort((a,b)=>a[0].localeCompare(b[0]))
+    .forEach(([date,r])=>{
+      const res=mirrorRouteDateToMonthlyExact(date,{
+        markManual:r.candidateMode==='manual'||r.stops.some(s=>s.manualLocked||s.userAdjusted)
+      });
+      dates++;
+      routeCount+=res.routeCount||0;
+      monthlyCount+=res.monthlyCount||0;
+      removed+=res.removed||0;
+    });
+  return {dates,routeCount,monthlyCount,removed};
 }
 
 function reconcilePlanningMonth(key,{prefer='monthly'}={}){
@@ -8436,6 +8530,10 @@ function fillMonthlyActionAreas(){
 }
 function openMonthlyActionPlan(){
   monthlyActionPlanAnchor=today();
+  try{
+    const s=syncAuthoritativeRoutesToMonthly(monthlyActionPlanAnchor.slice(0,7));
+    if(s.dates)save();
+  }catch(e){console.warn('monthly route sync',e)}
   try{fillMonthlyActionAreas();}catch(e){console.warn('monthly areas init',e)}
   try{
     const d=ymdDate(monthlyActionPlanAnchor);
@@ -8465,6 +8563,10 @@ function moveMonthlyActionPlan(delta){
   monthlyActionPlanAnchor=localYmd(new Date(d.getFullYear(),d.getMonth()+delta,1,12));
   monthlyActionDate.value=monthlyActionPlanAnchor;
   cancelMonthlyActionEdit();
+  try{
+    const s=syncAuthoritativeRoutesToMonthly(monthlyActionMonthKey());
+    if(s.dates)save();
+  }catch(e){console.warn('monthly move sync',e)}
   renderMonthlyActionPlan();
 }
 function monthlyActionTypeLabel(v){
@@ -9143,12 +9245,12 @@ function renderMonthlyActionPlan(){
 
   monthlyActionPlanBody.innerHTML=groups.map(([date,tasks])=>{
     const dd=ymdDate(date);
-    const todayRouteForRow=date===today()?db.routes?.[date]:null;
-    const routeMachinesForToday=(todayRouteForRow?.stops||[]).map(s=>machine(s.machineId)).filter(Boolean);
-    const machines=routeMachinesForToday.length?routeMachinesForToday:monthlyDayMachines(tasks);
+    const authoritativeRoute=routeIsAuthoritativeForDate(date)?db.routes?.[date]:null;
+    const routeMachines=(authoritativeRoute?.stops||[]).map(s=>machine(s.machineId)).filter(Boolean);
+    const machines=routeMachines.length?routeMachines:monthlyDayMachines(tasks);
     const areas=monthlyDayAreas(tasks,machines);
-    const mins=routeMachinesForToday.length
-      ? (todayRouteForRow.stops||[]).reduce((sum,s)=>sum+Number(s.plannedMinutes||25),0)
+    const mins=routeMachines.length
+      ? (authoritativeRoute.stops||[]).reduce((sum,s)=>sum+Number(s.plannedMinutes||25),0)
       : monthlyDayMinutes(machines,tasks);
     const dist=monthlyDayDistance(tasks);
     const done=tasks.length>0&&tasks.every(t=>t.done);
@@ -9158,6 +9260,7 @@ function renderMonthlyActionPlan(){
     const actualDone=new Set(linked.filter(s=>s.status==='done').map(s=>s.machineId)).size;
     const manuallyAdjusted=tasks.some(t=>t.manualLocked||t.userAdjusted);
     const state=machines.length&&actualDone>=machines.length?'実施済み'
+      :authoritativeRoute?'巡回と同期'
       :machines.length&&transferred>=machines.length?'今日へ反映'
       :transferred>0?`一部反映 ${transferred}/${machines.length}`
       :done?'完了'
@@ -10808,6 +10911,7 @@ if(window.modelPageBackBtn)modelPageBackBtn.addEventListener('click',closeModelE
 if(window.modelPageCancelBtn)modelPageCancelBtn.addEventListener('click',closeModelEditorPage);
 if(window.modelPageSaveBtn)modelPageSaveBtn.addEventListener('click',saveModelEditorPage);
 
+window.resetPlanningDataSafely=resetPlanningDataSafely;
 window.repairPlanningSync=repairPlanningSync;window.toggleRouteAudit=toggleRouteAudit;window.openRouteAuditFromHome=openRouteAuditFromHome;window.addAuditMachineToday=addAuditMachineToday;window.shiftWeeklyRouteBy=shiftWeeklyRouteBy;window.shiftWeeklyRouteCustom=shiftWeeklyRouteCustom;window.moveWeeklyRouteToWeekday=moveWeeklyRouteToWeekday;window.deleteWeeklyRouteDay=deleteWeeklyRouteDay;window.toggleRouteStopDetail=toggleRouteStopDetail;window.moveWeeklyStop=moveWeeklyStop;window.removeWeeklyStop=removeWeeklyStop;window.openMachineCycleEditor=openMachineCycleEditor;window.changeTroubleStatus=changeTroubleStatus;window.deleteTroubleRecord=deleteTroubleRecord;window.moveManualOrder=moveManualOrder;window.toggleManualMachine=toggleManualMachine;window.openFacilityEditorPage=openFacilityEditorPage;window.openRouteWorkEdit=openRouteWorkEdit;window.openTroubleForMachine=openTroubleForMachine;window.openMonthlyManualBuilder=openMonthlyManualBuilder;window.closeMonthlyManualBuilder=closeMonthlyManualBuilder;window.toggleMonthlyManualMachine=toggleMonthlyManualMachine;window.toggleMonthlyManualWork=toggleMonthlyManualWork;window.clearMonthlyManualSelection=clearMonthlyManualSelection;window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openWeeklyDayDetail=openWeeklyDayDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
 window.openModelEditor=openModelEditor;window.deleteModel=deleteModel;window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
