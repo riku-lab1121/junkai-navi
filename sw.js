@@ -1,4 +1,4 @@
-const CACHE='vending-route-v11-19-7-hard-planning-reset';
+const CACHE='vending-route-v11-20-0-actual-visit-anchor';
 const CORE=['./','./index.html','./manifest.json'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)))});
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));

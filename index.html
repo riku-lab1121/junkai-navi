@@ -2779,7 +2779,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.19.7</div>
+      <div class="app-version-footer">Ver. 11.20.0</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -3090,7 +3090,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
     <div class="row">
       <div>
         <div class="section-title">自販機の巡回設定を月間へ反映</div>
-        <div class="sub">各自販機の次回予定日・巡回周期・曜日指定を、その日付のまま月間行動計画へ入れます。</div>
+        <div class="sub">登録自販機すべてを確認し、この月に予定が発生する自販機だけを設定どおりの日付で月間へ入れます。</div>
       </div>
       <span class="settings-plan-badge">日付そのまま</span>
     </div>
@@ -3789,6 +3789,7 @@ db.machines.forEach(m=>{if(m.site===undefined)m.site='';});
       db.machines.forEach(m=>{
         if(!m.area) m.area='未設定';
         if(m.nextRegularManual===undefined)m.nextRegularManual=false;
+        if(m.nextRegularOverride===undefined)m.nextRegularOverride=false;
         if(!m.regularIntervalDays) m.regularIntervalDays=14;
         if(m.supplyIntervalDays===undefined||m.supplyIntervalDays===null||m.supplyIntervalDays==='') m.supplyIntervalDays=m.weekly?7:0;
         if(m.prioritySupply===undefined) m.prioritySupply=false;
@@ -7403,6 +7404,11 @@ function saveRegisterPage(){
 
     const id=registerEditingId||uid();
     const previousMachine=registerEditingId?db.machines.find(m=>m.id===registerEditingId):null;
+    const enteredLastRegular=rpLastRegular.value||'';
+    const previousLastRegular=previousMachine?.lastRegular||'';
+    const lastRegularChanged=previousMachine
+      ? enteredLastRegular!==previousLastRegular
+      : !!enteredLastRegular;
     const enteredNextRegular=rpNextRegular.value||'';
     const previousNextRegular=previousMachine?.nextRegular||'';
     const nextRegularChanged=previousMachine
@@ -7427,9 +7433,14 @@ function saveRegisterPage(){
       drainIntervalDays:(rpDrainInterval.value==='custom'&&rpDrainCustomMode.value==='weekdays')?0:normalizedExtraCycleValue(rpDrainInterval,rpDrainCustom,0),
       drainScheduleMode:(rpDrainInterval.value==='custom'&&rpDrainCustomMode.value==='weekdays')?'weekdays':'days',
       drainWeekdays:(rpDrainInterval.value==='custom'&&rpDrainCustomMode.value==='weekdays')?selectedWeekdays(rpDrainWeekdays):[],
-      lastRegular:rpLastRegular.value||'',
+      lastRegular:enteredLastRegular,
       nextRegular:enteredNextRegular,
       nextRegularManual:nextRegularChanged ? !!enteredNextRegular : !!previousMachine?.nextRegularManual,
+      // nextRegularOverride は「周期計算より手入力日を優先する」明示フラグ。
+      // 旧版の nextRegularManual は stale な値が残るため月間計算の基準には使わない。
+      nextRegularOverride:nextRegularChanged
+        ? !!enteredNextRegular
+        : (!!previousMachine?.nextRegularOverride && !lastRegularChanged),
       weekly:false,
       lastSupply:rpLastSupply.value||'',
       lastDrain:rpLastDrain.value||'',
@@ -7445,18 +7456,31 @@ function saveRegisterPage(){
       createdAt:Date.now()
     };
 
-    // 基本巡回周期を変更した時、古い周期で保存された次回予定日がそのままなら自動更新。
-    // 次回予定日をユーザー自身が変更していた場合は、その手入力を優先する。
-    if(previousMachine && data.lastRegular){
-      const oldInterval=regularInterval(previousMachine);
+    // 実際の「前回基本巡回日」を更新した場合、その日を最優先の基準日にする。
+    // 次回日も同じ保存で変更した時だけ、その手入力を明示オーバーライドとして優先。
+    if(data.lastRegular){
       const newInterval=Math.max(1,Number(data.regularIntervalDays||14));
-      const oldNext=previousMachine.nextRegular||'';
-      const formNext=data.nextRegular||'';
-      if(oldInterval!==newInterval && (!formNext || formNext===oldNext)){
-        data.nextRegular=addDaysYmd(data.lastRegular,newInterval);
+      const calculatedNext=addDaysYmd(data.lastRegular,newInterval);
+
+      if(lastRegularChanged && !nextRegularChanged){
+        data.nextRegular=calculatedNext;
         data.nextRegularManual=false;
-      }else if(nextRegularChanged){
-        data.nextRegularManual=!!data.nextRegular;
+        data.nextRegularOverride=false;
+      }else if(previousMachine){
+        const oldInterval=regularInterval(previousMachine);
+        const intervalChanged=oldInterval!==newInterval;
+        if(intervalChanged && !nextRegularChanged){
+          data.nextRegular=calculatedNext;
+          data.nextRegularManual=false;
+          data.nextRegularOverride=false;
+        }else if(nextRegularChanged){
+          data.nextRegularManual=!!data.nextRegular;
+          data.nextRegularOverride=!!data.nextRegular;
+        }
+      }else if(!data.nextRegular){
+        data.nextRegular=calculatedNext;
+        data.nextRegularManual=false;
+        data.nextRegularOverride=false;
       }
     }
 
@@ -7489,7 +7513,9 @@ function saveRegisterPage(){
 
     const savedMachineId=id;
     const correctedNote=(supplyDayCorrected||drainDayCorrected)?'｜1日以下の指定は週1に補正':'';
-    const nextDateNote=(wasEditing&&nextRegularChanged)?'｜次回日を巡回へ再反映':'';
+    const nextDateNote=(wasEditing&&lastRegularChanged&&!nextRegularChanged)
+      ? '｜前回巡回日から次回日を再計算'
+      : ((wasEditing&&nextRegularChanged)?'｜次回日を巡回へ再反映':'');
     showToast(
       (wasEditing
         ? `${name} を保存しました${planSyncResult.months?`｜巡回・月間計画も更新`:""}`
@@ -9297,7 +9323,7 @@ function renderMonthlyActionPlan(){
         ...(t.machineWorkKinds||[]).map(x=>x.machineId)
       ]).filter(Boolean));
       const occ=settingsRows.reduce((sum,t)=>sum+(t.machineWorkKinds?.length||t.machineIds?.length||0),0);
-      settingsSummary.textContent=`設定反映 ${new Set(settingsRows.map(t=>t.due)).size}日分・${ids.size}台・${occ}件`;
+      settingsSummary.textContent=`登録 ${(db.machines||[]).length}台｜今月対象 ${ids.size}台｜${new Set(settingsRows.map(t=>t.due)).size}日分・${occ}件`;
     }else{
       settingsSummary.textContent='この月はまだ設定から反映していません';
     }
@@ -9467,10 +9493,11 @@ function monthlyDatesByInterval(lastDate,interval,start,end){
 }
 function regularOccurrenceStart(m){
   const interval=regularInterval(m);
-  // ユーザーが「次回基本巡回予定日」を明示変更した場合はその日を最優先。
-  if(m?.nextRegularManual && m?.nextRegular)return m.nextRegular;
-  // それ以外は古い nextRegular に引っ張られず、最終巡回日＋現在周期で計算。
+  // 新版で「次回日を周期より優先」と明示した場合だけ手入力次回日を使用。
+  if(m?.nextRegularOverride && m?.nextRegular)return m.nextRegular;
+  // 実際に巡回した前回日を最優先。昨日行ったなら昨日 + 周期が次回。
   if(m?.lastRegular)return addDaysYmd(m.lastRegular,interval);
+  // 前回日未登録の自販機だけ nextRegular を基準にする。
   if(m?.nextRegular)return m.nextRegular;
   return '';
 }
@@ -9492,11 +9519,15 @@ function machineMonthlyOccurrences(m,start,end){
     if(!prev||rank<prev.rank)map.set(date,{date,kind,rank});
   };
 
-  const regularStart=regularOccurrenceStart(m);
-  if(regularStart){
+  // 基本巡回は「次回予定日から未来だけ」ではなく、周期を前後に展開して
+  // 対象月全体を復元する。例: 次回9/7・14日周期なら 8/24, 8/10 も8月予定として入る。
+  // これにより月途中で月間表を作り直しても、登録自販機が前半分ごと欠落しない。
+  const regularAnchor=regularOccurrenceStart(m)||m.lastRegular||m.nextRegular||'';
+  if(regularAnchor){
     const interval=regularInterval(m);
-    let d=regularStart,guard=0;
-    while(d<start&&guard++<500)d=addDaysYmd(d,interval);
+    let d=regularAnchor,guard=0;
+    while(d>start&&guard++<500)d=addDaysYmd(d,-interval);
+    while(d<start&&guard++<1000)d=addDaysYmd(d,interval);
     guard=0;
     while(d<=end&&guard++<500){
       put(d,'基本巡回',1);
@@ -9682,10 +9713,28 @@ function existingNonSettingsOccurrenceKeys(key){
   });
   return set;
 }
+function repairRegularDatesFromActualVisits(){
+  let corrected=0;
+  (db.machines||[]).forEach(m=>{
+    if(!m?.lastRegular)return;
+    if(m.nextRegularOverride)return;
+    const expected=addDaysYmd(m.lastRegular,regularInterval(m));
+    if(m.nextRegular!==expected || m.nextRegularManual){
+      m.nextRegular=expected;
+      m.nextRegularManual=false;
+      m.nextRegularOverride=false;
+      corrected++;
+    }
+  });
+  return corrected;
+}
 function importMachineSettingsToMonthlyPlan(){
   const {start,end}=monthlyActionMonthBounds();
   const key=monthlyActionMonthKey();
   if(!Array.isArray(db.tasks))db.tasks=[];
+
+  // 旧版で残った「前回日と合わない次回日」を、実際の巡回日 + 現周期へ修復。
+  const correctedRegularDates=repairRegularDatesFromActualVisits();
 
   const machines=(db.machines||[]).filter(Boolean);
   if(!machines.length){
@@ -9766,14 +9815,23 @@ function importMachineSettingsToMonthlyPlan(){
   try{renderRoute()}catch(e){}
   try{renderHome()}catch(e){}
 
-  const uniqueMachines=new Set(groups.flatMap(g=>[...g.machines.keys()])).size;
-  showToast(`設定から月間へ反映｜${uniqueMachines}台・${totalOccurrences}件`, 'success', 4500);
+  const reflectedIds=new Set(groups.flatMap(g=>[...g.machines.keys()]));
+  const uniqueMachines=reflectedIds.size;
+  const registeredMachines=(db.machines||[]).length;
+  const missingMachines=machines.filter(m=>!reflectedIds.has(m.id));
+  showToast(`登録${registeredMachines}台｜反映${uniqueMachines}台｜予定${totalOccurrences}件`, 'success', 5000);
   alert(
     `自販機の巡回設定を月間へ反映しました。\n\n`+
-    `対象自販機：${uniqueMachines}台\n`+
+    `登録自販機：${registeredMachines}台\n`+
+    `月間へ反映：${uniqueMachines}台\n`+
     `巡回/作業予定：${totalOccurrences}件\n`+
-    `既存予定と重複して残したもの：${skipped}件\n\n`+
-    `日付は自販機の設定どおりで、自動的な前後移動はしていません。`
+    `未反映：${missingMachines.length}台\n`+
+    `既存予定と重複して残したもの：${skipped}件\n`+
+    `前回巡回日から次回日を修復：${correctedRegularDates}台\n\n`+
+    (missingMachines.length
+      ? `未反映の自販機があります。巡回周期または基準日が未設定の可能性があります。`
+      : `登録自販機はすべて月間へ反映されています。`)+
+    `\n日付は巡回周期を対象月の前後へ展開して復元しています。`
   );
 }
 function clearSettingsMonthlyPlan(){
