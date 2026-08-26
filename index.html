@@ -2329,7 +2329,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
       <div class="card planning-reset-card">
         <div>
           <div class="section-title">予定データを最初から作り直す</div>
-          <div class="sub">今日の巡回・1週間の巡回・月間行動計画だけを消します。自販機・施設・巡回周期・前回/次回作業日・実績は残ります。</div>
+          <div class="sub">巡回予定・月間行動計画・同期/移動の補助データを完全に空にします。自販機・施設・巡回周期・前回/次回作業日・実績は残ります。</div>
         </div>
         <button class="danger-soft planning-reset-btn" type="button" onclick="resetPlanningDataSafely()">予定データをリセット</button>
       </div>
@@ -2779,7 +2779,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.19.6</div>
+      <div class="app-version-footer">Ver. 11.19.7</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -5241,13 +5241,15 @@ function resetPlanningDataSafely(){
   const routeDays=Object.keys(db.routes||{}).length;
   const routeStops=Object.values(db.routes||{}).reduce((sum,r)=>sum+(r?.stops?.length||0),0);
   const taskCount=(db.tasks||[]).length;
+  const suppressionCount=Array.isArray(db.planSuppressions)?db.planSuppressions.length:0;
 
   const first=confirm(
-    `予定データを最初から作り直しますか？\n\n`+
+    `巡回の予定を完全に空にして最初から作り直しますか？\n\n`+
     `削除するもの\n`+
     `・今日/1週間の巡回：${routeStops}件（${routeDays}日分）\n`+
     `・月間行動計画：${taskCount}件\n`+
-    `・予定の移動/削除に使った同期情報\n\n`+
+    `・移動/削除/同期の補助データ：${suppressionCount}件\n`+
+    `・画面内に残っている予定編集状態\n\n`+
     `残すもの\n`+
     `・登録自販機と施設\n`+
     `・エリア/設置場所/管理No/機種\n`+
@@ -5259,23 +5261,49 @@ function resetPlanningDataSafely(){
   if(!first)return;
 
   const second=confirm(
-    `本当に予定データだけを削除します。\n\n`+
-    `自販機データは削除しません。\n`+
-    `削除後は月間行動計画や今日の巡回を新しく作成してください。`
+    `最終確認です。\n\n`+
+    `巡回予定だけを全件削除します。\n`+
+    `自販機の設定データは残します。`
   );
   if(!second)return;
 
+  // 予定本体
   db.routes={};
   db.tasks=[];
   db.planSuppressions=[];
 
+  // 旧バージョンで使った可能性がある予定系キャッシュ/補助キーも消す。
+  // 自販機・施設・実績などの本体データには触れない。
+  [
+    'routeDrafts','routePlans','weeklyPlans','monthlyPlans','monthlyActionPlans',
+    'planningCache','routeCache','weekRouteCache','monthRouteCache',
+    'planningSync','planningSyncState','routeOverrides','monthlyOverrides',
+    'movedPlans','deletedPlans','suppressedPlans'
+  ].forEach(k=>{
+    if(Object.prototype.hasOwnProperty.call(db,k)){
+      if(Array.isArray(db[k])) db[k]=[];
+      else if(db[k] && typeof db[k]==='object') db[k]={};
+      else db[k]=null;
+    }
+  });
+
+  // UI側の選択・編集状態も初期化
   try{weeklySelectedStopIds?.clear?.()}catch(e){}
   try{routeWeekExpandedDates?.clear?.()}catch(e){}
   try{monthlyDayDetailDate=null}catch(e){}
   try{monthlyDayDetailSource='month'}catch(e){}
-  try{monthlyActionEditId.value=''}catch(e){}
+  try{routeWeekAnchor=today()}catch(e){}
+  try{monthlyActionMonth=today().slice(0,7)}catch(e){}
+  try{if(window.monthlyActionEditId)monthlyActionEditId.value=''}catch(e){}
+  try{if(window.monthlyActionDate)monthlyActionDate.value=''}catch(e){}
+  try{if(window.monthlyActionTitleInput)monthlyActionTitleInput.value=''}catch(e){}
 
   save();
+
+  // 保存後に本当に0件になったか検証。勝手な再生成処理は呼ばない。
+  const remainingRoutes=Object.values(db.routes||{}).reduce((sum,r)=>sum+(r?.stops?.length||0),0);
+  const remainingTasks=(db.tasks||[]).length;
+  const remainingSuppressions=(db.planSuppressions||[]).length;
 
   try{renderRoute()}catch(e){}
   try{renderRouteWeek()}catch(e){}
@@ -5285,11 +5313,19 @@ function resetPlanningDataSafely(){
   try{renderWorkDashboard()}catch(e){}
   try{renderMapMarkers()}catch(e){}
 
-  showToast('予定データをリセットしました｜自販機データは保持しています','success',5000);
+  if(remainingRoutes||remainingTasks||remainingSuppressions){
+    alert(`予定データの削除が完了していません。\n巡回 ${remainingRoutes}件 / 月間 ${remainingTasks}件 / 補助 ${remainingSuppressions}件`);
+    return;
+  }
+
+  showToast('巡回予定を完全に空にしました｜自販機設定は保持','success',5000);
   alert(
-    `予定データをリセットしました。\n\n`+
-    `自販機・施設・巡回周期・前回/次回作業日・実績は残っています。\n`+
-    `ここから月間行動計画や巡回を新しく作り直せます。`
+    `巡回予定を完全にリセットしました。\n\n`+
+    `今日/1週間：0件\n`+
+    `月間行動計画：0件\n`+
+    `同期・移動の補助データ：0件\n\n`+
+    `自販機・施設・巡回周期・曜日・前回/次回予定日は残っています。\n`+
+    `次は「自販機の巡回設定を月間へ反映」から作り直せます。`
   );
 }
 function repairPlanningSync(){
