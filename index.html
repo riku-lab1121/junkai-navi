@@ -2011,6 +2011,13 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
 .planning-reset-card .section-title{color:#912f2f}
 .planning-reset-btn{width:100%;margin-top:14px;min-height:52px;font-weight:800}
 .danger-soft{border:0;border-radius:14px;background:#fff0f0;color:#c43d3d;padding:12px 16px}
+
+/* Ver.11.19.6 自販機設定をそのまま月間へ */
+.monthly-settings-card{border:1px solid #cfe5ff;background:#fbfdff}
+.settings-plan-badge{display:inline-flex;align-items:center;padding:6px 9px;border-radius:999px;background:#e8f3ff;color:#1769aa;font-size:11px;font-weight:900;white-space:nowrap}
+.settings-plan-note{margin-top:10px;padding:9px 10px;border-radius:10px;background:#f1f7fd;color:#526a82;font-weight:700}
+.monthly-settings-actions{display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-top:10px}
+.monthly-settings-actions button{min-height:50px}
 </style>
 </head>
 <body>
@@ -2772,7 +2779,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.19.5</div>
+      <div class="app-version-footer">Ver. 11.19.6</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -3079,11 +3086,27 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
     </div>
   </div>
 
+  <div class="flow-card monthly-settings-card">
+    <div class="row">
+      <div>
+        <div class="section-title">自販機の巡回設定を月間へ反映</div>
+        <div class="sub">各自販機の次回予定日・巡回周期・曜日指定を、その日付のまま月間行動計画へ入れます。</div>
+      </div>
+      <span class="settings-plan-badge">日付そのまま</span>
+    </div>
+    <div class="sub settings-plan-note">※ エリアや1日の台数で別日に移動しません。手動で作った予定は残します。</div>
+    <div class="monthly-settings-actions">
+      <button class="primary" type="button" onclick="importMachineSettingsToMonthlyPlan()">設定どおりに月間へ反映</button>
+      <button class="secondary" type="button" onclick="clearSettingsMonthlyPlan()">設定反映分を消す</button>
+    </div>
+    <div class="sub" id="monthlySettingsSummary" style="margin-top:8px"></div>
+  </div>
+
   <div class="flow-card monthly-auto-card">
     <div class="row">
       <div>
-        <div class="section-title">自動作成</div>
-        <div class="sub">手動調整した予定を残し、足りない巡回だけ自動で補います</div>
+        <div class="section-title">おすすめ自動作成</div>
+        <div class="sub">必要な場合だけ、期限・エリア・台数を見て日程を調整します。</div>
       </div>
       <span class="weekday-badge">土日休み</span>
     </div>
@@ -9229,6 +9252,21 @@ function renderMonthlyActionPlan(){
   const rows=monthlyActionRows();
   monthlyActionPlanEmpty.classList.toggle('hidden',rows.length>0);
 
+  const settingsRows=rows.filter(t=>t.settingsMonthlyPlan);
+  const settingsSummary=document.getElementById('monthlySettingsSummary');
+  if(settingsSummary){
+    if(settingsRows.length){
+      const ids=new Set(settingsRows.flatMap(t=>[
+        ...(t.machineIds||[]),
+        ...(t.machineWorkKinds||[]).map(x=>x.machineId)
+      ]).filter(Boolean));
+      const occ=settingsRows.reduce((sum,t)=>sum+(t.machineWorkKinds?.length||t.machineIds?.length||0),0);
+      settingsSummary.textContent=`設定反映 ${new Set(settingsRows.map(t=>t.due)).size}日分・${ids.size}台・${occ}件`;
+    }else{
+      settingsSummary.textContent='この月はまだ設定から反映していません';
+    }
+  }
+
   const autoRows=rows.filter(t=>t.autoMonthlyPlan);
   if(autoRows.length){
     const bounds=monthlyActionMonthBounds();
@@ -9588,6 +9626,155 @@ function weeklyRegularPlanAudit(start,end,key){
   });
 
   return {machines:weeklyMachines.length,expected,planned,missing};
+}
+
+function settingsMonthlyRows(key=monthlyActionMonthKey()){
+  return (db.tasks||[]).filter(t=>t.settingsMonthlyPlan&&String(t.due||'').startsWith(key));
+}
+function settingsMonthlyOccurrenceKey(machineId,work,due){
+  return `${machineId}|${canonicalWorkKind(work)}|${due}`;
+}
+function existingNonSettingsOccurrenceKeys(key){
+  const set=new Set();
+  (db.tasks||[]).forEach(t=>{
+    if(String(t.due||'').startsWith(key)===false || t.settingsMonthlyPlan)return;
+    (t.machineWorkKinds||[]).forEach(x=>{
+      if(x?.machineId&&x?.work&&x?.due){
+        set.add(settingsMonthlyOccurrenceKey(x.machineId,x.work,x.due));
+      }
+    });
+  });
+  return set;
+}
+function importMachineSettingsToMonthlyPlan(){
+  const {start,end}=monthlyActionMonthBounds();
+  const key=monthlyActionMonthKey();
+  if(!Array.isArray(db.tasks))db.tasks=[];
+
+  const machines=(db.machines||[]).filter(Boolean);
+  if(!machines.length){
+    showToast('登録自販機がありません');
+    return;
+  }
+
+  // 前回の「設定反映分」だけ作り直す。手動予定・自動作成分には触れない。
+  db.tasks=db.tasks.filter(t=>!(t.settingsMonthlyPlan&&String(t.due||'').startsWith(key)));
+
+  const protectedKeys=existingNonSettingsOccurrenceKeys(key);
+  const byDateArea=new Map();
+  let totalOccurrences=0,skipped=0;
+
+  machines.forEach(m=>{
+    const occs=machineMonthlyOccurrences(m,start,end);
+    occs.forEach(o=>{
+      const occurrenceKey=settingsMonthlyOccurrenceKey(m.id,o.kind,o.date);
+      if(protectedKeys.has(occurrenceKey)){
+        skipped++;
+        return;
+      }
+
+      const area=m.area||'未設定';
+      const groupKey=`${o.date}|${area}`;
+      if(!byDateArea.has(groupKey)){
+        byDateArea.set(groupKey,{
+          date:o.date,area,
+          machines:new Map(),
+          works:[]
+        });
+      }
+      const g=byDateArea.get(groupKey);
+      g.machines.set(m.id,m);
+      g.works.push({
+        machineId:m.id,
+        work:canonicalWorkKind(o.kind),
+        due:o.date
+      });
+      totalOccurrences++;
+    });
+  });
+
+  const groups=[...byDateArea.values()].sort((a,b)=>
+    a.date.localeCompare(b.date) || String(a.area).localeCompare(String(b.area),'ja')
+  );
+
+  groups.forEach(g=>{
+    const ids=[...g.machines.keys()];
+    db.tasks.push({
+      id:uid(),
+      title:`${g.area}エリア巡回（${ids.length}台）`,
+      due:g.date,
+      area:g.area,
+      category:'route',
+      priority:'normal',
+      memo:'自販機の巡回設定から反映',
+      machineId:null,
+      machineIds:ids,
+      machineWorkKinds:g.works,
+      distanceKm:0,
+      done:false,
+      autoMonthlyPlan:false,
+      settingsMonthlyPlan:true,
+      routeLinked:false,
+      manualLocked:false,
+      userAdjusted:false,
+      createdAt:Date.now()
+    });
+  });
+
+  // 月間を正として今日・週間にも同じ日付で連動。日付の再配置はしない。
+  try{reconcilePlanningMonth(key,{prefer:'monthly'})}catch(e){console.warn('settings monthly route sync',e)}
+
+  save();
+  renderMonthlyActionPlan();
+  try{renderRouteWeek()}catch(e){}
+  try{renderRoute()}catch(e){}
+  try{renderHome()}catch(e){}
+
+  const uniqueMachines=new Set(groups.flatMap(g=>[...g.machines.keys()])).size;
+  showToast(`設定から月間へ反映｜${uniqueMachines}台・${totalOccurrences}件`, 'success', 4500);
+  alert(
+    `自販機の巡回設定を月間へ反映しました。\n\n`+
+    `対象自販機：${uniqueMachines}台\n`+
+    `巡回/作業予定：${totalOccurrences}件\n`+
+    `既存予定と重複して残したもの：${skipped}件\n\n`+
+    `日付は自販機の設定どおりで、自動的な前後移動はしていません。`
+  );
+}
+function clearSettingsMonthlyPlan(){
+  const key=monthlyActionMonthKey();
+  const rows=settingsMonthlyRows(key);
+  if(!rows.length){
+    showToast('設定から反映した予定はありません');
+    return;
+  }
+  if(!confirm(`この月の「自販機設定から反映」分 ${rows.length}件を消しますか？\n手動予定・自動作成分・自販機設定は残ります。`))return;
+
+  const affectedDates=[...new Set(rows.map(t=>t.due))];
+  db.tasks=(db.tasks||[]).filter(t=>!(t.settingsMonthlyPlan&&String(t.due||'').startsWith(key)));
+
+  // 設定反映だけで作られた未完了routeを整理。ただし手動調整は残す。
+  affectedDates.forEach(date=>{
+    const r=db.routes?.[date];
+    if(!r)return;
+    const stillPlanned=new Set(
+      (db.tasks||[]).filter(t=>t.due===date&&t.category==='route')
+        .flatMap(t=>[
+          ...(t.machineIds||[]),
+          ...(t.machineWorkKinds||[]).map(x=>x.machineId)
+        ]).filter(Boolean)
+    );
+    r.stops=(r.stops||[]).filter(s=>
+      s.status==='done'||s.manualLocked||s.userAdjusted||stillPlanned.has(s.machineId)
+    );
+    r.stops.forEach((s,i)=>s.order=i+1);
+    if(!r.stops.length)delete db.routes[date];
+  });
+
+  save();
+  renderMonthlyActionPlan();
+  try{renderRouteWeek()}catch(e){}
+  try{renderRoute()}catch(e){}
+  showToast('設定から反映した月間予定を消しました');
 }
 
 function autoCreateMonthlyPlan(){
