@@ -2018,6 +2018,10 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
 .settings-plan-note{margin-top:10px;padding:9px 10px;border-radius:10px;background:#f1f7fd;color:#526a82;font-weight:700}
 .monthly-settings-actions{display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-top:10px}
 .monthly-settings-actions button{min-height:50px}
+
+/* Ver.11.20.1 AI巡回計画 */
+.monthly-auto-card{box-shadow:0 8px 24px rgba(30,110,180,.08)}
+.monthly-auto-card .section-title::after{content:" AI";font-size:10px;padding:3px 6px;margin-left:6px;border-radius:999px;background:#e8f3ff;color:#1769aa;vertical-align:middle}
 </style>
 </head>
 <body>
@@ -2779,7 +2783,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.20.0</div>
+      <div class="app-version-footer">Ver. 11.20.1</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -3105,10 +3109,10 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
   <div class="flow-card monthly-auto-card">
     <div class="row">
       <div>
-        <div class="section-title">おすすめ自動作成</div>
-        <div class="sub">必要な場合だけ、期限・エリア・台数を見て日程を調整します。</div>
+        <div class="section-title">AI巡回計画</div>
+        <div class="sub">期限を最優先に、同一施設・エリア・距離・1日の台数を見て月間を組みます。</div>
       </div>
-      <span class="weekday-badge">土日休み</span>
+      <span class="weekday-badge">期限優先</span>
     </div>
 
     <div style="margin-top:10px">
@@ -3116,10 +3120,10 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
       <input id="monthlyAutoMaxStops" type="number" min="1" max="30" value="15">
     </div>
 
-    <div class="sub safe-auto-note">※ 手動で編集・移動した予定は固定して、自動作成では上書きしません。</div>
+    <div class="sub safe-auto-note">※ 手動固定は動かしません。同じ施設は同じ日にまとめ、期限を大きく外す移動はしません。</div>
     <div class="monthly-auto-actions">
-      <button class="primary" type="button" onclick="autoCreateMonthlyPlan()">自動で月間計画を作る</button>
-      <button class="secondary" type="button" onclick="clearAutoMonthlyPlan()">自動作成分を消す</button>
+      <button class="primary" type="button" onclick="aiCreateMonthlyPlan()">AIで月間計画を組む</button>
+      <button class="secondary" type="button" onclick="clearAutoMonthlyPlan()">AI作成分を消す</button>
     </div>
     <div class="sub" id="monthlyAutoSummary" style="margin-top:8px"></div>
   </div>
@@ -9871,6 +9875,115 @@ function clearSettingsMonthlyPlan(){
   showToast('設定から反映した月間予定を消しました');
 }
 
+function aiCreateMonthlyPlan(){
+  const workdays=monthlyWorkdays();
+  if(!workdays.length){alert('対象月に勤務日がありません');return}
+  const {start,end}=monthlyActionMonthBounds();
+  const key=monthlyActionMonthKey();
+  const maxStops=Math.max(1,Number(monthlyAutoMaxStops.value)||15);
+  const correctedRegularDates=repairRegularDatesFromActualVisits();
+
+  const protectedKeys=protectedMonthlyOccurrenceKeys(key);
+  db.tasks=(db.tasks||[]).filter(t=>!(
+    t.autoMonthlyPlan && String(t.due||'').startsWith(key) && !isProtectedMonthlyTask(t)
+  ));
+
+  const candidates=(db.machines||[]).flatMap(m=>
+    machineMonthlyOccurrences(m,start,end)
+      .filter(o=>!protectedKeys.has(`${m.id}|${o.kind}|${o.date}`))
+      .map(o=>({m,due:o.date,workKind:o.kind}))
+  ).sort((a,b)=>a.due.localeCompare(b.due));
+
+  if(!candidates.length){save();renderMonthlyActionPlan();alert('この月に組める巡回予定がありません。');return}
+
+  const buckets=new Map(workdays.map(d=>[d,{
+    date:d,items:[],machines:[],areaCounts:new Map(),facilityCounts:new Map(),capacity:dayWorkCapacity(d)
+  }]));
+  seedProtectedMonthlyCapacity(buckets,key);
+  let forcedOverCapacity=0;
+
+  for(const item of candidates){
+    const m=item.m, area=m.area||'未設定', facility=machineDisplayTitle(m);
+    const allowed=allowedMonthlyPlanDates(item.due,workdays);
+    const choices=(allowed.length?allowed:workdays).map(date=>{
+      const b=buckets.get(date);
+      const dayMax=Math.max(1,Math.floor(maxStops*b.capacity));
+      const sameArea=b.areaCounts.get(area)||0;
+      const sameFacility=b.facilityCounts.get(facility)||0;
+      let nearest=25;
+      if(b.machines.length){
+        const ds=b.machines.map(x=>machinePairDistance(m,x)).filter(Number.isFinite);
+        if(ds.length)nearest=Math.min(...ds);
+      }
+      const gap=Math.abs(dayDiff(date,item.due));
+      const late=Math.max(0,dayDiff(item.due,date));
+      const load=b.machines.length/dayMax;
+      let score=gap*10000+late*20000+load*900+Math.min(nearest,50)*12;
+      score-=Math.min(sameArea,5)*350;
+      score-=Math.min(sameFacility,5)*1400;
+      if(b.machines.length>=dayMax)score+=50000;
+      return {date,score,dayMax};
+    }).sort((a,b)=>a.score-b.score||a.date.localeCompare(b.date));
+    const pickInfo=choices[0], b=buckets.get(pickInfo.date);
+    if(b.machines.length>=pickInfo.dayMax)forcedOverCapacity++;
+    b.items.push(item); b.machines.push(m);
+    b.areaCounts.set(area,(b.areaCounts.get(area)||0)+1);
+    b.facilityCounts.set(facility,(b.facilityCounts.get(facility)||0)+1);
+  }
+
+  let totalStops=0;
+  for(const [date,b] of buckets){
+    if(!b.items.length)continue;
+    const byArea=new Map();
+    b.items.forEach(it=>{
+      const area=it.m.area||'未設定';
+      if(!byArea.has(area))byArea.set(area,[]);
+      byArea.get(area).push(it);
+    });
+    for(const [area,items] of byArea){
+      const facilityGroups=new Map();
+      items.forEach(it=>{
+        const f=machineDisplayTitle(it.m);
+        if(!facilityGroups.has(f))facilityGroups.set(f,[]);
+        facilityGroups.get(f).push(it);
+      });
+      const groups=[...facilityGroups.values()], ordered=[];
+      let current=null;
+      while(groups.length){
+        let best=0,bestD=Infinity;
+        groups.forEach((g,i)=>{
+          if(!current){if(i===0)best=0;return}
+          const d=machinePairDistance(current,g[0].m);
+          if(d<bestD){bestD=d;best=i}
+        });
+        const g=groups.splice(best,1)[0];
+        ordered.push(...g); current=g[g.length-1].m;
+      }
+      const machines=ordered.map(x=>x.m);
+      db.tasks.push({
+        id:uid(),title:`${area}エリア巡回（${machines.length}台）`,due:date,area,
+        category:'route',priority:'normal',
+        memo:'AI巡回計画・期限優先・同一施設まとめ・距離最適化',
+        machineId:null,machineIds:machines.map(m=>m.id),
+        machineWorkKinds:ordered.map(x=>({machineId:x.m.id,work:x.workKind,due:x.due})),
+        distanceKm:autoPlanDistanceKm(machines),done:false,
+        autoMonthlyPlan:true,aiMonthlyPlan:true,manualLocked:false,userAdjusted:false,createdAt:Date.now()
+      });
+      totalStops+=machines.length;
+    }
+  }
+
+  reconcilePlanningMonth(key,{prefer:'monthly'});
+  save(); renderMonthlyActionPlan(); renderRouteWeek(); renderRoute(); renderHome(); renderWorkDashboard();
+
+  const plannedIds=new Set((db.tasks||[]).filter(t=>t.aiMonthlyPlan&&String(t.due||'').startsWith(key)).flatMap(t=>t.machineIds||[]));
+  const registered=(db.machines||[]).length;
+  const missing=(db.machines||[]).filter(m=>!plannedIds.has(m.id));
+  const audit=weeklyRegularPlanAudit(start,end,key);
+  showToast(`AI計画完成｜${plannedIds.size}/${registered}台・${totalStops}巡回`,missing.length?'warning':'success',5000);
+  alert(`AI巡回計画を作成しました。\n\n登録自販機：${registered}台\n月間に配置：${plannedIds.size}台\n巡回予定：${totalStops}件\n未配置：${missing.length}台\n期限優先で上限超過：${forcedOverCapacity}件\n前回巡回日から次回日を修復：${correctedRegularDates}台\n\n優先順位：期限 → 同一施設 → エリア → 距離 → 1日の負荷\n手動固定した予定は動かしていません。${audit.missing.length?`\n\n⚠ 週1巡回の不足：${audit.missing.length}台`:''}`);
+}
+
 function autoCreateMonthlyPlan(){
   const workdays=monthlyWorkdays();
   if(!workdays.length){alert('対象月に平日がありません');return}
@@ -11193,7 +11306,7 @@ if(window.modelPageCancelBtn)modelPageCancelBtn.addEventListener('click',closeMo
 if(window.modelPageSaveBtn)modelPageSaveBtn.addEventListener('click',saveModelEditorPage);
 
 window.resetPlanningDataSafely=resetPlanningDataSafely;
-window.repairPlanningSync=repairPlanningSync;window.toggleRouteAudit=toggleRouteAudit;window.openRouteAuditFromHome=openRouteAuditFromHome;window.addAuditMachineToday=addAuditMachineToday;window.shiftWeeklyRouteBy=shiftWeeklyRouteBy;window.shiftWeeklyRouteCustom=shiftWeeklyRouteCustom;window.moveWeeklyRouteToWeekday=moveWeeklyRouteToWeekday;window.deleteWeeklyRouteDay=deleteWeeklyRouteDay;window.toggleRouteStopDetail=toggleRouteStopDetail;window.moveWeeklyStop=moveWeeklyStop;window.removeWeeklyStop=removeWeeklyStop;window.openMachineCycleEditor=openMachineCycleEditor;window.changeTroubleStatus=changeTroubleStatus;window.deleteTroubleRecord=deleteTroubleRecord;window.moveManualOrder=moveManualOrder;window.toggleManualMachine=toggleManualMachine;window.openFacilityEditorPage=openFacilityEditorPage;window.openRouteWorkEdit=openRouteWorkEdit;window.openTroubleForMachine=openTroubleForMachine;window.openMonthlyManualBuilder=openMonthlyManualBuilder;window.closeMonthlyManualBuilder=closeMonthlyManualBuilder;window.toggleMonthlyManualMachine=toggleMonthlyManualMachine;window.toggleMonthlyManualWork=toggleMonthlyManualWork;window.clearMonthlyManualSelection=clearMonthlyManualSelection;window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openWeeklyDayDetail=openWeeklyDayDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
+window.repairPlanningSync=repairPlanningSync;window.toggleRouteAudit=toggleRouteAudit;window.openRouteAuditFromHome=openRouteAuditFromHome;window.addAuditMachineToday=addAuditMachineToday;window.shiftWeeklyRouteBy=shiftWeeklyRouteBy;window.shiftWeeklyRouteCustom=shiftWeeklyRouteCustom;window.moveWeeklyRouteToWeekday=moveWeeklyRouteToWeekday;window.deleteWeeklyRouteDay=deleteWeeklyRouteDay;window.toggleRouteStopDetail=toggleRouteStopDetail;window.moveWeeklyStop=moveWeeklyStop;window.removeWeeklyStop=removeWeeklyStop;window.openMachineCycleEditor=openMachineCycleEditor;window.changeTroubleStatus=changeTroubleStatus;window.deleteTroubleRecord=deleteTroubleRecord;window.moveManualOrder=moveManualOrder;window.toggleManualMachine=toggleManualMachine;window.openFacilityEditorPage=openFacilityEditorPage;window.openRouteWorkEdit=openRouteWorkEdit;window.openTroubleForMachine=openTroubleForMachine;window.openMonthlyManualBuilder=openMonthlyManualBuilder;window.closeMonthlyManualBuilder=closeMonthlyManualBuilder;window.toggleMonthlyManualMachine=toggleMonthlyManualMachine;window.toggleMonthlyManualWork=toggleMonthlyManualWork;window.clearMonthlyManualSelection=clearMonthlyManualSelection;window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openWeeklyDayDetail=openWeeklyDayDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.aiCreateMonthlyPlan=aiCreateMonthlyPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
 window.openModelEditor=openModelEditor;window.deleteModel=deleteModel;window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
