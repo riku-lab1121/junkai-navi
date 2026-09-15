@@ -11481,15 +11481,13 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
   }
   function save12(d){localStorage.setItem(KEY,JSON.stringify(d))}
   function baseDb(){
+    // Ver.11系で実際に使っていたDBを固定で読む。
+    // localStorageを総当たりすると、古いバックアップ/テストDBを拾うことがあるため禁止。
     try{
-      const keys=Object.keys(localStorage);
-      for(const k of keys){
-        const v=JSON.parse(localStorage.getItem(k)||'null');
-        if(v && Array.isArray(v.machines) && v.machines.length) return v;
-      }
+      const v=JSON.parse(localStorage.getItem('vendingRoutePwaV1')||'null');
+      if(v && Array.isArray(v.machines)) return v;
     }catch(e){}
-    try{if(window.db&&Array.isArray(window.db.machines))return window.db}catch(e){}
-    return {machines:[]};
+    return {machines:[],facilities:[],areas:[]};
   }
   function state(){
     const d=db12();
@@ -11638,7 +11636,7 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
   window.memo12AddMaterial=function(){const n=(document.getElementById('memo12MaterialName')?.value||'').trim(), maker=document.getElementById('memo12MakerSelect')?.value;if(!n||!maker){alert('メーカーと原料名を入力してください');return}const d=state();d.materials.push({id:'mat'+Date.now(),manufacturerId:maker,name:n});save12(d);render()}
   window.memo12DeleteMaterial=function(id){if(!confirm('この原料を削除しますか？'))return;const d=state();d.materials=d.materials.filter(x=>x.id!==id);Object.keys(d.machineMaterials).forEach(k=>d.machineMaterials[k]=(d.machineMaterials[k]||[]).filter(x=>x!==id));Object.keys(d.machineNeeds).forEach(k=>{if(d.machineNeeds[k])delete d.machineNeeds[k][id]});save12(d);render()}
   window.memo12OpenSettings=function(){
-    alert(`Ver.12.1.0 自販機メモ\n\n既存の自販機データは読み取り利用し、削除・変更しません。\n巡回リストは手動でクリアするまで保持します。`);
+    alert(`Ver.12.1.1 自販機メモ\n\n既存の自販機データは読み取り利用し、削除・変更しません。\n巡回リストは手動でクリアするまで保持します。`);
   }
 
   function boot(){
@@ -11658,15 +11656,34 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
 
  function D(){try{let d=JSON.parse(localStorage.getItem('vendingMemoV12')||'{}');d.materials=d.materials||[];d.manufacturers=d.manufacturers||[];d.materialTypes=d.materialTypes||[];d.routeIds=d.routeIds||[];d.machineMaterials=d.machineMaterials||{};d.machineNeeds=d.machineNeeds||{};d.machineNotes=d.machineNotes||{};return d}catch(e){return {materials:[],manufacturers:[],materialTypes:[],routeIds:[],machineMaterials:{},machineNeeds:{},machineNotes:{}}}}
  function S(d){localStorage.setItem('vendingMemoV12',JSON.stringify(d))}
- function B(){try{for(const k of Object.keys(localStorage)){const v=JSON.parse(localStorage.getItem(k)||'null');if(v&&Array.isArray(v.machines)&&v.machines.length)return v}}catch(e){};return window.db||{machines:[]}}
+ function B(){try{const v=JSON.parse(localStorage.getItem('vendingRoutePwaV1')||'null');if(v&&Array.isArray(v.machines))return v}catch(e){};return {machines:[],facilities:[],areas:[]}}
  function M(){return (B().machines||[]).filter(Boolean)}
  function E(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
  function name(m){return m.name||m.displayName||m.facilityName||m.site||'名称未設定'}
  function meta(m){return [m.site,m.number,m.modelName,m.area].filter(Boolean).join('・')}
  function maker(d,id){return d.manufacturers.find(x=>x.id===id)?.name||'メーカー未設定'}
  function typ(d,id){return d.materialTypes.find(x=>x.id===id)?.name||'未分類'}
- function fac(m){return m.facilityName||m.middleCategory||m.name||'施設未設定'}
- function area(m){return m.area||'エリア未設定'}
+ function legacyFacility(m){
+   const b=B();
+   if(m?.facilityId){
+     const f=(b.facilities||[]).find(x=>String(x.id)===String(m.facilityId));
+     if(f)return f;
+   }
+   return (b.facilities||[]).find(f=>
+     String(f.name||'').trim()===String(m?.name||'').trim() &&
+     String(f.area||'未設定').trim()===String(m?.area||'未設定').trim()
+   )||null;
+ }
+ function fac(m){
+   const f=legacyFacility(m);
+   // 施設は旧アプリと同じく施設マスター/設置先施設名を優先。
+   return f?.name||m.name||m.facilityName||'施設未設定';
+ }
+ function area(m){
+   const f=legacyFacility(m);
+   // 旧施設マスターのエリアを最優先。なければ自販機のarea。
+   return String(f?.area||m.area||'エリア未設定').trim()||'エリア未設定';
+ }
 
  function ensureDefaults(){
    const d=D();
