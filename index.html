@@ -2783,7 +2783,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         </div>
       </div>
 
-      <div class="app-version-footer">Ver. 11.20.1</div>
+      <div class="app-version-footer">Ver. 12.0.0</div>
       <div class="page-actionbar">
         <div class="sub">変更内容を保存</div>
         <button class="primary" id="saveSettings">設定を保存</button>
@@ -11411,5 +11411,231 @@ window.addEventListener('unhandledrejection',e=>{
   try{console.warn('app promise rejection',e.reason)}catch(_){}
 });
 </script>
+
+<style id="memoV12Style">
+#memoV12App{display:none;min-height:100vh;background:#f4f6f8;color:#172033;padding:14px 14px 92px}
+#memoV12App.active{display:block}
+.memo12-head{display:flex;align-items:center;justify-content:space-between;margin:4px 0 14px}
+.memo12-title{font-size:24px;font-weight:800}
+.memo12-sub{font-size:12px;color:#6b7280;margin-top:2px}
+.memo12-card{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:14px;margin:10px 0;box-shadow:0 3px 12px rgba(0,0,0,.035)}
+.memo12-btn{border:0;border-radius:12px;padding:11px 14px;font-weight:700;background:#1677ff;color:#fff}
+.memo12-btn.ghost{background:#eef4ff;color:#1769aa}
+.memo12-btn.danger{background:#fff0f0;color:#b42318}
+.memo12-input{width:100%;box-sizing:border-box;border:1px solid #d9dee7;border-radius:12px;padding:11px;font-size:16px;background:#fff}
+.memo12-row{display:flex;gap:8px;align-items:center}
+.memo12-row>*{min-width:0}
+.memo12-chip{display:inline-flex;align-items:center;border:1px solid #d9e1eb;border-radius:999px;padding:8px 11px;margin:4px 5px 4px 0;background:#fff;font-size:13px}
+.memo12-chip.on{background:#e9f3ff;border-color:#6aaeff;color:#075fae;font-weight:700}
+.memo12-list{display:flex;flex-direction:column;gap:8px}
+.memo12-machine{border:1px solid #e4e8ef;border-radius:14px;padding:11px;background:#fff}
+.memo12-machine.selected{border-color:#5aa6ff;background:#f3f8ff}
+.memo12-name{font-weight:800;font-size:15px}
+.memo12-meta{font-size:12px;color:#6b7280;margin-top:3px}
+.memo12-count{font-size:12px;color:#1769aa;font-weight:700;margin-top:5px}
+.memo12-bottom{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.96);border-top:1px solid #e5e7eb;padding:8px 10px calc(8px + env(safe-area-inset-bottom));z-index:10020;display:flex;gap:6px;justify-content:center}
+.memo12-tab{border:0;background:transparent;border-radius:12px;padding:9px 10px;font-size:12px;color:#64748b;font-weight:700}
+.memo12-tab.on{background:#eaf3ff;color:#1769aa}
+.memo12-section-title{font-size:17px;font-weight:800;margin:4px 0 8px}
+.memo12-empty{text-align:center;color:#8a94a3;padding:24px 8px}
+.memo12-badge{display:inline-block;background:#eef2f7;border-radius:999px;padding:4px 7px;font-size:11px;margin-left:5px}
+.memo12-material{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eef1f5;padding:10px 0}
+.memo12-qty{display:flex;align-items:center;gap:8px}
+.memo12-mini{width:32px;height:32px;border:0;border-radius:10px;background:#edf4ff;color:#1769aa;font-size:18px;font-weight:800}
+.memo12-overlay{position:fixed;inset:0;background:#f4f6f8;z-index:10010;overflow:auto;padding:14px 14px 100px}
+body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!important}
+</style>
+
+<div id="memoV12App">
+  <div class="memo12-head">
+    <div><div class="memo12-title">自販機メモ</div><div class="memo12-sub">巡回前の原料・積み込みメモ</div></div>
+    <button class="memo12-btn ghost" onclick="memo12OpenSettings()">設定</button>
+  </div>
+  <div id="memo12Content"></div>
+  <div class="memo12-bottom">
+    <button id="memo12TabRoute" class="memo12-tab" onclick="memo12Show('route')">巡回リスト</button>
+    <button id="memo12TabMachines" class="memo12-tab" onclick="memo12Show('machines')">自販機</button>
+    <button id="memo12TabLoad" class="memo12-tab" onclick="memo12Show('load')">積み込み</button>
+    <button id="memo12TabMaterials" class="memo12-tab" onclick="memo12Show('materials')">原料</button>
+  </div>
+</div>
+
+<script id="memoV12Script">
+(function(){
+  const KEY='vendingMemoV12';
+  function db12(){
+    try{return JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){return {}}
+  }
+  function save12(d){localStorage.setItem(KEY,JSON.stringify(d))}
+  function baseDb(){
+    try{
+      const keys=Object.keys(localStorage);
+      for(const k of keys){
+        const v=JSON.parse(localStorage.getItem(k)||'null');
+        if(v && Array.isArray(v.machines) && v.machines.length) return v;
+      }
+    }catch(e){}
+    try{if(window.db&&Array.isArray(window.db.machines))return window.db}catch(e){}
+    return {machines:[]};
+  }
+  function state(){
+    const d=db12();
+    if(!Array.isArray(d.materials))d.materials=[];
+    if(!Array.isArray(d.manufacturers))d.manufacturers=[];
+    if(!Array.isArray(d.routeIds))d.routeIds=[];
+    if(!d.machineMaterials)d.machineMaterials={};
+    if(!d.machineNeeds)d.machineNeeds={};
+    if(!d.machineNotes)d.machineNotes={};
+    return d;
+  }
+  function machines(){return (baseDb().machines||[]).filter(Boolean)}
+  function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+  function mname(m){return m.name||m.displayName||m.facilityName||m.site||'名称未設定'}
+  function meta(m){return [m.middleCategory,m.site,m.number,m.modelName,m.area].filter(Boolean).join('・')}
+  function materialById(d,id){return d.materials.find(x=>x.id===id)}
+  function manufacturerName(d,id){return d.manufacturers.find(x=>x.id===id)?.name||'メーカー未設定'}
+  let view='route';
+
+  window.memo12Show=function(v){view=v;render()}
+  function tabs(){
+    ['Route','Machines','Load','Materials'].forEach(x=>{
+      const el=document.getElementById('memo12Tab'+x); if(el)el.classList.remove('on');
+    });
+    const map={route:'Route',machines:'Machines',load:'Load',materials:'Materials'};
+    document.getElementById('memo12Tab'+map[view])?.classList.add('on');
+  }
+  function render(){
+    const c=document.getElementById('memo12Content'); if(!c)return;
+    tabs();
+    if(view==='machines')renderMachines(c);
+    else if(view==='load')renderLoad(c);
+    else if(view==='materials')renderMaterials(c);
+    else renderRoute(c);
+  }
+
+  function renderRoute(c){
+    const d=state(), ms=machines(), selected=ms.filter(m=>d.routeIds.includes(m.id));
+    c.innerHTML=`<div class="memo12-card">
+      <div class="memo12-section-title">巡回リスト <span class="memo12-badge">${selected.length}台</span></div>
+      <div class="memo12-sub">今回回る自販機だけを入れておく一時リストです。日付管理はしません。</div>
+      <div class="memo12-row" style="margin-top:10px">
+        <button class="memo12-btn" onclick="memo12Show('machines')">自販機を選ぶ</button>
+        ${selected.length?`<button class="memo12-btn danger" onclick="memo12ClearRoute()">リストをクリア</button>`:''}
+      </div></div>
+      <div class="memo12-list">${selected.length?selected.map(m=>machineCard(m,d,true)).join(''):'<div class="memo12-empty">まだ自販機を選んでいません</div>'}</div>`;
+  }
+
+  function machineCard(m,d,inRoute){
+    const needs=d.machineNeeds[m.id]||{};
+    const count=Object.values(needs).filter(n=>Number(n)>0).length;
+    const note=d.machineNotes[m.id]||'';
+    return `<div class="memo12-machine ${inRoute?'selected':''}" onclick="memo12OpenMachine('${esc(m.id)}')">
+      <div class="memo12-name">${esc(mname(m))}</div><div class="memo12-meta">${esc(meta(m))}</div>
+      ${count?`<div class="memo12-count">必要原料 ${count}種類</div>`:''}
+      ${note?`<div class="memo12-meta">メモ：${esc(note)}</div>`:''}
+    </div>`;
+  }
+
+  function renderMachines(c){
+    const d=state(), ms=machines();
+    c.innerHTML=`<div class="memo12-card">
+      <div class="memo12-section-title">自販機一覧 <span class="memo12-badge">${ms.length}台</span></div>
+      <input id="memo12Search" class="memo12-input" placeholder="施設名・管理番号・エリアで検索" oninput="memo12FilterMachines()">
+      <div class="memo12-sub" style="margin-top:8px">左の「＋」で巡回リストへ追加。自販機本体を押すと原料メモ。</div>
+    </div><div id="memo12MachineList" class="memo12-list">${machineRows(ms,d)}</div>`;
+  }
+  function machineRows(ms,d){
+    return ms.map(m=>{
+      const on=d.routeIds.includes(m.id);
+      return `<div class="memo12-row memo12-machine ${on?'selected':''}" data-search="${esc((mname(m)+' '+meta(m)).toLowerCase())}">
+        <button class="memo12-mini" onclick="event.stopPropagation();memo12ToggleRoute('${esc(m.id)}')">${on?'✓':'＋'}</button>
+        <div style="flex:1" onclick="memo12OpenMachine('${esc(m.id)}')"><div class="memo12-name">${esc(mname(m))}</div><div class="memo12-meta">${esc(meta(m))}</div></div>
+      </div>`;
+    }).join('');
+  }
+  window.memo12FilterMachines=function(){
+    const q=(document.getElementById('memo12Search')?.value||'').trim().toLowerCase();
+    document.querySelectorAll('#memo12MachineList [data-search]').forEach(el=>el.style.display=el.dataset.search.includes(q)?'flex':'none');
+  }
+  window.memo12ToggleRoute=function(id){
+    const d=state(), i=d.routeIds.indexOf(id);
+    if(i>=0)d.routeIds.splice(i,1); else d.routeIds.push(id);
+    save12(d); render();
+  }
+  window.memo12ClearRoute=function(){if(confirm('巡回リストだけクリアしますか？\n原料メモ・自販機データは消えません。')){const d=state();d.routeIds=[];save12(d);render()}}
+
+  window.memo12OpenMachine=function(id){
+    const d=state(), m=machines().find(x=>String(x.id)===String(id)); if(!m)return;
+    const assigned=d.machineMaterials[id]||[];
+    const needs=d.machineNeeds[id]||{};
+    const mats=d.materials.filter(x=>assigned.includes(x.id));
+    const c=document.getElementById('memo12Content');
+    c.innerHTML=`<button class="memo12-btn ghost" onclick="memo12Show('${view}')">← 戻る</button>
+      <div class="memo12-card"><div class="memo12-name" style="font-size:19px">${esc(mname(m))}</div><div class="memo12-meta">${esc(meta(m))}</div></div>
+      <div class="memo12-card"><div class="memo12-section-title">必要な原料</div>
+        ${mats.length?mats.map(x=>`<div class="memo12-material"><div><b>${esc(x.name)}</b><div class="memo12-meta">${esc(manufacturerName(d,x.manufacturerId))}</div></div>
+          <div class="memo12-qty"><button class="memo12-mini" onclick="memo12Qty('${esc(id)}','${esc(x.id)}',-1)">−</button><b>${Number(needs[x.id]||0)}</b><button class="memo12-mini" onclick="memo12Qty('${esc(id)}','${esc(x.id)}',1)">＋</button></div></div>`).join(''):'<div class="memo12-empty">この自販機の使用原料がまだ設定されていません</div>'}
+        <button class="memo12-btn ghost" style="margin-top:10px" onclick="memo12AssignMaterials('${esc(id)}')">使用原料を設定</button>
+      </div>
+      <div class="memo12-card"><div class="memo12-section-title">自分用メモ</div><textarea id="memo12Note" class="memo12-input" rows="4" placeholder="自由メモ">${esc(d.machineNotes[id]||'')}</textarea>
+      <button class="memo12-btn" style="margin-top:8px" onclick="memo12SaveNote('${esc(id)}')">メモを保存</button></div>`;
+  }
+  window.memo12Qty=function(mid,matid,delta){
+    const d=state(); if(!d.machineNeeds[mid])d.machineNeeds[mid]={};
+    d.machineNeeds[mid][matid]=Math.max(0,Number(d.machineNeeds[mid][matid]||0)+delta);
+    if(!d.machineNeeds[mid][matid])delete d.machineNeeds[mid][matid];
+    save12(d); memo12OpenMachine(mid);
+  }
+  window.memo12SaveNote=function(mid){const d=state();d.machineNotes[mid]=document.getElementById('memo12Note')?.value||'';save12(d);alert('メモを保存しました')}
+  window.memo12AssignMaterials=function(mid){
+    const d=state();
+    if(!d.materials.length){alert('先に「原料」タブで原料を登録してください。');return}
+    const assigned=new Set(d.machineMaterials[mid]||[]);
+    const c=document.getElementById('memo12Content');
+    c.innerHTML=`<button class="memo12-btn ghost" onclick="memo12OpenMachine('${esc(mid)}')">← 戻る</button><div class="memo12-card"><div class="memo12-section-title">使用原料を設定</div>
+      ${d.materials.map(x=>`<button class="memo12-chip ${assigned.has(x.id)?'on':''}" onclick="memo12ToggleAssigned('${esc(mid)}','${esc(x.id)}')">${esc(manufacturerName(d,x.manufacturerId))}｜${esc(x.name)}</button>`).join('')}
+      </div>`;
+  }
+  window.memo12ToggleAssigned=function(mid,matid){
+    const d=state(), a=new Set(d.machineMaterials[mid]||[]);
+    a.has(matid)?a.delete(matid):a.add(matid); d.machineMaterials[mid]=[...a]; save12(d); memo12AssignMaterials(mid);
+  }
+
+  function renderLoad(c){
+    const d=state(), ids=new Set(d.routeIds), totals={};
+    machines().filter(m=>ids.has(m.id)).forEach(m=>{
+      const needs=d.machineNeeds[m.id]||{};
+      Object.entries(needs).forEach(([id,q])=>totals[id]=(totals[id]||0)+Number(q||0));
+    });
+    const rows=Object.entries(totals).filter(([,q])=>q>0).sort((a,b)=>manufacturerName(d,materialById(d,a[0])?.manufacturerId).localeCompare(manufacturerName(d,materialById(d,b[0])?.manufacturerId),'ja'));
+    c.innerHTML=`<div class="memo12-card"><div class="memo12-section-title">積み込みリスト</div><div class="memo12-sub">巡回リストに入っている自販機の必要原料を合計しています。</div></div>
+      <div class="memo12-card">${rows.length?rows.map(([id,q])=>{const x=materialById(d,id);return `<div class="memo12-material"><div><b>${esc(x?.name||'削除済み原料')}</b><div class="memo12-meta">${esc(manufacturerName(d,x?.manufacturerId))}</div></div><b>× ${q}</b></div>`}).join(''):'<div class="memo12-empty">必要原料はまだありません</div>'}</div>`;
+  }
+
+  function renderMaterials(c){
+    const d=state();
+    c.innerHTML=`<div class="memo12-card"><div class="memo12-section-title">原料マスター</div>
+      <div class="memo12-row"><input id="memo12Maker" class="memo12-input" placeholder="メーカー名"><button class="memo12-btn" onclick="memo12AddMaker()">メーカー追加</button></div>
+      <div style="margin-top:8px">${d.manufacturers.map(x=>`<span class="memo12-chip">${esc(x.name)}</span>`).join('')||'<span class="memo12-sub">メーカー未登録</span>'}</div></div>
+      <div class="memo12-card"><div class="memo12-row"><select id="memo12MakerSelect" class="memo12-input">${d.manufacturers.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select>
+      <input id="memo12MaterialName" class="memo12-input" placeholder="原料名"></div><button class="memo12-btn" style="margin-top:8px" onclick="memo12AddMaterial()">原料追加</button></div>
+      <div class="memo12-card">${d.materials.length?d.materials.map(x=>`<div class="memo12-material"><div><b>${esc(x.name)}</b><div class="memo12-meta">${esc(manufacturerName(d,x.manufacturerId))}</div></div><button class="memo12-btn danger" onclick="memo12DeleteMaterial('${esc(x.id)}')">削除</button></div>`).join(''):'<div class="memo12-empty">原料を登録してください</div>'}</div>`;
+  }
+  window.memo12AddMaker=function(){const n=(document.getElementById('memo12Maker')?.value||'').trim();if(!n)return;const d=state();d.manufacturers.push({id:'mk'+Date.now(),name:n});save12(d);render()}
+  window.memo12AddMaterial=function(){const n=(document.getElementById('memo12MaterialName')?.value||'').trim(), maker=document.getElementById('memo12MakerSelect')?.value;if(!n||!maker){alert('メーカーと原料名を入力してください');return}const d=state();d.materials.push({id:'mat'+Date.now(),manufacturerId:maker,name:n});save12(d);render()}
+  window.memo12DeleteMaterial=function(id){if(!confirm('この原料を削除しますか？'))return;const d=state();d.materials=d.materials.filter(x=>x.id!==id);Object.keys(d.machineMaterials).forEach(k=>d.machineMaterials[k]=(d.machineMaterials[k]||[]).filter(x=>x!==id));Object.keys(d.machineNeeds).forEach(k=>{if(d.machineNeeds[k])delete d.machineNeeds[k][id]});save12(d);render()}
+  window.memo12OpenSettings=function(){
+    alert(`Ver.12.0.0 自販機メモ\n\n既存の自販機データは読み取り利用し、削除・変更しません。\n巡回リストは手動でクリアするまで保持します。`);
+  }
+
+  function boot(){
+    document.body.classList.add('memo-v12-mode');
+    document.getElementById('memoV12App')?.classList.add('active');
+    render();
+  }
+  window.addEventListener('load',()=>setTimeout(boot,50));
+})();
+</script>
+
 </body>
 </html>
