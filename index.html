@@ -2051,6 +2051,66 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
 .memo12-assign-type{font-size:13px;font-weight:800;color:#526071;margin:10px 0 6px}
 .memo12-chip.on{background:#dcebff;border-color:#4a9cff;color:#075fae;box-shadow:0 0 0 1px rgba(22,119,255,.08) inset}
 </style>
+
+<style id="memoV123BridgeStyle">
+#memoBridgeBack{
+  display:none;position:fixed;top:calc(10px + env(safe-area-inset-top));left:12px;z-index:20050;
+  border:0;border-radius:14px;padding:11px 14px;background:rgba(255,255,255,.96);
+  box-shadow:0 5px 18px rgba(0,0,0,.14);font-weight:850;color:#1769aa;font-size:15px;
+}
+body.memo-legacy-mode #memoBridgeBack{display:block}
+body.memo-legacy-mode #memoV12App{display:none!important}
+body.memo-legacy-mode .app>header,
+body.memo-legacy-mode .app>nav,
+body.memo-legacy-mode #fab{display:none!important}
+body.memo-legacy-mode .app{padding-top:0!important}
+body.memo-legacy-mode .content{padding-top:calc(68px + env(safe-area-inset-top));padding-bottom:24px!important}
+body.memo-legacy-mode #registerRouteSettings{display:none!important}
+body.memo-legacy-mode #mapTodayBtn{display:none!important}
+body.memo-legacy-mode #mapInfoAddBtn,
+body.memo-legacy-mode #mapInfoAdded{display:none!important}
+body.memo-legacy-mode #memoMapMemoBtn{display:block!important}
+body:not(.memo-legacy-mode) #memoMapMemoBtn{display:none!important}
+body.memo-legacy-mode .simple-map-segment.map-mode-three{grid-template-columns:1fr 1fr!important}
+.memo12-manage-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.memo12-manage-actions button{min-height:44px}
+.memo12-route-create{width:100%;margin-top:9px}
+.memo12-bottom{gap:2px}
+.memo12-tab{padding-left:7px;padding-right:7px}
+</style>
+
+
+<style id="memoV1232Style">
+.memo12-building-group{
+  margin:10px 10px 12px;
+  border:1px solid #dbe3ed;
+  border-radius:15px;
+  overflow:hidden;
+  background:#f8fafc;
+}
+.memo12-building-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:11px 12px;
+  font-size:15px;
+  font-weight:850;
+  color:#334155;
+  background:#eef3f8;
+}
+.memo12-building-body{padding:7px}
+.memo12-building-body .memo12-machine{margin:5px 0;background:#fff}
+#memo12TabMap{
+  background:#eaf3ff;
+  color:#1769aa;
+}
+body.memo-v12-mode #memo12TabMap:not(.on)::before{
+  content:"⌖ ";
+  font-weight:900;
+}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -2269,6 +2329,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
         <div class="map-info-actions" style="margin-top:12px">
           <button class="secondary navbtn" id="mapInfoNavBtn">ナビ</button>
           <button class="secondary" id="mapInfoEditBtn">編集</button>
+          <button class="primary" id="memoMapMemoBtn" type="button">原料メモ</button>
           <button class="primary" id="mapInfoAddBtn">巡回に追加</button>
         </div>
         <button class="secondary hidden" id="mapInfoAdded" style="width:100%;margin-top:8px" disabled>巡回に追加済み</button>
@@ -11337,7 +11398,7 @@ window.resetPlanningDataSafely=resetPlanningDataSafely;
 window.repairPlanningSync=repairPlanningSync;window.toggleRouteAudit=toggleRouteAudit;window.openRouteAuditFromHome=openRouteAuditFromHome;window.addAuditMachineToday=addAuditMachineToday;window.shiftWeeklyRouteBy=shiftWeeklyRouteBy;window.shiftWeeklyRouteCustom=shiftWeeklyRouteCustom;window.moveWeeklyRouteToWeekday=moveWeeklyRouteToWeekday;window.deleteWeeklyRouteDay=deleteWeeklyRouteDay;window.toggleRouteStopDetail=toggleRouteStopDetail;window.moveWeeklyStop=moveWeeklyStop;window.removeWeeklyStop=removeWeeklyStop;window.openMachineCycleEditor=openMachineCycleEditor;window.changeTroubleStatus=changeTroubleStatus;window.deleteTroubleRecord=deleteTroubleRecord;window.moveManualOrder=moveManualOrder;window.toggleManualMachine=toggleManualMachine;window.openFacilityEditorPage=openFacilityEditorPage;window.openRouteWorkEdit=openRouteWorkEdit;window.openTroubleForMachine=openTroubleForMachine;window.openMonthlyManualBuilder=openMonthlyManualBuilder;window.closeMonthlyManualBuilder=closeMonthlyManualBuilder;window.toggleMonthlyManualMachine=toggleMonthlyManualMachine;window.toggleMonthlyManualWork=toggleMonthlyManualWork;window.clearMonthlyManualSelection=clearMonthlyManualSelection;window.openDayOffPage=openDayOffPage;window.closeDayOffPage=closeDayOffPage;window.saveDayOff=saveDayOff;window.deleteDayOff=deleteDayOff;window.openMachineDetailPage=openMachineDetailPage;window.closeMachineDetailPage=closeMachineDetailPage;window.editMachineFromDetail=editMachineFromDetail;window.deleteMachineFromDetail=deleteMachineFromDetail;window.openWeeklyDayDetail=openWeeklyDayDetail;window.openMonthlyDayDetail=openMonthlyDayDetail;window.closeMonthlyDayDetail=closeMonthlyDayDetail;window.toggleMonthlyDayEdit=toggleMonthlyDayEdit;window.moveMonthlyDayPlan=moveMonthlyDayPlan;window.aiCreateMonthlyPlan=aiCreateMonthlyPlan;window.autoCreateMonthlyPlan=autoCreateMonthlyPlan;window.clearAutoMonthlyPlan=clearAutoMonthlyPlan;window.editMonthlyAction=editMonthlyAction;window.cancelMonthlyActionEdit=cancelMonthlyActionEdit;window.openMonthlyActionPlan=openMonthlyActionPlan;window.closeMonthlyActionPlan=closeMonthlyActionPlan;window.moveMonthlyActionPlan=moveMonthlyActionPlan;window.saveMonthlyActionPlan=saveMonthlyActionPlan;window.toggleMonthlyActionDone=toggleMonthlyActionDone;window.deleteMonthlyAction=deleteMonthlyAction;
 window.openModelEditor=openModelEditor;window.deleteModel=deleteModel;window.toggleManualMachine=toggleManualMachine;window.renderCalendarDetail=renderCalendarDetail;window.addTaskForDate=addTaskForDate;window.focusApplePlace=focusApplePlace;window.focusMachineFromSearch=focusMachineFromSearch;window.searchPlaceInAppleMaps=searchPlaceInAppleMaps;window.openWorkPicker=openWorkPicker;window.deleteMachine=deleteMachine;window.editMachine=editMachine;window.setAreaFilter=setAreaFilter;window.moveStop=moveStop;window.navigateToMachine=navigateToMachine;
 
-if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=12.3.2',{updateViaCache:'none'}).then(r=>r.update()).catch(()=>{});
 setInterval(()=>{if(db.active || (hasDeparted()&&!hasReturned())){renderShift();renderActive();renderHome()}},1000);
 fillAreaControls();
 applyAppSettings();
@@ -11471,9 +11532,10 @@ window.addEventListener('unhandledrejection',e=>{
 .memo12-qty{display:flex;align-items:center;gap:8px}
 .memo12-mini{width:32px;height:32px;border:0;border-radius:10px;background:#edf4ff;color:#1769aa;font-size:18px;font-weight:800}
 .memo12-overlay{position:fixed;inset:0;background:#f4f6f8;z-index:10010;overflow:auto;padding:14px 14px 100px}
-body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!important}
+body.memo-v12-mode > *:not(#memoV12App):not(#memoBridgeBack):not(script):not(style){display:none!important}
 </style>
 
+<button id="memoBridgeBack" type="button" onclick="memo123BackToMemo()">← 自販機メモに戻る</button>
 <div id="memoV12App">
   <div class="memo12-head">
     <div><div class="memo12-title">自販機メモ</div><div class="memo12-sub">巡回前の原料・積み込みメモ</div></div>
@@ -11481,9 +11543,10 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
   </div>
   <div id="memo12Content"></div>
   <div class="memo12-bottom">
-    <button id="memo12TabRoute" class="memo12-tab" onclick="memo12Show('route')">巡回リスト</button>
+    <button id="memo12TabRoute" class="memo12-tab" onclick="memo12Show('route')">巡回</button>
     <button id="memo12TabMachines" class="memo12-tab" onclick="memo12Show('machines')">自販機</button>
-    <button id="memo12TabLoad" class="memo12-tab" onclick="memo12Show('load')">積み込み</button>
+    <button id="memo12TabMap" class="memo12-tab" onclick="memo123OpenMap()">地図</button>
+    <button id="memo12TabLoad" class="memo12-tab" onclick="memo12Show('load')">積込</button>
     <button id="memo12TabMaterials" class="memo12-tab" onclick="memo12Show('materials')">原料</button>
   </div>
 </div>
@@ -11525,7 +11588,7 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
 
   window.memo12Show=function(v){view=v;render()}
   function tabs(){
-    ['Route','Machines','Load','Materials'].forEach(x=>{
+    ['Route','Machines','Map','Load','Materials'].forEach(x=>{
       const el=document.getElementById('memo12Tab'+x); if(el)el.classList.remove('on');
     });
     const map={route:'Route',machines:'Machines',load:'Load',materials:'Materials'};
@@ -11620,7 +11683,11 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
     const zero=mats.filter(x=>Number(needs[x.id]||0)<=0);
     const c=document.getElementById('memo12Content');
     c.innerHTML=`<button class="memo12-btn ghost" onclick="memo12Show('${view}')">← 戻る</button>
-      <div class="memo12-card"><div class="memo12-name" style="font-size:19px">${esc(mname(m))}</div><div class="memo12-meta">${esc(meta(m))}</div></div>
+      <div class="memo12-card">
+        <div class="memo12-name" style="font-size:19px">${esc(mname(m))}</div>
+        <div class="memo12-meta">${esc(meta(m))}</div>
+        <button class="memo12-btn ghost" style="margin-top:10px" type="button" onclick="memo123EditMachine('${esc(id)}')">基本情報を編集</button>
+      </div>
       <div class="memo12-card"><div class="memo12-section-title">必要な原料</div>
         ${positive.length?`<div class="memo12-type-title" style="font-size:15px;color:#172033">必要数あり</div>${rows(positive)}`:'<div class="memo12-empty" style="padding:12px 8px">必要数が入っている原料はありません</div>'}
         ${zero.length?`<details class="memo12-zero-block"><summary class="memo12-zero-summary">その他（0個） ${zero.length}品</summary>${rows(zero)}</details>`:''}
@@ -11690,7 +11757,7 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
   window.memo12AddMaterial=function(){const n=(document.getElementById('memo12MaterialName')?.value||'').trim(), maker=document.getElementById('memo12MakerSelect')?.value;if(!n||!maker){alert('メーカーと原料名を入力してください');return}const d=state();d.materials.push({id:'mat'+Date.now(),manufacturerId:maker,name:n});save12(d);render()}
   window.memo12DeleteMaterial=function(id){if(!confirm('この原料を削除しますか？'))return;const d=state();d.materials=d.materials.filter(x=>x.id!==id);Object.keys(d.machineMaterials).forEach(k=>d.machineMaterials[k]=(d.machineMaterials[k]||[]).filter(x=>x!==id));Object.keys(d.machineNeeds).forEach(k=>{if(d.machineNeeds[k])delete d.machineNeeds[k][id]});save12(d);render()}
   window.memo12OpenSettings=function(){
-    alert(`Ver.12.2.0 自販機メモ\n\n既存の自販機データは読み取り利用し、削除・変更しません。\n巡回リストは手動でクリアするまで保持します。`);
+    alert(`Ver.12.3.2 自販機メモ\n\n既存の自販機データは読み取り利用し、削除・変更しません。\n巡回リストは手動でクリアするまで保持します。`);
   }
 
   function boot(){
@@ -11757,7 +11824,7 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
    OLDSTATE(v);
  };
  function setTab(x){
-   ['Route','Machines','Load','Materials'].forEach(t=>document.getElementById('memo12Tab'+t)?.classList.remove('on'));
+   ['Route','Machines','Map','Load','Materials'].forEach(t=>document.getElementById('memo12Tab'+t)?.classList.remove('on'));
    document.getElementById('memo12Tab'+x)?.classList.add('on');
  }
  function content(){return document.getElementById('memo12Content')}
@@ -11765,31 +11832,80 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
  function renderMachinesV121(){
    const d=D(), ms=M();
    content().innerHTML=`<div class="memo12-card">
-    <div class="memo12-row" style="justify-content:space-between"><div class="memo12-section-title">自販機一覧 <span class="memo12-badge">${ms.length}台</span></div>
-    <button class="memo12-btn" onclick="memo121StartSelect()">巡回リストを作成</button></div>
-    <input id="memo121Search" class="memo12-input" placeholder="施設名・管理番号・エリアで検索" oninput="memo121Filter()">
+    <div class="memo12-section-title">自販機一覧 <span class="memo12-badge">${ms.length}台</span></div>
+    <div class="memo12-manage-actions">
+      <button class="memo12-btn ghost" type="button" onclick="memo123OpenMap()">地図を見る</button>
+      <button class="memo12-btn" type="button" onclick="memo123OpenRegister()">＋ 自販機登録</button>
+    </div>
+    <input id="memo121Search" class="memo12-input" style="margin-top:10px" placeholder="施設名・管理番号・エリアで検索" oninput="memo121Filter()">
+    <button class="memo12-btn ghost memo12-route-create" type="button" onclick="memo121StartSelect()">巡回リストを作成・編集</button>
     <div class="memo12-sub" style="margin-top:8px">${selectMode?'チェックを入れて、最後に下のボタンで確定します。':'自販機を押すと原料メモを開きます。'}</div></div>
     <div id="memo121Grouped">${groupedMachines(ms,d)}</div>
     ${selectMode?`<button class="memo12-sticky-confirm" onclick="memo121Confirm()">選択した <span id="memo121PendingCount">${pending.size}</span>台で巡回リストを作成</button>`:''}`;
  }
  function groupedMachines(ms,d){
    const areas={};
-   ms.forEach(m=>{const a=area(m),f=fac(m);areas[a]??={};areas[a][f]??=[];areas[a][f].push(m)});
+   ms.forEach(m=>{
+     const a=area(m), f=fac(m);
+     areas[a]??={};
+     areas[a][f]??=[];
+     areas[a][f].push(m);
+   });
+
+   function childLabel(m,index,total){
+     const site=String(m.site||'').trim();
+     if(site)return site;
+     const model=String(m.modelName||'').trim();
+     const num=String(m.number||'').trim();
+     if(model&&num)return `${model}・${num}`;
+     if(model)return model;
+     if(num)return `管理番号 ${num}`;
+     return total>1?`自販機 ${index+1}`:name(m);
+   }
+
+   function machineRow(m,label,grouped){
+     const dNow=D();
+     const checked=pending.has(String(m.id));
+     const routeOn=dNow.routeIds.includes(String(m.id));
+     return `<div class="memo12-row memo12-machine ${routeOn?'selected':''} ${checked?'memo12-pending':''}" data-mid="${E(m.id)}" onclick="memo121RowTap(this,event)">
+       ${selectMode?`<input class="memo12-check" type="checkbox" data-mid="${E(m.id)}" ${checked?'checked':''} onclick="event.stopPropagation()" onchange="memo121Check('${E(m.id)}',this.checked,this.closest('.memo12-machine'))">`:''}
+       <div style="flex:1">
+         <div class="memo12-name">${E(label)}</div>
+         ${grouped && (m.modelName||m.number)?`<div class="memo12-meta">${E([m.modelName,m.number].filter(Boolean).join('・'))}</div>`:''}
+       </div>
+     </div>`;
+   }
+
    return Object.keys(areas).sort((a,b)=>a.localeCompare(b,'ja')).map(a=>{
-     const ams=Object.values(areas[a]).flat();
-     return `<div class="memo12-area" data-search="${E((a+' '+ams.map(x=>name(x)+' '+meta(x)).join(' ')).toLowerCase())}">
-       <div class="memo12-area-head"><span>${E(a)} <span class="memo12-badge">${ams.length}台</span></span>
-       ${selectMode?`<button class="memo12-btn ghost" onclick="memo121ToggleArea('${E(a)}')">エリア選択</button>`:''}</div>
-       ${Object.keys(areas[a]).sort((x,y)=>x.localeCompare(y,'ja')).map(f=>`<div class="memo12-facility">
-       ${areas[a][f].map(m=>`<div class="memo12-row memo12-machine ${d.routeIds.includes(m.id)?'selected':''} ${pending.has(m.id)?'memo12-pending':''}" data-mid="${E(m.id)}" onclick="memo121RowTap(this,event)">
-       ${selectMode?`<input class="memo12-check" type="checkbox" data-mid="${E(m.id)}" ${pending.has(m.id)?'checked':''} onclick="event.stopPropagation()" onchange="memo121Check('${E(m.id)}',this.checked,this.closest('.memo12-machine'))">`:''}
-       <div style="flex:1"><div class="memo12-name">${E(name(m))}</div></div></div>`).join('')}
-       </div>`).join('')}</div>`;
+     const facilities=areas[a];
+     const ams=Object.values(facilities).flat();
+
+     const facilityHtml=Object.keys(facilities)
+       .sort((x,y)=>x.localeCompare(y,'ja'))
+       .map(f=>{
+         const list=facilities[f];
+         if(list.length===1){
+           return `<div class="memo12-facility">${machineRow(list[0],name(list[0]),false)}</div>`;
+         }
+
+         return `<div class="memo12-building-group">
+           <div class="memo12-building-head">
+             <span>${E(f)}</span><span class="memo12-badge">${list.length}台</span>
+           </div>
+           <div class="memo12-building-body">
+             ${list.map((m,i)=>machineRow(m,childLabel(m,i,list.length),true)).join('')}
+           </div>
+         </div>`;
+       }).join('');
+
+     return `<div class="memo12-area" data-search="${E((a+' '+ams.map(x=>name(x)+' '+meta(x)+' '+fac(x)).join(' ')).toLowerCase())}">
+       <div class="memo12-area-head">
+         <span>${E(a)} <span class="memo12-badge">${ams.length}台</span></span>
+         ${selectMode?`<button class="memo12-btn ghost" onclick="memo121ToggleArea('${E(a)}')">エリア選択</button>`:''}
+       </div>
+       ${facilityHtml}
+     </div>`;
    }).join('');
- }
- window.memo121OpenMachine=function(id){
-   if(selectMode)return;
-   window.memo12OpenMachine(String(id));
  }
  window.memo121StartSelect=function(){
    selectMode=true;
@@ -11836,8 +11952,45 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
 
  function renderMaterialsV121(){
    const d=D();
-   const groups={}; d.manufacturers.forEach(m=>groups[m.id]=[]);
+   const groups={};
+   d.manufacturers.forEach(m=>groups[m.id]=[]);
    d.materials.forEach(x=>(groups[x.manufacturerId]??=[]).push(x));
+
+   const typeOrder=(d.materialTypes||[]).map(x=>x.id);
+   const renderMakerMaterials=(makerId)=>{
+     const mats=[...(groups[makerId]||[])].sort((a,b)=>{
+       const ia=typeOrder.indexOf(a.typeId), ib=typeOrder.indexOf(b.typeId);
+       const oa=ia<0?999:ia, ob=ib<0?999:ib;
+       if(oa!==ob)return oa-ob;
+       return String(a.name||'').localeCompare(String(b.name||''),'ja',{numeric:true});
+     });
+     if(!mats.length)return '<div class="memo12-empty">原料なし</div>';
+
+     const byType={};
+     mats.forEach(x=>{
+       const t=typ(d,x.typeId);
+       (byType[t]??=[]).push(x);
+     });
+
+     const orderedTypes=Object.keys(byType).sort((a,b)=>{
+       const aid=(d.materialTypes||[]).find(x=>x.name===a)?.id;
+       const bid=(d.materialTypes||[]).find(x=>x.name===b)?.id;
+       const ia=typeOrder.indexOf(aid), ib=typeOrder.indexOf(bid);
+       const oa=ia<0?999:ia, ob=ib<0?999:ib;
+       return oa-ob || a.localeCompare(b,'ja');
+     });
+
+     return orderedTypes.map(t=>`
+       <div class="memo12-material-section">
+         <div class="memo12-type-title">${E(t)} <span class="memo12-badge">${byType[t].length}品</span></div>
+         ${byType[t].map(x=>`
+           <div class="memo12-material">
+             <div><b>${E(x.name)}</b></div>
+             <button class="memo12-btn danger" onclick="memo12DeleteMaterial('${E(x.id)}')">削除</button>
+           </div>`).join('')}
+       </div>`).join('');
+   };
+
    content().innerHTML=`<div class="memo12-card"><div class="memo12-section-title">原料マスター</div>
     <div class="memo12-row"><input id="memo12Maker" class="memo12-input" placeholder="メーカー名"><button class="memo12-btn" onclick="memo12AddMaker()">メーカー追加</button></div>
     <div style="margin-top:8px">${d.manufacturers.map(x=>`<span class="memo12-chip">${E(x.name)}</span>`).join('')||'<span class="memo12-sub">メーカー未登録</span>'}</div></div>
@@ -11849,8 +12002,12 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
     <select id="memo121TypeSelect" class="memo12-input">${d.materialTypes.map(x=>`<option value="${E(x.id)}">${E(x.name)}</option>`).join('')}</select></div>
     <input id="memo12MaterialName" class="memo12-input" style="margin-top:8px" placeholder="原料名"><button class="memo12-btn" style="margin-top:8px" onclick="memo121AddMaterial()">原料追加</button></div>
     <div class="memo12-section-title" style="margin-top:16px">メーカー別一覧</div>
-    ${d.manufacturers.length?d.manufacturers.map(m=>`<details class="memo12-maker-group" open><summary class="memo12-group-head">${E(m.name)} <span class="memo12-badge">${(groups[m.id]||[]).length}品</span></summary>
-    <div class="memo12-group-body">${(groups[m.id]||[]).length?(groups[m.id]||[]).map(x=>`<div class="memo12-material"><div><b>${E(x.name)}</b><span class="memo12-pill">${E(typ(d,x.typeId))}</span></div><button class="memo12-btn danger" onclick="memo12DeleteMaterial('${E(x.id)}')">削除</button></div>`).join(''):'<div class="memo12-empty">原料なし</div>'}</div></details>`).join(''):'<div class="memo12-empty">メーカーを登録してください</div>'}`;
+    <div class="memo12-sub" style="margin:-6px 0 8px">メーカーを押すと、豆・パウダー・カップなど種類別に表示します。</div>
+    ${d.manufacturers.length?d.manufacturers.map(m=>`
+      <details class="memo12-maker-group">
+        <summary class="memo12-group-head">${E(m.name)} <span class="memo12-badge">${(groups[m.id]||[]).length}品</span></summary>
+        <div class="memo12-group-body">${renderMakerMaterials(m.id)}</div>
+      </details>`).join(''):'<div class="memo12-empty">メーカーを登録してください</div>'}`;
  }
 
  window.memo12DeleteMaterial=function(id){
@@ -11913,5 +12070,118 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
  }
 })();
 </script>
+
+<script id="memoV123BridgeScript">
+(function(){
+  function enterLegacy(){
+    document.body.classList.remove('memo-v12-mode');
+    document.body.classList.add('memo-legacy-mode');
+    document.getElementById('memoV12App')?.classList.remove('active');
+  }
+
+  window.memo123BackToMemo=function(machineId){
+    try{
+      document.body.classList.remove('memo-legacy-mode');
+      document.body.classList.add('memo-v12-mode');
+      document.getElementById('memoV12App')?.classList.add('active');
+      // Legacy側で登録・編集した最新データをそのまま再読込。
+      if(machineId){
+        window.memo12Show('machines');
+        setTimeout(()=>window.memo12OpenMachine(String(machineId)),0);
+      }else{
+        window.memo12Show('machines');
+      }
+      window.scrollTo(0,0);
+    }catch(e){
+      console.error('memo bridge back',e);
+    }
+  };
+
+  window.memo123OpenMap=function(){
+    try{
+      enterLegacy();
+
+      if(typeof switchPage==='function'){
+        switchPage('map');
+      }else{
+        document.querySelectorAll('.app section').forEach(el=>el.classList.add('hidden'));
+        document.getElementById('mapPage')?.classList.remove('hidden');
+      }
+
+      setTimeout(()=>{
+        try{
+          if(typeof initMap==='function') initMap();
+          if(typeof setMapMode==='function') setMapMode('all');
+          if(typeof map!=='undefined' && map) map.invalidateSize(true);
+          if(typeof refreshMapNow==='function') refreshMapNow(false);
+        }catch(e){console.warn('map refresh',e)}
+      },120);
+
+      window.scrollTo(0,0);
+    }catch(e){
+      console.error(e);
+      alert('地図を開けませんでした。');
+      window.memo123BackToMemo();
+    }
+  };
+
+  window.memo123OpenRegister=function(){
+    try{
+      enterLegacy();
+      if(typeof openRegisterPage==='function') openRegisterPage('map');
+      window.scrollTo(0,0);
+    }catch(e){
+      console.error(e);
+      alert('自販機登録を開けませんでした。');
+      window.memo123BackToMemo();
+    }
+  };
+
+  window.memo123EditMachine=function(id){
+    try{
+      enterLegacy();
+      if(typeof openRegisterPage==='function') openRegisterPage('map',String(id));
+      window.scrollTo(0,0);
+    }catch(e){
+      console.error(e);
+      alert('編集画面を開けませんでした。');
+      window.memo123BackToMemo();
+    }
+  };
+
+  function openMemoFromMap(){
+    try{
+      const id=(typeof selectedMapMachineId!=='undefined' && selectedMapMachineId)
+        ? String(selectedMapMachineId) : '';
+      if(!id){alert('自販機を選択してください。');return}
+      window.memo123BackToMemo(id);
+    }catch(e){
+      console.error(e);
+    }
+  }
+
+  window.addEventListener('load',()=>{
+    const btn=document.getElementById('memoMapMemoBtn');
+    if(btn && !btn.dataset.memoBound){
+      btn.dataset.memoBound='1';
+      btn.addEventListener('click',openMemoFromMap);
+    }
+  });
+
+  // MAPから登録/編集したあとも、旧巡回画面ではなく管理用MAPに留める。
+  const observer=new MutationObserver(()=>{
+    if(!document.body.classList.contains('memo-legacy-mode'))return;
+    const title=document.getElementById('pageTitle')?.textContent||'';
+    if(title==='自販機' && typeof page!=='undefined' && page==='machines'){
+      try{switchPage('map');setMapMode('all')}catch(e){}
+    }
+  });
+  window.addEventListener('load',()=>{
+    const app=document.querySelector('.app');
+    if(app)observer.observe(app,{subtree:true,attributes:true,attributeFilter:['class']});
+  });
+})();
+</script>
+
 </body>
 </html>
