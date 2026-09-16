@@ -2030,6 +2030,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
 .memo12-facility{padding:6px 10px 9px;border-top:1px solid #eef1f5}
 .memo12-facility-name{font-size:13px;font-weight:800;color:#526071;padding:4px 2px 7px}
 .memo12-check{width:30px;height:30px;accent-color:#1677ff}
+.memo12-machine.memo12-pending{border-color:#5aa6ff;background:#eef6ff;box-shadow:0 0 0 2px rgba(22,119,255,.08)}
 .memo12-sticky-confirm{position:fixed;left:12px;right:12px;bottom:72px;z-index:10030;background:#172033;color:white;border:0;border-radius:16px;padding:14px;font-size:15px;font-weight:800;box-shadow:0 8px 24px rgba(0,0,0,.18)}
 .memo12-maker-group,.memo12-type-group{border:1px solid #e4e8ef;border-radius:14px;margin:9px 0;overflow:hidden}
 .memo12-group-head{padding:12px 13px;background:#f8fafc;font-weight:800;display:flex;justify-content:space-between;align-items:center}
@@ -11494,12 +11495,13 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
     if(!Array.isArray(d.materials))d.materials=[];
     if(!Array.isArray(d.manufacturers))d.manufacturers=[];
     if(!Array.isArray(d.routeIds))d.routeIds=[];
+    d.routeIds=d.routeIds.map(String);
     if(!d.machineMaterials)d.machineMaterials={};
     if(!d.machineNeeds)d.machineNeeds={};
     if(!d.machineNotes)d.machineNotes={};
     return d;
   }
-  function machines(){return (baseDb().machines||[]).filter(Boolean)}
+  function machines(){return (baseDb().machines||[]).filter(Boolean).map(m=>({...m,id:String(m.id)}))}
   function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
   function mname(m){return m.name||m.displayName||m.facilityName||m.site||'名称未設定'}
   function meta(m){return [m.middleCategory,m.site,m.number,m.modelName,m.area].filter(Boolean).join('・')}
@@ -11636,7 +11638,7 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
   window.memo12AddMaterial=function(){const n=(document.getElementById('memo12MaterialName')?.value||'').trim(), maker=document.getElementById('memo12MakerSelect')?.value;if(!n||!maker){alert('メーカーと原料名を入力してください');return}const d=state();d.materials.push({id:'mat'+Date.now(),manufacturerId:maker,name:n});save12(d);render()}
   window.memo12DeleteMaterial=function(id){if(!confirm('この原料を削除しますか？'))return;const d=state();d.materials=d.materials.filter(x=>x.id!==id);Object.keys(d.machineMaterials).forEach(k=>d.machineMaterials[k]=(d.machineMaterials[k]||[]).filter(x=>x!==id));Object.keys(d.machineNeeds).forEach(k=>{if(d.machineNeeds[k])delete d.machineNeeds[k][id]});save12(d);render()}
   window.memo12OpenSettings=function(){
-    alert(`Ver.12.1.3 自販機メモ\n\n既存の自販機データは読み取り利用し、削除・変更しません。\n巡回リストは手動でクリアするまで保持します。`);
+    alert(`Ver.12.1.7 自販機メモ\n\n既存の自販機データは読み取り利用し、削除・変更しません。\n巡回リストは手動でクリアするまで保持します。`);
   }
 
   function boot(){
@@ -11654,10 +11656,10 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
  const OLDSTATE=window.memo12Show;
  let selectMode=false, pending=new Set();
 
- function D(){try{let d=JSON.parse(localStorage.getItem('vendingMemoV12')||'{}');d.materials=d.materials||[];d.manufacturers=d.manufacturers||[];d.materialTypes=d.materialTypes||[];d.routeIds=d.routeIds||[];d.machineMaterials=d.machineMaterials||{};d.machineNeeds=d.machineNeeds||{};d.machineNotes=d.machineNotes||{};return d}catch(e){return {materials:[],manufacturers:[],materialTypes:[],routeIds:[],machineMaterials:{},machineNeeds:{},machineNotes:{}}}}
+ function D(){try{let d=JSON.parse(localStorage.getItem('vendingMemoV12')||'{}');d.materials=d.materials||[];d.manufacturers=d.manufacturers||[];d.materialTypes=d.materialTypes||[];d.routeIds=(d.routeIds||[]).map(String);d.machineMaterials=d.machineMaterials||{};d.machineNeeds=d.machineNeeds||{};d.machineNotes=d.machineNotes||{};return d}catch(e){return {materials:[],manufacturers:[],materialTypes:[],routeIds:[],machineMaterials:{},machineNeeds:{},machineNotes:{}}}}
  function S(d){localStorage.setItem('vendingMemoV12',JSON.stringify(d))}
  function B(){try{const v=JSON.parse(localStorage.getItem('vendingRoutePwaV1')||'null');if(v&&Array.isArray(v.machines))return v}catch(e){};return {machines:[],facilities:[],areas:[]}}
- function M(){return (B().machines||[]).filter(Boolean)}
+ function M(){return (B().machines||[]).filter(Boolean).map(m=>({...m,id:String(m.id)}))}
  function E(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
  function name(m){return m.name||m.displayName||m.facilityName||m.site||'名称未設定'}
  function meta(m){return [m.site,m.number,m.modelName,m.area].filter(Boolean).join('・')}
@@ -11716,7 +11718,7 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
     <input id="memo121Search" class="memo12-input" placeholder="施設名・管理番号・エリアで検索" oninput="memo121Filter()">
     <div class="memo12-sub" style="margin-top:8px">${selectMode?'チェックを入れて、最後に下のボタンで確定します。':'自販機を押すと原料メモを開きます。'}</div></div>
     <div id="memo121Grouped">${groupedMachines(ms,d)}</div>
-    ${selectMode?`<button class="memo12-sticky-confirm" onclick="memo121Confirm()">選択した <span id="memo121PendingCount">${pending.size}</span>台を巡回リストに追加</button>`:''}`;
+    ${selectMode?`<button class="memo12-sticky-confirm" onclick="memo121Confirm()">選択した <span id="memo121PendingCount">${pending.size}</span>台で巡回リストを作成</button>`:''}`;
  }
  function groupedMachines(ms,d){
    const areas={};
@@ -11727,24 +11729,56 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
        <div class="memo12-area-head"><span>${E(a)} <span class="memo12-badge">${ams.length}台</span></span>
        ${selectMode?`<button class="memo12-btn ghost" onclick="memo121ToggleArea('${E(a)}')">エリア選択</button>`:''}</div>
        ${Object.keys(areas[a]).sort((x,y)=>x.localeCompare(y,'ja')).map(f=>`<div class="memo12-facility">
-       ${areas[a][f].map(m=>`<div class="memo12-row memo12-machine ${d.routeIds.includes(m.id)?'selected':''}">
-       ${selectMode?`<input class="memo12-check" type="checkbox" data-mid="${E(m.id)}" ${pending.has(m.id)?'checked':''} onchange="memo121Check('${E(m.id)}',this.checked)">`:''}
-       <div style="flex:1" data-mid="${E(m.id)}" onclick="memo121OpenMachine(this.dataset.mid)"><div class="memo12-name">${E(name(m))}</div></div></div>`).join('')}
+       ${areas[a][f].map(m=>`<div class="memo12-row memo12-machine ${d.routeIds.includes(m.id)?'selected':''} ${pending.has(m.id)?'memo12-pending':''}" data-mid="${E(m.id)}" onclick="memo121RowTap(this,event)">
+       ${selectMode?`<input class="memo12-check" type="checkbox" data-mid="${E(m.id)}" ${pending.has(m.id)?'checked':''} onclick="event.stopPropagation()" onchange="memo121Check('${E(m.id)}',this.checked,this.closest('.memo12-machine'))">`:''}
+       <div style="flex:1"><div class="memo12-name">${E(name(m))}</div></div></div>`).join('')}
        </div>`).join('')}</div>`;
    }).join('');
  }
  window.memo121OpenMachine=function(id){
    if(selectMode)return;
-   window.memo12OpenMachine(id);
+   window.memo12OpenMachine(String(id));
  }
- window.memo121StartSelect=function(){selectMode=true;pending=new Set();renderMachinesV121()}
- window.memo121Check=function(id,on){on?pending.add(id):pending.delete(id);const n=document.getElementById('memo121PendingCount');if(n)n.textContent=pending.size}
- window.memo121ToggleArea=function(a){M().filter(m=>area(m)===a).forEach(m=>pending.add(m.id));renderMachinesV121()}
+ window.memo121StartSelect=function(){
+   selectMode=true;
+   const d=D();
+   // すでに作成済みの巡回リストがあればチェック状態を引き継ぎ、編集できる。
+   pending=new Set((d.routeIds||[]).map(String));
+   renderMachinesV121();
+ }
+ window.memo121Check=function(id,on,row){
+   id=String(id);
+   on?pending.add(id):pending.delete(id);
+   if(row)row.classList.toggle('memo12-pending',on);
+   const n=document.getElementById('memo121PendingCount');
+   if(n)n.textContent=pending.size;
+ }
+ window.memo121RowTap=function(row,event){
+   const id=String(row?.dataset?.mid||'');
+   if(!id)return;
+   if(!selectMode){window.memo12OpenMachine(id);return}
+   const cb=row.querySelector('.memo12-check');
+   if(!cb)return;
+   cb.checked=!cb.checked;
+   window.memo121Check(id,cb.checked,row);
+ }
+ window.memo121ToggleArea=function(a){
+   const ids=M().filter(m=>area(m)===a).map(m=>String(m.id));
+   const allSelected=ids.length && ids.every(id=>pending.has(id));
+   ids.forEach(id=>allSelected?pending.delete(id):pending.add(id));
+   renderMachinesV121();
+ }
  window.memo121Confirm=function(){
    if(!pending.size){alert('自販機を選択してください。');return}
-   const d=D(); d.routeIds=[...new Set([...d.routeIds,...pending])]; S(d);
-   alert(`${pending.size}台を巡回リストに追加しました。`);
-   selectMode=false;pending=new Set();renderMachinesV121();
+   const d=D();
+   // 「追加」ではなく、チェックした内容を今回の巡回リストとして確定。
+   d.routeIds=[...pending].map(String);
+   S(d);
+   const count=d.routeIds.length;
+   selectMode=false;
+   pending=new Set();
+   alert(`${count}台で巡回リストを作成しました。`);
+   window.memo12Show('route');
  }
  window.memo121Filter=function(){const q=(document.getElementById('memo121Search')?.value||'').trim().toLowerCase();document.querySelectorAll('#memo121Grouped .memo12-area').forEach(x=>x.style.display=x.dataset.search.includes(q)?'block':'none')}
 
@@ -11766,8 +11800,56 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
     ${d.manufacturers.length?d.manufacturers.map(m=>`<details class="memo12-maker-group" open><summary class="memo12-group-head">${E(m.name)} <span class="memo12-badge">${(groups[m.id]||[]).length}品</span></summary>
     <div class="memo12-group-body">${(groups[m.id]||[]).length?(groups[m.id]||[]).map(x=>`<div class="memo12-material"><div><b>${E(x.name)}</b><span class="memo12-pill">${E(typ(d,x.typeId))}</span></div><button class="memo12-btn danger" onclick="memo12DeleteMaterial('${E(x.id)}')">削除</button></div>`).join(''):'<div class="memo12-empty">原料なし</div>'}</div></details>`).join(''):'<div class="memo12-empty">メーカーを登録してください</div>'}`;
  }
+
+ window.memo12DeleteMaterial=function(id){
+   if(!confirm('この原料を削除しますか？'))return;
+   const d=D();
+   d.materials=d.materials.filter(x=>x.id!==id);
+   Object.keys(d.machineMaterials||{}).forEach(k=>{
+     d.machineMaterials[k]=(d.machineMaterials[k]||[]).filter(x=>x!==id);
+   });
+   Object.keys(d.machineNeeds||{}).forEach(k=>{
+     if(d.machineNeeds[k])delete d.machineNeeds[k][id];
+   });
+   S(d);
+   renderMaterialsV121();
+   setTab('Materials');
+ }
  window.memo121AddType=function(){const n=(document.getElementById('memo121TypeName')?.value||'').trim();if(!n)return;const d=D();d.materialTypes.push({id:'type'+Date.now(),name:n});S(d);renderMaterialsV121()}
- window.memo121AddMaterial=function(){const n=(document.getElementById('memo12MaterialName')?.value||'').trim(),mk=document.getElementById('memo12MakerSelect')?.value,tp=document.getElementById('memo121TypeSelect')?.value;if(!n||!mk||!tp){alert('メーカー・種類・原料名を入力してください。');return}const d=D();d.materials.push({id:'mat'+Date.now(),manufacturerId:mk,typeId:tp,name:n});S(d);renderMaterialsV121()}
+ window.memo121AddMaterial=function(){
+   const n=(document.getElementById('memo12MaterialName')?.value||'').trim();
+   const mk=document.getElementById('memo12MakerSelect')?.value;
+   const tp=document.getElementById('memo121TypeSelect')?.value;
+   if(!n||!mk||!tp){alert('メーカー・種類・原料名を入力してください。');return}
+   const d=D();
+   d.materials.push({id:'mat'+Date.now(),manufacturerId:mk,typeId:tp,name:n});
+   S(d);
+   renderMaterialsV121();
+   // 連続登録しやすいよう、追加前に選んでいたメーカー・種類を維持する。
+   const mkSel=document.getElementById('memo12MakerSelect');
+   const tpSel=document.getElementById('memo121TypeSelect');
+   const nameInput=document.getElementById('memo12MaterialName');
+   if(mkSel)mkSel.value=mk;
+   if(tpSel)tpSel.value=tp;
+   if(nameInput){nameInput.value='';nameInput.focus();}
+ }
+
+ // 原料を削除しても原料タブから移動しない。
+ // 旧Ver.12.0の delete 関数は内部 render() を呼び、古い view 状態に戻ってしまっていた。
+ window.memo12DeleteMaterial=function(id){
+   if(!confirm('この原料を削除しますか？'))return;
+   const d=D();
+   d.materials=d.materials.filter(x=>String(x.id)!==String(id));
+   Object.keys(d.machineMaterials||{}).forEach(k=>{
+     d.machineMaterials[k]=(d.machineMaterials[k]||[]).filter(x=>String(x)!==String(id));
+   });
+   Object.keys(d.machineNeeds||{}).forEach(k=>{
+     if(d.machineNeeds[k]) delete d.machineNeeds[k][id];
+   });
+   S(d);
+   renderMaterialsV121();
+   setTab('Materials');
+ }
 
  function renderLoadV121(){
    const d=D(), ids=new Set(d.routeIds), totals={};
