@@ -2025,7 +2025,7 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
 </style>
 
 <style id="memoV121Style">
-.memo12-area{background:#fff;border:1px solid #e1e6ee;border-radius:16px;margin:10px 0;overflow:hidden}
+.memo12-area{background:#fff;border:1px solid #e1e6ee;border-radius:16px;margin:14px 0 20px;overflow:hidden;clear:both}
 .memo12-area-head{padding:13px 14px;font-weight:800;display:flex;align-items:center;justify-content:space-between;background:#f8fafc}
 .memo12-facility{padding:6px 10px 9px;border-top:1px solid #eef1f5}
 .memo12-facility-name{font-size:13px;font-weight:800;color:#526071;padding:4px 2px 7px}
@@ -2109,6 +2109,13 @@ body.memo-v12-mode #memo12TabMap:not(.on)::before{
   content:"⌖ ";
   font-weight:900;
 }
+</style>
+
+
+<style id="memoV1233Style">
+.memo12-area + .memo12-area{margin-top:22px}
+.memo12-area-head{position:relative;z-index:1}
+.memo12-building-group{margin-bottom:12px}
 </style>
 
 </head>
@@ -11757,7 +11764,7 @@ body.memo-v12-mode > *:not(#memoV12App):not(#memoBridgeBack):not(script):not(sty
   window.memo12AddMaterial=function(){const n=(document.getElementById('memo12MaterialName')?.value||'').trim(), maker=document.getElementById('memo12MakerSelect')?.value;if(!n||!maker){alert('メーカーと原料名を入力してください');return}const d=state();d.materials.push({id:'mat'+Date.now(),manufacturerId:maker,name:n});save12(d);render()}
   window.memo12DeleteMaterial=function(id){if(!confirm('この原料を削除しますか？'))return;const d=state();d.materials=d.materials.filter(x=>x.id!==id);Object.keys(d.machineMaterials).forEach(k=>d.machineMaterials[k]=(d.machineMaterials[k]||[]).filter(x=>x!==id));Object.keys(d.machineNeeds).forEach(k=>{if(d.machineNeeds[k])delete d.machineNeeds[k][id]});save12(d);render()}
   window.memo12OpenSettings=function(){
-    alert(`Ver.12.3.2 自販機メモ\n\n既存の自販機データは読み取り利用し、削除・変更しません。\n巡回リストは手動でクリアするまで保持します。`);
+    alert(`Ver.12.3.3 自販機メモ\n\n既存の自販機データは読み取り利用し、削除・変更しません。\n巡回リストは手動でクリアするまで保持します。`);
   }
 
   function boot(){
@@ -11796,14 +11803,16 @@ body.memo-v12-mode > *:not(#memoV12App):not(#memoBridgeBack):not(script):not(sty
    )||null;
  }
  function fac(m){
-   const f=legacyFacility(m);
-   // 施設は旧アプリと同じく施設マスター/設置先施設名を優先。
-   return f?.name||m.name||m.facilityName||'施設未設定';
+   // 同一建物の括りは「自販機の表示名称が完全一致」の時だけ。
+   return String(m?.name||m?.displayName||m?.facilityName||'施設未設定').trim()||'施設未設定';
  }
  function area(m){
+   // エリアは各自販機自身の保存値を最優先。
+   // 同名でも宇多津/坂出など別エリアなら混ぜない。
+   const own=String(m?.area||'').trim();
+   if(own)return own;
    const f=legacyFacility(m);
-   // 旧施設マスターのエリアを最優先。なければ自販機のarea。
-   return String(f?.area||m.area||'エリア未設定').trim()||'エリア未設定';
+   return String(f?.area||'エリア未設定').trim()||'エリア未設定';
  }
 
  function ensureDefaults(){
@@ -11846,7 +11855,9 @@ body.memo-v12-mode > *:not(#memoV12App):not(#memoBridgeBack):not(script):not(sty
  function groupedMachines(ms,d){
    const areas={};
    ms.forEach(m=>{
-     const a=area(m), f=fac(m);
+     const a=area(m);
+     const f=fac(m);
+     // まずエリアで分け、その中で名称完全一致だけをまとめる。
      areas[a]??={};
      areas[a][f]??=[];
      areas[a][f].push(m);
