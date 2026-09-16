@@ -2036,6 +2036,20 @@ body.test-mode-active #shiftState::after{content:" TEST";font-size:10px;margin-l
 .memo12-group-head{padding:12px 13px;background:#f8fafc;font-weight:800;display:flex;justify-content:space-between;align-items:center}
 .memo12-group-body{padding:0 12px}
 .memo12-pill{font-size:11px;background:#eef4ff;color:#1769aa;border-radius:999px;padding:4px 7px;margin-left:5px}
+
+.memo12-material-section{margin-top:12px}
+.memo12-type-title{font-size:14px;font-weight:800;color:#526071;margin:12px 0 6px}
+.memo12-material-row{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eef1f5;padding:10px 0}
+.memo12-material-main{min-width:0}
+.memo12-material-name{font-weight:800}
+.memo12-material-maker{font-size:12px;color:#8a94a3;margin-top:2px}
+.memo12-zero-block{margin-top:12px}
+.memo12-zero-summary{font-weight:800;padding:10px 0;cursor:pointer}
+.memo12-assign-maker{border:1px solid #e4e8ef;border-radius:14px;margin:10px 0;overflow:hidden;background:#fff}
+.memo12-assign-maker>summary{padding:12px 13px;font-weight:800;background:#f8fafc;cursor:pointer}
+.memo12-assign-body{padding:4px 12px 10px}
+.memo12-assign-type{font-size:13px;font-weight:800;color:#526071;margin:10px 0 6px}
+.memo12-chip.on{background:#dcebff;border-color:#4a9cff;color:#075fae;box-shadow:0 0 0 1px rgba(22,119,255,.08) inset}
 </style>
 </head>
 <body>
@@ -11582,12 +11596,35 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
     const assigned=d.machineMaterials[id]||[];
     const needs=d.machineNeeds[id]||{};
     const mats=d.materials.filter(x=>assigned.includes(x.id));
+    const typeOrder=(d.materialTypes||[]).map(x=>x.id);
+    const typeName=(typeId)=>(d.materialTypes||[]).find(y=>y.id===typeId)?.name||'その他';
+    const sortMats=(arr)=>[...arr].sort((a,b)=>{
+      const ia=typeOrder.indexOf(a.typeId), ib=typeOrder.indexOf(b.typeId);
+      const oa=ia<0?999:ia, ob=ib<0?999:ib;
+      if(oa!==ob)return oa-ob;
+      const mc=manufacturerName(d,a.manufacturerId).localeCompare(manufacturerName(d,b.manufacturerId),'ja');
+      if(mc)return mc;
+      return String(a.name||'').localeCompare(String(b.name||''),'ja',{numeric:true});
+    });
+    const rows=(arr)=>{
+      if(!arr.length)return '';
+      const grouped={};
+      sortMats(arr).forEach(x=>{const t=typeName(x.typeId);(grouped[t]??=[]).push(x)});
+      return Object.entries(grouped).map(([t,list])=>`<div class="memo12-material-section">
+        <div class="memo12-type-title">${esc(t)}</div>
+        ${list.map(x=>`<div class="memo12-material-row"><div class="memo12-material-main"><div class="memo12-material-name">${esc(x.name)}</div><div class="memo12-material-maker">${esc(manufacturerName(d,x.manufacturerId))}</div></div>
+        <div class="memo12-qty"><button class="memo12-mini" onclick="memo12Qty('${esc(id)}','${esc(x.id)}',-1)">−</button><b>${Number(needs[x.id]||0)}</b><button class="memo12-mini" onclick="memo12Qty('${esc(id)}','${esc(x.id)}',1)">＋</button></div></div>`).join('')}
+      </div>`).join('');
+    };
+    const positive=mats.filter(x=>Number(needs[x.id]||0)>0);
+    const zero=mats.filter(x=>Number(needs[x.id]||0)<=0);
     const c=document.getElementById('memo12Content');
     c.innerHTML=`<button class="memo12-btn ghost" onclick="memo12Show('${view}')">← 戻る</button>
       <div class="memo12-card"><div class="memo12-name" style="font-size:19px">${esc(mname(m))}</div><div class="memo12-meta">${esc(meta(m))}</div></div>
       <div class="memo12-card"><div class="memo12-section-title">必要な原料</div>
-        ${mats.length?mats.map(x=>`<div class="memo12-material"><div><b>${esc(x.name)}</b><div class="memo12-meta">${esc(manufacturerName(d,x.manufacturerId))}</div></div>
-          <div class="memo12-qty"><button class="memo12-mini" onclick="memo12Qty('${esc(id)}','${esc(x.id)}',-1)">−</button><b>${Number(needs[x.id]||0)}</b><button class="memo12-mini" onclick="memo12Qty('${esc(id)}','${esc(x.id)}',1)">＋</button></div></div>`).join(''):'<div class="memo12-empty">この自販機の使用原料がまだ設定されていません</div>'}
+        ${positive.length?`<div class="memo12-type-title" style="font-size:15px;color:#172033">必要数あり</div>${rows(positive)}`:'<div class="memo12-empty" style="padding:12px 8px">必要数が入っている原料はありません</div>'}
+        ${zero.length?`<details class="memo12-zero-block"><summary class="memo12-zero-summary">その他（0個） ${zero.length}品</summary>${rows(zero)}</details>`:''}
+        ${!mats.length?'<div class="memo12-empty">この自販機の使用原料がまだ設定されていません</div>':''}
         <button class="memo12-btn ghost" style="margin-top:10px" onclick="memo12AssignMaterials('${esc(id)}')">使用原料を設定</button>
       </div>
       <div class="memo12-card"><div class="memo12-section-title">自分用メモ</div><textarea id="memo12Note" class="memo12-input" rows="4" placeholder="自由メモ">${esc(d.machineNotes[id]||'')}</textarea>
@@ -11604,10 +11641,25 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
     const d=state();
     if(!d.materials.length){alert('先に「原料」タブで原料を登録してください。');return}
     const assigned=new Set(d.machineMaterials[mid]||[]);
+    const typeOrder=(d.materialTypes||[]).map(x=>x.id);
+    const typeName=(typeId)=>(d.materialTypes||[]).find(y=>y.id===typeId)?.name||'その他';
+    const makerIds=[...new Set(d.materials.map(x=>x.manufacturerId))];
+    makerIds.sort((a,b)=>manufacturerName(d,a).localeCompare(manufacturerName(d,b),'ja'));
+    const block=makerIds.map(makerId=>{
+      const makerMats=d.materials.filter(x=>x.manufacturerId===makerId);
+      const byType={};
+      makerMats.forEach(x=>{const t=typeName(x.typeId);(byType[t]??=[]).push(x)});
+      const typeIds=[...new Set(makerMats.map(x=>x.typeId))].sort((a,b)=>{
+        const ia=typeOrder.indexOf(a), ib=typeOrder.indexOf(b);
+        return (ia<0?999:ia)-(ib<0?999:ib);
+      });
+      const selectedCount=makerMats.filter(x=>assigned.has(x.id)).length;
+      return `<details class="memo12-assign-maker" ${selectedCount?'open':''}><summary>${esc(manufacturerName(d,makerId))} <span class="memo12-badge">${selectedCount}/${makerMats.length}</span></summary>
+        <div class="memo12-assign-body">${typeIds.map(typeId=>{const t=typeName(typeId);const list=(byType[t]||[]).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'ja',{numeric:true}));return `<div class="memo12-assign-type">${esc(t)}</div><div>${list.map(x=>`<button class="memo12-chip ${assigned.has(x.id)?'on':''}" onclick="memo12ToggleAssigned('${esc(mid)}','${esc(x.id)}')">${assigned.has(x.id)?'✓ ':''}${esc(x.name)}</button>`).join('')}</div>`}).join('')}</div>
+      </details>`;
+    }).join('');
     const c=document.getElementById('memo12Content');
-    c.innerHTML=`<button class="memo12-btn ghost" onclick="memo12OpenMachine('${esc(mid)}')">← 戻る</button><div class="memo12-card"><div class="memo12-section-title">使用原料を設定</div>
-      ${d.materials.map(x=>`<button class="memo12-chip ${assigned.has(x.id)?'on':''}" onclick="memo12ToggleAssigned('${esc(mid)}','${esc(x.id)}')">${esc(manufacturerName(d,x.manufacturerId))}｜${esc(x.name)}</button>`).join('')}
-      </div>`;
+    c.innerHTML=`<button class="memo12-btn ghost" onclick="memo12OpenMachine('${esc(mid)}')">← 戻る</button><div class="memo12-card"><div class="memo12-section-title">使用原料を設定</div><div class="memo12-sub">メーカー → 種類 → 原料の順で表示しています。</div>${block}</div>`;
   }
   window.memo12ToggleAssigned=function(mid,matid){
     const d=state(), a=new Set(d.machineMaterials[mid]||[]);
@@ -11638,7 +11690,7 @@ body.memo-v12-mode > *:not(#memoV12App):not(script):not(style){display:none!impo
   window.memo12AddMaterial=function(){const n=(document.getElementById('memo12MaterialName')?.value||'').trim(), maker=document.getElementById('memo12MakerSelect')?.value;if(!n||!maker){alert('メーカーと原料名を入力してください');return}const d=state();d.materials.push({id:'mat'+Date.now(),manufacturerId:maker,name:n});save12(d);render()}
   window.memo12DeleteMaterial=function(id){if(!confirm('この原料を削除しますか？'))return;const d=state();d.materials=d.materials.filter(x=>x.id!==id);Object.keys(d.machineMaterials).forEach(k=>d.machineMaterials[k]=(d.machineMaterials[k]||[]).filter(x=>x!==id));Object.keys(d.machineNeeds).forEach(k=>{if(d.machineNeeds[k])delete d.machineNeeds[k][id]});save12(d);render()}
   window.memo12OpenSettings=function(){
-    alert(`Ver.12.1.7 自販機メモ\n\n既存の自販機データは読み取り利用し、削除・変更しません。\n巡回リストは手動でクリアするまで保持します。`);
+    alert(`Ver.12.2.0 自販機メモ\n\n既存の自販機データは読み取り利用し、削除・変更しません。\n巡回リストは手動でクリアするまで保持します。`);
   }
 
   function boot(){
