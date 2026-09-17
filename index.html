@@ -11704,11 +11704,17 @@ body.memo-v12-mode > *:not(#memoV12App):not(#memoBridgeBack):not(script):not(sty
       <div class="memo12-card"><div class="memo12-section-title">自分用メモ</div><textarea id="memo12Note" class="memo12-input" rows="4" placeholder="自由メモ">${esc(d.machineNotes[id]||'')}</textarea>
       <button class="memo12-btn" style="margin-top:8px" onclick="memo12SaveNote('${esc(id)}')">メモを保存</button></div>`;
   }
-  window.memo12Qty=function(mid,matid,delta){
-    const d=state(); if(!d.machineNeeds[mid])d.machineNeeds[mid]={};
-    d.machineNeeds[mid][matid]=Math.max(0,Number(d.machineNeeds[mid][matid]||0)+delta);
-    if(!d.machineNeeds[mid][matid])delete d.machineNeeds[mid][matid];
-    save12(d); memo12OpenMachine(mid);
+  window.memo12Qty=function(mid,matid,delta,btn){
+    const d=state();
+    if(!d.machineNeeds[mid])d.machineNeeds[mid]={};
+    const next=Math.max(0,Number(d.machineNeeds[mid][matid]||0)+delta);
+    if(next>0)d.machineNeeds[mid][matid]=next;
+    else delete d.machineNeeds[mid][matid];
+    save12(d);
+
+    const row=btn?.closest('.memo12-material-row');
+    const num=row?.querySelector('[data-qty-value]');
+    if(num)num.textContent=String(next);
   }
   window.memo12SaveNote=function(mid){const d=state();d.machineNotes[mid]=document.getElementById('memo12Note')?.value||'';save12(d);alert('メモを保存しました')}
   window.memo12AssignMaterials=function(mid){
@@ -11764,7 +11770,7 @@ body.memo-v12-mode > *:not(#memoV12App):not(#memoBridgeBack):not(script):not(sty
   window.memo12AddMaterial=function(){const n=(document.getElementById('memo12MaterialName')?.value||'').trim(), maker=document.getElementById('memo12MakerSelect')?.value;if(!n||!maker){alert('メーカーと原料名を入力してください');return}const d=state();d.materials.push({id:'mat'+Date.now(),manufacturerId:maker,name:n});save12(d);render()}
   window.memo12DeleteMaterial=function(id){if(!confirm('この原料を削除しますか？'))return;const d=state();d.materials=d.materials.filter(x=>x.id!==id);Object.keys(d.machineMaterials).forEach(k=>d.machineMaterials[k]=(d.machineMaterials[k]||[]).filter(x=>x!==id));Object.keys(d.machineNeeds).forEach(k=>{if(d.machineNeeds[k])delete d.machineNeeds[k][id]});save12(d);render()}
   window.memo12OpenSettings=function(){
-    alert(`Ver.12.3.3 自販機メモ\n\n既存の自販機データは読み取り利用し、削除・変更しません。\n巡回リストは手動でクリアするまで保持します。`);
+    alert(`Ver.12.3.4 自販機メモ\n\n既存の自販機データは読み取り利用し、削除・変更しません。\n巡回リストは手動でクリアするまで保持します。`);
   }
 
   function boot(){
