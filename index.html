@@ -11683,7 +11683,7 @@ body.memo-v12-mode > *:not(#memoV12App):not(#memoBridgeBack):not(script):not(sty
       return Object.entries(grouped).map(([t,list])=>`<div class="memo12-material-section">
         <div class="memo12-type-title">${esc(t)}</div>
         ${list.map(x=>`<div class="memo12-material-row"><div class="memo12-material-main"><div class="memo12-material-name">${esc(x.name)}</div><div class="memo12-material-maker">${esc(manufacturerName(d,x.manufacturerId))}</div></div>
-        <div class="memo12-qty"><button class="memo12-mini" onclick="memo12Qty('${esc(id)}','${esc(x.id)}',-1)">−</button><b>${Number(needs[x.id]||0)}</b><button class="memo12-mini" onclick="memo12Qty('${esc(id)}','${esc(x.id)}',1)">＋</button></div></div>`).join('')}
+        <div class="memo12-qty"><button class="memo12-mini" onclick="memo12Qty('${esc(id)}','${esc(x.id)}',-1,this)">−</button><b data-qty-value>${Number(needs[x.id]||0)}</b><button class="memo12-mini" onclick="memo12Qty('${esc(id)}','${esc(x.id)}',1,this)">＋</button></div></div>`).join('')}
       </div>`).join('');
     };
     const positive=mats.filter(x=>Number(needs[x.id]||0)>0);
@@ -11697,7 +11697,7 @@ body.memo-v12-mode > *:not(#memoV12App):not(#memoBridgeBack):not(script):not(sty
       </div>
       <div class="memo12-card"><div class="memo12-section-title">必要な原料</div>
         ${positive.length?`<div class="memo12-type-title" style="font-size:15px;color:#172033">必要数あり</div>${rows(positive)}`:'<div class="memo12-empty" style="padding:12px 8px">必要数が入っている原料はありません</div>'}
-        ${zero.length?`<details class="memo12-zero-block"><summary class="memo12-zero-summary">その他（0個） ${zero.length}品</summary>${rows(zero)}</details>`:''}
+        ${zero.length?`<details class="memo12-zero-block"><summary class="memo12-zero-summary">その他 ${zero.length}品</summary>${rows(zero)}</details>`:''}
         ${!mats.length?'<div class="memo12-empty">この自販機の使用原料がまだ設定されていません</div>':''}
         <button class="memo12-btn ghost" style="margin-top:10px" onclick="memo12AssignMaterials('${esc(id)}')">使用原料を設定</button>
       </div>
@@ -11770,7 +11770,7 @@ body.memo-v12-mode > *:not(#memoV12App):not(#memoBridgeBack):not(script):not(sty
   window.memo12AddMaterial=function(){const n=(document.getElementById('memo12MaterialName')?.value||'').trim(), maker=document.getElementById('memo12MakerSelect')?.value;if(!n||!maker){alert('メーカーと原料名を入力してください');return}const d=state();d.materials.push({id:'mat'+Date.now(),manufacturerId:maker,name:n});save12(d);render()}
   window.memo12DeleteMaterial=function(id){if(!confirm('この原料を削除しますか？'))return;const d=state();d.materials=d.materials.filter(x=>x.id!==id);Object.keys(d.machineMaterials).forEach(k=>d.machineMaterials[k]=(d.machineMaterials[k]||[]).filter(x=>x!==id));Object.keys(d.machineNeeds).forEach(k=>{if(d.machineNeeds[k])delete d.machineNeeds[k][id]});save12(d);render()}
   window.memo12OpenSettings=function(){
-    alert(`Ver.12.3.4 自販機メモ\n\n既存の自販機データは読み取り利用し、削除・変更しません。\n巡回リストは手動でクリアするまで保持します。`);
+    alert(`Ver.12.3.5 自販機メモ\n\n既存の自販機データは読み取り利用し、削除・変更しません。\n巡回リストは手動でクリアするまで保持します。`);
   }
 
   function boot(){
